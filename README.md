@@ -61,7 +61,7 @@ pnpm proto:gen   # writes packages/proto/gen (gitignored)
 shadcn components live in `packages/ui`:
 
 ```sh
-cd packages/ui && pnpm dlx shadcn@latest add <component>
+pnpm --filter @mesh/ui ui:add <component>
 ```
 
 Import them from apps as `@mesh/ui/components/<component>`.

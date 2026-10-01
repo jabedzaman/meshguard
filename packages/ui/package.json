@@ -11,7 +11,8 @@
     "./hooks/*": "./src/hooks/*.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ui:add": "node scripts/add.mjs"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4",
