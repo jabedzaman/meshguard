@@ -1,37 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { serverAuthClient } from "~/lib/auth-server";
 
 const PUBLIC_ROUTES = new Set(["/sign-in", "/sign-up"]);
 
-// Server-side URL of the API. Inside Docker this is the service name, which
-// the browser can't reach, so it's separate from NEXT_PUBLIC_API_URL.
-const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-async function hasSession(cookie: string | null): Promise<boolean> {
-  if (!cookie) return false;
-  try {
-    const res = await fetch(`${API_URL}/api/auth/get-session`, {
-      headers: { cookie },
-      cache: "no-store",
-    });
-    if (!res.ok) return false;
-    const body: unknown = await res.json();
-    return body !== null;
-  } catch {
-    return false;
-  }
-}
-
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname.replace(/\/+$/, "") || "/";
-  const signedIn = await hasSession(request.headers.get("cookie"));
 
-  if (!signedIn && !PUBLIC_ROUTES.has(pathname)) {
+  // Treat an unreachable API as signed out rather than failing the request.
+  const { data: session } = await serverAuthClient
+    .getSession({ fetchOptions: { headers: { cookie: request.headers.get("cookie") ?? "" } } })
+    .catch(() => ({ data: null }));
+
+  if (!session && !PUBLIC_ROUTES.has(pathname)) {
     return NextResponse.redirect(
       new URL(`/sign-in?redirectTo=${encodeURIComponent(pathname)}`, request.url),
     );
   }
 
-  if (signedIn && PUBLIC_ROUTES.has(pathname)) {
+  if (session && PUBLIC_ROUTES.has(pathname)) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
