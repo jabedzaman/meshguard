@@ -1,11 +1,14 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
+import { requestId } from "hono/request-id";
 import type { Auth } from "@mesh/auth";
 import type { Db } from "@mesh/db";
-import type { AppEnv } from "~/env";
-import { sessionMiddleware } from "~/middleware/auth";
-import { networksRoutes } from "~/routes/networks";
+import { createServices } from "@mesh/server-core";
+import { sessionMiddleware } from "~/middlewares/auth.middleware";
+import { errorHandler, notFoundHandler } from "~/middlewares/error.middleware";
+import { loggingMiddleware } from "~/middlewares/logging.middleware";
+import { networksRoutes } from "~/modules/networks/networks.routes";
+import type { AppEnv } from "~/types";
 
 export interface AppDeps {
   db: Db;
@@ -17,13 +20,25 @@ export interface AppDeps {
 // Routes must be chained so their types accumulate into AppType, which
 // @mesh/api-client uses to type every request and response.
 export function createApp({ db, auth, corsOrigins }: AppDeps) {
+  const services = createServices(db);
+
+  const v1 = new Hono<AppEnv>().route("/networks", networksRoutes);
+
   return new Hono<AppEnv>()
-    .use(logger())
-    .use(cors({ origin: corsOrigins, credentials: true }))
+    .onError(errorHandler)
+    .notFound(notFoundHandler)
+    .use(requestId())
+    .use(loggingMiddleware)
+    .use(cors({ origin: corsOrigins, credentials: true, exposeHeaders: ["X-Request-Id"] }))
     .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
+    .use(async (c, next) => {
+      c.set("services", services);
+      await next();
+    })
     .use(sessionMiddleware(auth))
     .get("/healthz", (c) => c.json({ ok: true }))
-    .route("/v1/networks", networksRoutes(db));
+    .route("/v1", v1);
 }
 
 export type AppType = ReturnType<typeof createApp>;
+export type { ErrorBody } from "~/middlewares/error.middleware";

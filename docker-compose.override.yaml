@@ -40,6 +40,8 @@ services:
       - ./packages/auth/dist:/app/packages/auth/dist
       - ./packages/config/dist:/app/packages/config/dist
       - ./packages/db/dist:/app/packages/db/dist
+      - ./packages/server-core/dist:/app/packages/server-core/dist
+      - ./packages/utils/dist:/app/packages/utils/dist
 
   web:
     container_name: mesh-web
