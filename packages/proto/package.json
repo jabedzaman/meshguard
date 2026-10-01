@@ -1,0 +1,9 @@
+{
+  "name": "@mesh/proto",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "gen": "buf generate",
+    "lint": "buf lint"
+  }
+}

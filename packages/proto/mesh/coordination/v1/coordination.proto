@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package mesh.coordination.v1;
+
+import "mesh/device/v1/device.proto";
+
+// Agent <-> control plane. Requests are authenticated with the device's
+// identity key, never with a user session.
+service CoordinationService {
+  // Exchange a one-time enrollment token for a device record.
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+  // Long-lived stream of network map updates for this device.
+  rpc WatchNetworkMap(WatchNetworkMapRequest) returns (stream NetworkMap);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message EnrollRequest {
+  string enrollment_token = 1;
+  string hostname = 2;
+  mesh.device.v1.Platform platform = 3;
+  string identity_public_key = 4;
+  string wireguard_public_key = 5;
+}
+
+message EnrollResponse {
+  mesh.device.v1.Device device = 1;
+}
+
+message WatchNetworkMapRequest {}
+
+message Peer {
+  mesh.device.v1.Device device = 1;
+  // Candidate "host:port" UDP endpoints, best first.
+  repeated string endpoints = 2;
+  repeated string allowed_ips = 3;
+}
+
+message NetworkMap {
+  mesh.device.v1.Device self = 1;
+  repeated Peer peers = 2;
+  // Monotonic; agents ignore maps older than the one applied.
+  uint64 version = 3;
+}
+
+message HeartbeatRequest {
+  repeated string local_endpoints = 1;
+}
+
+message HeartbeatResponse {}

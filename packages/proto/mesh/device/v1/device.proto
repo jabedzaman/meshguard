@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package mesh.device.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum Platform {
+  PLATFORM_UNSPECIFIED = 0;
+  PLATFORM_DARWIN = 1;
+  PLATFORM_LINUX = 2;
+  PLATFORM_WINDOWS = 3;
+}
+
+message Device {
+  string id = 1;
+  string network_id = 2;
+  string name = 3;
+  string hostname = 4;
+  Platform platform = 5;
+  string mesh_ipv4 = 6;
+  string mesh_ipv6 = 7;
+  // Base64 Curve25519 public key.
+  string wireguard_public_key = 8;
+  google.protobuf.Timestamp last_seen_at = 9;
+}

@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package mesh.agent.v1;
+
+import "mesh/device/v1/device.proto";
+
+// Local API served by the agent over a Unix domain socket to the desktop app
+// and CLI.
+service AgentService {
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}
+
+message GetStatusRequest {}
+
+enum ConnectionState {
+  CONNECTION_STATE_UNSPECIFIED = 0;
+  CONNECTION_STATE_DISCONNECTED = 1;
+  CONNECTION_STATE_CONNECTING = 2;
+  CONNECTION_STATE_CONNECTED = 3;
+}
+
+message GetStatusResponse {
+  string version = 1;
+  ConnectionState state = 2;
+  mesh.device.v1.Device self = 3;
+  repeated mesh.device.v1.Device peers = 4;
+}
