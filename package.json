@@ -1,0 +1,28 @@
+{
+  "name": "mesh",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "infra:up": "docker compose -f infra/docker/compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker/compose.yml down",
+    "proto:gen": "pnpm --filter @mesh/proto gen"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "prettier": "^3.9.9",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.15",
+    "turbo": "^2.11.6",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+bin/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Rust / Tauri
+target/
+
+# Generated protobuf code
+packages/proto/gen/
