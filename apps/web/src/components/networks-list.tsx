@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { getErrorMessage } from "@mesh/api-client";
 import { networkQueries } from "~/lib/queries";
 
 export function NetworksList({ organizationId }: { organizationId: string }) {
@@ -8,7 +9,9 @@ export function NetworksList({ organizationId }: { organizationId: string }) {
 
   if (isPending) return <p className="text-muted-foreground text-sm">Loading networks…</p>;
   if (error)
-    return <p className="text-destructive text-sm">Failed to load networks: {error.message}</p>;
+    return (
+      <p className="text-destructive text-sm">Failed to load networks: {getErrorMessage(error)}</p>
+    );
   if (networks.length === 0)
     return <p className="text-muted-foreground text-sm">No networks yet.</p>;
 
