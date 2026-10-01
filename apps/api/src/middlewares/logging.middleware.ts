@@ -14,7 +14,8 @@ export const loggingMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     status,
     durationMs: Math.round(performance.now() - start),
   };
-  if (status >= 500) logger.error(fields, "request failed");
-  else if (status >= 400) logger.warn(fields, "request rejected");
-  else logger.info(fields, "request");
+  const message = `${fields.method} ${fields.path} ${status} ${fields.durationMs}ms`;
+  if (status >= 500) logger.error(fields, message);
+  else if (status >= 400) logger.warn(fields, message);
+  else logger.info(fields, message);
 });

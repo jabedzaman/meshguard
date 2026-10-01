@@ -17,7 +17,13 @@ export function createLogger(name: string): Logger {
     ? {
         target: "pino-pretty",
         level: LOG_LEVEL,
-        options: { colorize: true, translateTime: "SYS:standard", ignore: "pid,hostname" },
+        options: {
+          colorize: true,
+          singleLine: true,
+          translateTime: "SYS:HH:MM:ss.l",
+          // method/path/status/durationMs are already in the request log message.
+          ignore: "pid,hostname,app,env,method,path,status,durationMs",
+        },
       }
     : { target: "pino/file", level: LOG_LEVEL, options: { destination: 1 } };
 
