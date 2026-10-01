@@ -1,3 +1,11 @@
 packages:
   - apps/*
   - packages/*
+
+# Shared versions so every package resolves the same React (and with it a
+# single copy of React-dependent libraries like react-hook-form).
+catalog:
+  react: 19.2.8
+  react-dom: 19.2.8
+  "@types/react": ^19
+  "@types/react-dom": ^19
