@@ -59,7 +59,7 @@ services:
       api:
         condition: service_started
     volumes:
-      - ./apps/web/app:/app/apps/web/app
+      - ./apps/web/src:/app/apps/web/src
       - ./apps/web/public:/app/apps/web/public
       - ./packages/ui/src:/app/packages/ui/src
       - ./packages/api-client/dist:/app/packages/api-client/dist
