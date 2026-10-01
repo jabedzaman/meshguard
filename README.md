@@ -69,3 +69,28 @@ pnpm --filter @mesh/ui ui:add <component>
 Import them from apps as `@mesh/ui/components/<component>`.
 
 
+
+## API structure
+
+```
+apps/api/src/
+  app.ts                      middleware order, error handlers, route mounting
+  modules/<feature>/
+    <feature>.routes.ts       paths → controller handlers
+    <feature>.controller.ts   validate input, call a service, shape the response
+  schemas/params.schema.ts    shared path params (idParams, userIdParams)
+  middlewares/                auth, error, logging
+  lib/                        factory, validator, logger
+packages/server-core/src/
+  services/<feature>/         database logic; throws AppError subclasses
+  errors.ts                   AppError, NotFoundError, ValidationError, ...
+```
+
+Controllers use `factory.createHandlers()` so the typed client keeps inferring
+params and responses. Errors are returned as
+`{ "error": { "code", "message", "details?", "requestId" } }`. Log with
+`createLogger` from `@mesh/utils`, never `console`.
+
+## Progress
+
+Goals, milestones and open decisions are tracked in [docs/progress.md](docs/progress.md).
