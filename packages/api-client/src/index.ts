@@ -1,6 +1,7 @@
 import { hc } from "hono/client";
 import type { AppType } from "@mesh/api";
 
+export { DetailedError, parseResponse } from "hono/client";
 export type { InferRequestType, InferResponseType } from "hono/client";
 
 export interface ApiClientOptions {
