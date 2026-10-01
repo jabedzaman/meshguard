@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "watch": "turbo run watch",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -19,8 +19,7 @@
     "docker:up": "pnpm build:packages && docker compose up -d",
     "docker:down": "docker compose down",
     "docker:restart": "docker compose down && pnpm build:packages && docker compose up -d",
-    "docker:remove": "docker compose down --rmi all --volumes --remove-orphans",
-    "docker:infra": "docker compose -f docker-compose.yaml up -d"
+    "docker:remove": "docker compose down --rmi all --volumes --remove-orphans"
   },
   "devDependencies": {
     "@types/node": "^20",

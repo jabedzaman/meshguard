@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "go build -o bin/mesh-relay ./cmd/mesh-relay",
-    "dev": "go run ./cmd/mesh-relay",
+    "start": "go run ./cmd/mesh-relay",
     "lint": "go vet ./...",
     "test": "go test ./..."
   }

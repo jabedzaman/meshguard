@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "go build -o bin/mesh ./cmd/mesh",
-    "dev": "go run ./cmd/mesh",
+    "start": "go run ./cmd/mesh",
     "lint": "go vet ./...",
     "test": "go test ./..."
   }

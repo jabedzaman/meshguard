@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch",
+    "watch": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "auth:generate": "auth generate --config auth.cli.ts --output ../db/src/schema/auth.ts --yes"
   },

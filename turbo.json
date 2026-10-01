@@ -13,13 +13,6 @@
         "bin/**"
       ]
     },
-    "dev": {
-      "cache": false,
-      "persistent": true,
-      "dependsOn": [
-        "^build"
-      ]
-    },
     "lint": {
       "dependsOn": [
         "^lint"
@@ -31,6 +24,13 @@
       ]
     },
     "test": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "watch": {
+      "cache": false,
+      "persistent": true,
       "dependsOn": [
         "^build"
       ]

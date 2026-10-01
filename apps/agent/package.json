@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "go build -o bin/mesh-agent ./cmd/mesh-agent",
-    "dev": "go run ./cmd/mesh-agent",
+    "start": "go run ./cmd/mesh-agent",
     "lint": "go vet ./...",
     "test": "go test ./..."
   }
