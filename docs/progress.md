@@ -107,3 +107,6 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-01 | TanStack Query for data fetching and mutations in `web`; shadcn `form` (react-hook-form + zod) for forms |
 | 2026-10-01 | Next.js `proxy.ts` guards routes with a server-side Better Auth instance in `web` (`auth.api.getSession`) that reads the shared Postgres, mirroring erp |
 | 2026-10-01 | React version pinned workspace-wide with a pnpm catalog; `@mesh/ui` takes React as a peer dependency |
+| 2026-10-01 | API split into routes → controllers (Hono `createHandlers`) → services in `@mesh/server-core`; one error format with request ids |
+| 2026-10-01 | `createLogger` (pino) in `@mesh/utils` replaces `console` everywhere |
+| 2026-10-01 | Organization id always comes from the session (`requireOrganization`), never from request params |

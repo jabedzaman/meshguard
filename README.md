@@ -14,7 +14,9 @@ Private mesh networking and remote development environments.
 | `apps/cli` | `mesh` CLI (Go) |
 | `apps/relay`, `apps/dns` | Relay and DNS services (Go) |
 | `internal/` | Shared Go packages |
-| `packages/*` | Shared TypeScript packages and protobuf contracts |
+| `packages/server-core` | Business logic (services, domain errors) shared by API, MCP and workers |
+| `packages/utils` | Shared utilities (`createLogger`) |
+| `packages/*` | Other shared TypeScript packages and protobuf contracts |
 
 ## Prerequisites
 
