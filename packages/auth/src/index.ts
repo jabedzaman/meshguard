@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
-import { schema, type Db } from "@mesh/db";
+import { asc, eq, schema, type Db } from "@mesh/db";
 
 export interface AuthOptions {
   secret: string;
@@ -24,6 +24,23 @@ export function createAuth(db: Db, options: AuthOptions) {
     emailAndPassword: { enabled: true },
     socialProviders: options.github ? { github: options.github } : {},
     plugins: [organization()],
+    databaseHooks: {
+      session: {
+        create: {
+          // New sessions start without an active organization; default to the
+          // user's oldest membership so returning users land in their org.
+          before: async (session) => {
+            const [membership] = await db
+              .select({ organizationId: schema.member.organizationId })
+              .from(schema.member)
+              .where(eq(schema.member.userId, session.userId))
+              .orderBy(asc(schema.member.createdAt))
+              .limit(1);
+            return { data: { ...session, activeOrganizationId: membership?.organizationId ?? null } };
+          },
+        },
+      },
+    },
   });
 }
 
