@@ -1,21 +1,15 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@mesh/ui/components/button";
 import { authClient, unwrap } from "~/lib/auth-client";
 
 export function SignOutButton() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-
   const signOut = useMutation({
     mutationFn: () => unwrap(authClient.signOut()),
-    onSuccess: () => {
-      queryClient.clear();
-      router.replace("/sign-in");
-      router.refresh();
-    },
+    // Full navigation drops every client cache (router and TanStack Query).
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload
+    onSuccess: () => window.location.assign("/sign-in"),
   });
 
   return (

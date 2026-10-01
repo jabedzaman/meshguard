@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import type { FormEvent } from "react";
 import { Button } from "@mesh/ui/components/button";
@@ -44,7 +44,6 @@ const copy = {
 } as const;
 
 export function AuthForm({ mode }: { mode: Mode }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const t = copy[mode];
 
@@ -56,7 +55,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
         ? unwrap(authClient.signUp.email({ name: String(form.get("name")), email, password }))
         : unwrap(authClient.signIn.email({ email, password }));
     },
-    onSuccess: () => router.replace(safeRedirect(searchParams.get("redirectTo"))),
+    // Full navigation so no client cache from the signed-out state survives.
+    onSuccess: () => window.location.assign(safeRedirect(searchParams.get("redirectTo"))),
   });
 
   const githubAuth = useMutation({

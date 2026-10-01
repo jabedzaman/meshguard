@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@mesh/ui/components/button";
@@ -40,7 +39,6 @@ function slugify(name: string) {
 }
 
 export function CreateOrganization() {
-  const router = useRouter();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { name: "" },
@@ -50,10 +48,10 @@ export function CreateOrganization() {
   const createOrganization = useMutation({
     mutationFn: ({ name }: Values) =>
       unwrap(authClient.organization.create({ name, slug: slugify(name) })),
-    onSuccess: () => {
-      router.replace("/");
-      router.refresh();
-    },
+    // Full navigation: the client router cached "/" as a redirect back here
+    // from before the organization existed.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload
+    onSuccess: () => window.location.assign("/"),
     onError: (error) => form.setError("root", { message: error.message }),
   });
 
