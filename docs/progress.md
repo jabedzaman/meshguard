@@ -33,7 +33,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ Organizations: Better Auth organization plugin, onboarding in `web`, active org restored on sign-in
 - ✅ `/v1` routes require a session and are scoped to the active organization
 - ✅ `web` route protection via Next.js proxy with `redirectTo`
-- ✅ `web` app layout loads session + organizations server-side (erp pattern); onboarding at `/organizations/create`; `/api/organizations/[organizationId]/activate` restores a missing active org
+- ✅ All auth routing in `web/proxy.ts` (session, active org); layouts only load data; onboarding at `/organizations/create`; `/api/organizations/[organizationId]/activate` restores a missing active org
 - ⬜ Networks: create, address allocation (blocked on address range decision)
 - ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
 - ⬜ Enrollment: one-time token → device record → mesh IP assigned
