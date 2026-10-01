@@ -16,7 +16,7 @@ Networking should disappear into the workflow.
 
 - ✅ pnpm + Turborepo monorepo, `~/*` import alias
 - ✅ Apps: `api` (Hono), `web` (Next.js), `desktop` (Tauri 2), `mcp`, `agent`, `cli`, `relay`, `dns` (Go)
-- ✅ Packages: `types`, `config`, `db`, `auth`, `api-client`, `mcp-sdk`, `ui` (shadcn), `proto`
+- ✅ Packages: `config`, `db`, `auth`, `api-client`, `mcp-sdk`, `ui` (shadcn), `proto`
 - ✅ TS packages built with tsup, apps run with `tsx watch`
 - ✅ Go workspace (`go.work`) with shared `internal/` module
 - ✅ Protobuf contracts linted and generated with buf
@@ -32,6 +32,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - 🚧 GitHub sign-in: wired, needs an OAuth app (`GITHUB_CLIENT_ID/SECRET`)
 - ✅ Organizations: Better Auth organization plugin, onboarding in `web`, active org restored on sign-in
 - ✅ `/v1` routes require a session and are scoped to the active organization
+- ✅ `web` route protection via Next.js proxy with `redirectTo`
 - ⬜ Networks: create, address allocation (blocked on address range decision)
 - ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
 - ⬜ Enrollment: one-time token → device record → mesh IP assigned
@@ -102,3 +103,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-01 | TypeScript pinned to 5.9 (tsup's dts build doesn't support TS 7 yet) |
 | 2026-10-01 | Better Auth organization plugin owns organizations/members/invitations; replaced our own `organizations` table |
 | 2026-10-01 | Web and API on separate origins; session cookie works across them because they share a site (`SameSite=Lax`) |
+| 2026-10-01 | No hand-written API types: responses are inferred from the Drizzle schema via explicit column selects and Hono RPC. Removed `@mesh/types` |
+| 2026-10-01 | TanStack Query for data fetching and mutations in `web`; shadcn `form` (react-hook-form + zod) for forms |
+| 2026-10-01 | Next.js `proxy.ts` guards routes by validating the session against the API, mirroring erp |
+| 2026-10-01 | React version pinned workspace-wide with a pnpm catalog; `@mesh/ui` takes React as a peer dependency |
