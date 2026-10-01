@@ -10,7 +10,7 @@ service CoordinationService {
   // Exchange a one-time enrollment token for a device record.
   rpc Enroll(EnrollRequest) returns (EnrollResponse);
   // Long-lived stream of network map updates for this device.
-  rpc WatchNetworkMap(WatchNetworkMapRequest) returns (stream NetworkMap);
+  rpc WatchNetworkMap(WatchNetworkMapRequest) returns (stream WatchNetworkMapResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 }
 
@@ -27,6 +27,10 @@ message EnrollResponse {
 }
 
 message WatchNetworkMapRequest {}
+
+message WatchNetworkMapResponse {
+  NetworkMap network_map = 1;
+}
 
 message Peer {
   mesh.device.v1.Device device = 1;
