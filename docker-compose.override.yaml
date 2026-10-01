@@ -1,0 +1,84 @@
+x-go-service: &go-service
+  build:
+    context: .
+    dockerfile: infra/docker/go/Dockerfile.dev
+  volumes:
+    - ./go.work:/app/go.work
+    - ./internal:/app/internal
+    - ./apps/agent:/app/apps/agent
+    - ./apps/cli:/app/apps/cli
+    - ./apps/relay:/app/apps/relay
+    - ./apps/dns:/app/apps/dns
+    - go_mod_cache:/go/pkg/mod
+    - go_build_cache:/root/.cache/go-build
+
+services:
+  api:
+    container_name: mesh-api
+    build:
+      context: .
+      dockerfile: infra/docker/api/Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh
+      - REDIS_URL=redis://redis:6379
+      - NATS_URL=nats://nats:4222
+      - CHOKIDAR_USEPOLLING=1
+      - CHOKIDAR_INTERVAL=500
+    ports:
+      - "${API_HOST_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      nats:
+        condition: service_started
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages/auth/dist:/app/packages/auth/dist
+      - ./packages/config/dist:/app/packages/config/dist
+      - ./packages/db/dist:/app/packages/db/dist
+      - ./packages/types/dist:/app/packages/types/dist
+
+  web:
+    container_name: mesh-web
+    build:
+      context: .
+      dockerfile: infra/docker/web/Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=1
+      - CHOKIDAR_INTERVAL=500
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_started
+    volumes:
+      - ./apps/web/app:/app/apps/web/app
+      - ./apps/web/public:/app/apps/web/public
+      - ./packages/ui/src:/app/packages/ui/src
+      - ./packages/api-client/dist:/app/packages/api-client/dist
+      - ./packages/types/dist:/app/packages/types/dist
+
+  relay:
+    <<: *go-service
+    container_name: mesh-relay
+    working_dir: /app/apps/relay
+    environment:
+      - AIR_CMD=mesh-relay
+
+  dns:
+    <<: *go-service
+    container_name: mesh-dns
+    working_dir: /app/apps/dns
+    environment:
+      - AIR_CMD=mesh-dns
+
+volumes:
+  go_mod_cache:
+  go_build_cache:

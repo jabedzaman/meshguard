@@ -13,9 +13,14 @@
     "test": "turbo run test",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "infra:up": "docker compose -f infra/docker/compose.yml up -d",
-    "infra:down": "docker compose -f infra/docker/compose.yml down",
-    "proto:gen": "pnpm --filter @mesh/proto gen"
+    "proto:gen": "pnpm --filter @mesh/proto gen",
+    "build:packages": "turbo run build --filter=./packages/*",
+    "docker:build": "docker compose build",
+    "docker:up": "pnpm build:packages && docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:restart": "docker compose down && pnpm build:packages && docker compose up -d",
+    "docker:remove": "docker compose down --rmi all --volumes --remove-orphans",
+    "docker:infra": "docker compose -f docker-compose.yaml up -d"
   },
   "devDependencies": {
     "@types/node": "^20",
