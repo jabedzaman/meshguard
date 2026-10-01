@@ -1,7 +1,7 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { Button } from "@mesh/ui/components/button";
 import { CreateOrganization } from "~/components/create-organization";
 import { NetworksList } from "~/components/networks-list";
@@ -9,26 +9,24 @@ import { authClient } from "~/lib/auth-client";
 
 type SessionData = NonNullable<ReturnType<typeof authClient.useSession>["data"]>;
 
+// proxy.ts redirects signed-out users, so a missing session here is only the
+// brief moment before the client has loaded it.
 export default function Home() {
-  const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
-
-  useEffect(() => {
-    if (!isPending && !session) router.replace("/sign-in");
-  }, [isPending, session, router]);
-
-  if (isPending || !session) return null;
+  const { data: session } = authClient.useSession();
+  if (!session) return null;
   return <Dashboard session={session} />;
 }
 
 // Rendered only with a session, so organization hooks never fire while signed out.
 function Dashboard({ session }: { session: SessionData }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: organization } = authClient.useActiveOrganization();
   const activeOrganizationId = session.session.activeOrganizationId;
 
   async function signOut() {
     await authClient.signOut();
+    queryClient.clear();
     router.replace("/sign-in");
   }
 

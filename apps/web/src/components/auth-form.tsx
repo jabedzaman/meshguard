@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
+import type { FormEvent } from "react";
 import { Button } from "@mesh/ui/components/button";
 import {
   Card,
@@ -14,9 +15,14 @@ import {
 } from "@mesh/ui/components/card";
 import { Input } from "@mesh/ui/components/input";
 import { Label } from "@mesh/ui/components/label";
-import { authClient } from "~/lib/auth-client";
+import { authClient, unwrap } from "~/lib/auth-client";
 
 type Mode = "sign-in" | "sign-up";
+
+// Only allow same-origin paths, so ?redirectTo= can't send users to another site.
+function safeRedirect(target: string | null) {
+  return target?.startsWith("/") && !target.startsWith("//") ? target : "/";
+}
 
 const copy = {
   "sign-in": {
@@ -39,29 +45,31 @@ const copy = {
 
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const searchParams = useSearchParams();
   const t = copy[mode];
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+  const emailAuth = useMutation({
+    mutationFn: (form: FormData) => {
+      const email = String(form.get("email"));
+      const password = String(form.get("password"));
+      return mode === "sign-up"
+        ? unwrap(authClient.signUp.email({ name: String(form.get("name")), email, password }))
+        : unwrap(authClient.signIn.email({ email, password }));
+    },
+    onSuccess: () => router.replace(safeRedirect(searchParams.get("redirectTo"))),
+  });
+
+  const githubAuth = useMutation({
+    mutationFn: () =>
+      unwrap(authClient.signIn.social({ provider: "github", callbackURL: window.location.origin })),
+  });
+
+  const error = emailAuth.error ?? githubAuth.error;
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const email = String(form.get("email"));
-    const password = String(form.get("password"));
-
-    setPending(true);
-    setError(null);
-    const { error } =
-      mode === "sign-up"
-        ? await authClient.signUp.email({ name: String(form.get("name")), email, password })
-        : await authClient.signIn.email({ email, password });
-    setPending(false);
-
-    if (error) {
-      setError(error.message ?? "Something went wrong.");
-      return;
-    }
-    router.replace("/");
+    githubAuth.reset();
+    emailAuth.mutate(new FormData(e.currentTarget));
   }
 
   return (
@@ -95,25 +103,22 @@ export function AuthForm({ mode }: { mode: Mode }) {
           </div>
           {error && (
             <p role="alert" className="text-destructive text-sm">
-              {error}
+              {error.message}
             </p>
           )}
         </CardContent>
         <CardFooter className="mt-6 flex flex-col gap-3">
-          <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? "Please wait…" : t.submit}
+          <Button type="submit" className="w-full" disabled={emailAuth.isPending}>
+            {emailAuth.isPending ? "Please wait…" : t.submit}
           </Button>
           <Button
             type="button"
             variant="outline"
             className="w-full"
-            onClick={async () => {
-              setError(null);
-              const { error } = await authClient.signIn.social({
-                provider: "github",
-                callbackURL: window.location.origin,
-              });
-              if (error) setError(error.message ?? "GitHub sign-in is not available.");
+            disabled={githubAuth.isPending}
+            onClick={() => {
+              emailAuth.reset();
+              githubAuth.mutate();
             }}
           >
             Continue with GitHub

@@ -40,7 +40,6 @@ services:
       - ./packages/auth/dist:/app/packages/auth/dist
       - ./packages/config/dist:/app/packages/config/dist
       - ./packages/db/dist:/app/packages/db/dist
-      - ./packages/types/dist:/app/packages/types/dist
 
   web:
     container_name: mesh-web
@@ -50,6 +49,7 @@ services:
     env_file:
       - .env
     environment:
+      - API_URL=http://api:4000
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
@@ -63,7 +63,6 @@ services:
       - ./apps/web/public:/app/apps/web/public
       - ./packages/ui/src:/app/packages/ui/src
       - ./packages/api-client/dist:/app/packages/api-client/dist
-      - ./packages/types/dist:/app/packages/types/dist
 
   relay:
     <<: *go-service

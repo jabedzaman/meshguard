@@ -1,29 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { Network } from "@mesh/types";
-import { api } from "~/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { networkQueries } from "~/lib/queries";
 
 export function NetworksList({ organizationId }: { organizationId: string }) {
-  const [networks, setNetworks] = useState<Network[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: networks, isPending, error } = useQuery(networkQueries.list(organizationId));
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const res = await api.v1.networks.$get();
-      if (cancelled) return;
-      if (res.ok) setNetworks(await res.json());
-      else setError(`Failed to load networks (${res.status}).`);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [organizationId]);
-
-  if (error) return <p className="text-destructive text-sm">{error}</p>;
-  if (!networks) return <p className="text-muted-foreground text-sm">Loading networks…</p>;
-  if (networks.length === 0) return <p className="text-muted-foreground text-sm">No networks yet.</p>;
+  if (isPending) return <p className="text-muted-foreground text-sm">Loading networks…</p>;
+  if (error)
+    return <p className="text-destructive text-sm">Failed to load networks: {error.message}</p>;
+  if (networks.length === 0)
+    return <p className="text-muted-foreground text-sm">No networks yet.</p>;
 
   return (
     <ul className="divide-border divide-y rounded-md border">
