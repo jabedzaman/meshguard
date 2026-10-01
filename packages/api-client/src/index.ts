@@ -1,22 +1,20 @@
-import type { Device, Network } from "@mesh/types";
+import { hc } from "hono/client";
+import type { AppType } from "@mesh/api";
+
+export type { InferRequestType, InferResponseType } from "hono/client";
 
 export interface ApiClientOptions {
-  baseUrl: string;
+  /** Extra headers, e.g. forwarding the incoming `cookie` header from a Next.js server component. */
+  headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
   fetch?: typeof fetch;
 }
 
-export function createApiClient({ baseUrl, fetch: f = fetch }: ApiClientOptions) {
-  async function get<T>(path: string): Promise<T> {
-    const res = await f(new URL(path, baseUrl), { credentials: "include" });
-    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-    return (await res.json()) as T;
-  }
-
-  return {
-    health: () => get<{ ok: boolean }>("/healthz"),
-    listNetworks: () => get<Network[]>("/v1/networks"),
-    listDevices: (networkId: string) => get<Device[]>(`/v1/networks/${networkId}/devices`),
-  };
+export function createApiClient(baseUrl: string, options: ApiClientOptions = {}) {
+  return hc<AppType>(baseUrl, {
+    ...options,
+    // Send the Better Auth session cookie on cross-origin browser requests.
+    init: { credentials: "include" },
+  });
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;

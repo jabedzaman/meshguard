@@ -16,11 +16,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mesh/types": "workspace:^"
+    "hono": "^4.13.12"
   },
   "files": [
     "dist"
   ],
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  "types": "./dist/index.d.ts",
+  "devDependencies": {
+    "@mesh/api": "workspace:^"
+  }
 }
