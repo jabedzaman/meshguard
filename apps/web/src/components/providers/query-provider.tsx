@@ -20,7 +20,7 @@ function createQueryClient() {
   });
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(createQueryClient);
   return (
     <QueryClientProvider client={queryClient}>

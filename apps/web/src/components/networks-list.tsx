@@ -2,10 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getErrorMessage } from "@mesh/api-client";
+import { useOrganization } from "~/components/providers/organization-provider";
 import { networkQueries } from "~/lib/queries";
 
-export function NetworksList({ organizationId }: { organizationId: string }) {
-  const { data: networks, isPending, error } = useQuery(networkQueries.list(organizationId));
+export function NetworksList() {
+  const organization = useOrganization();
+  const { data: networks, isPending, error } = useQuery(networkQueries.list(organization.id));
 
   if (isPending) return <p className="text-muted-foreground text-sm">Loading networks…</p>;
   if (error)
