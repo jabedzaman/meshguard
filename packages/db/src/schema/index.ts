@@ -1,7 +1,12 @@
 import { index, inet, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Human auth tables (users, sessions, accounts) are owned by Better Auth and
-// generated into ./auth.ts. Device identity lives here and never touches them.
+import { organization } from "./auth";
+
+// Human auth tables (users, sessions, organizations, members) are owned by
+// Better Auth and generated into ./auth.ts by `pnpm --filter @mesh/auth
+// auth:generate`. Don't edit that file by hand. Device identity lives here and
+// never touches them.
+export * from "./auth";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -11,20 +16,13 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 };
 
-export const organizations = pgTable("organizations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  ...timestamps,
-});
-
 export const networks = pgTable(
   "networks",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: uuid("organization_id")
+    organizationId: text("organization_id")
       .notNull()
-      .references(() => organizations.id, { onDelete: "cascade" }),
+      .references(() => organization.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     ipv4Cidr: text("ipv4_cidr").notNull(),
     ipv6Cidr: text("ipv6_cidr").notNull(),
