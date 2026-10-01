@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!activeOrganization) {
     const [first] = organizations;
     if (first) {
-      redirect(`/api/org/recover?organizationId=${encodeURIComponent(first.id)}`);
+      redirect(`/api/organizations/${encodeURIComponent(first.id)}/activate`);
     }
     redirect("/organizations/create");
   }
