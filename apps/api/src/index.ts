@@ -1,9 +1,10 @@
 import { serve } from "@hono/node-server";
 import { loadServerEnv } from "@mesh/config";
-import { buildServer } from "~/server";
+import { createDb } from "@mesh/db";
+import { createApp } from "~/app";
 
 const env = loadServerEnv();
-const app = buildServer();
+const app = createApp(createDb(env.DATABASE_URL));
 
 const server = serve({ fetch: app.fetch, hostname: "0.0.0.0", port: env.API_PORT }, (info) => {
   console.log(`api listening on :${info.port}`);
