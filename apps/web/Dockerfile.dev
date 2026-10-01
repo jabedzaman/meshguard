@@ -3,27 +3,28 @@ FROM node:22-slim
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN corepack enable
 
 WORKDIR /app
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/api-client/package.json packages/api-client/
 COPY packages/auth/package.json packages/auth/
 COPY packages/config/package.json packages/config/
 COPY packages/db/package.json packages/db/
-COPY packages/server-core/package.json packages/server-core/
-COPY packages/utils/package.json packages/utils/
+COPY packages/ui/package.json packages/ui/
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch
 
 COPY . .
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile \
-    --filter @mesh/api... \
+    --filter @mesh/web... \
     --filter mesh
 
-RUN pnpm turbo run build --filter=@mesh/api^...
+RUN pnpm turbo run build --filter=@mesh/web^...
 
-CMD ["pnpm", "-F", "@mesh/api", "dev"]
+CMD ["pnpm", "-F", "@mesh/web", "watch", "--hostname", "0.0.0.0"]

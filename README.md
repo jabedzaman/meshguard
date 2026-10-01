@@ -33,9 +33,11 @@ pnpm install
 cp .env.example .env
 
 pnpm docker:up       # postgres, redis, nats, api, web, relay, dns with hot reload
-pnpm docker:infra    # or only postgres, redis and nats, then run apps on the host:
-pnpm dev
 ```
+
+Environment variables are injected by Docker Compose from `.env`; apps don't
+read `.env` themselves. Each app's dev image lives next to it
+(`apps/<app>/Dockerfile.dev`) and runs its `watch` script.
 
 | Service | URL |
 | --- | --- |
@@ -48,8 +50,8 @@ If a host port is taken by another project, override it in `.env` (see `*_HOST_P
 ### Agent and CLI
 
 ```sh
-cd apps/agent && MESH_SOCKET=/tmp/mesh.sock go run ./cmd/mesh-agent
-cd apps/cli && MESH_SOCKET=/tmp/mesh.sock go run ./cmd/mesh status
+MESH_SOCKET=/tmp/mesh.sock pnpm --filter @mesh/agent start
+MESH_SOCKET=/tmp/mesh.sock pnpm --filter @mesh/cli start status
 ```
 
 ### Protobuf

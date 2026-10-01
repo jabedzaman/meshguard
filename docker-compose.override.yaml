@@ -1,7 +1,4 @@
-x-go-service: &go-service
-  build:
-    context: .
-    dockerfile: infra/docker/go/Dockerfile.dev
+x-go-volumes: &go-volumes
   volumes:
     - ./go.work:/app/go.work
     - ./internal:/app/internal
@@ -17,7 +14,7 @@ services:
     container_name: mesh-api
     build:
       context: .
-      dockerfile: infra/docker/api/Dockerfile.dev
+      dockerfile: apps/api/Dockerfile.dev
     env_file:
       - .env
     environment:
@@ -47,7 +44,7 @@ services:
     container_name: mesh-web
     build:
       context: .
-      dockerfile: infra/docker/web/Dockerfile.dev
+      dockerfile: apps/web/Dockerfile.dev
     env_file:
       - .env
     environment:
@@ -72,18 +69,18 @@ services:
       - ./packages/db/dist:/app/packages/db/dist
 
   relay:
-    <<: *go-service
+    <<: *go-volumes
     container_name: mesh-relay
-    working_dir: /app/apps/relay
-    environment:
-      - AIR_CMD=mesh-relay
+    build:
+      context: .
+      dockerfile: apps/relay/Dockerfile.dev
 
   dns:
-    <<: *go-service
+    <<: *go-volumes
     container_name: mesh-dns
-    working_dir: /app/apps/dns
-    environment:
-      - AIR_CMD=mesh-dns
+    build:
+      context: .
+      dockerfile: apps/dns/Dockerfile.dev
 
 volumes:
   go_mod_cache:

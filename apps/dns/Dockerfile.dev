@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1.4
+# Build context is the repo root (see docker-compose.override.yaml); source is
+# bind-mounted and rebuilt on change by air.
+FROM golang:1.27
+
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /app/apps/dns
+
+CMD ["air", \
+     "--build.cmd", "go build -o /tmp/mesh-dns ./cmd/mesh-dns", \
+     "--build.entrypoint", "/tmp/mesh-dns", \
+     "--build.include_ext", "go", \
+     "--build.exclude_dir", "bin", \
+     "--build.poll", "true", \
+     "--tmp_dir", "/tmp/air"]

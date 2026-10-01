@@ -20,7 +20,7 @@ Networking should disappear into the workflow.
 - ✅ TS packages built with tsup, apps run with `tsx watch`
 - ✅ Go workspace (`go.work`) with shared `internal/` module
 - ✅ Protobuf contracts linted and generated with buf
-- ✅ Docker dev env: Postgres, Redis, NATS + api/web/relay/dns with hot reload
+- ✅ Docker dev env: Postgres, Redis, NATS + api/web/relay/dns with hot reload (`apps/<app>/Dockerfile.dev`, env injected by Compose)
 - ✅ Typed API client via Hono RPC (`hc<AppType>`), sample `/v1/networks` route
 - ✅ First Drizzle migration (organizations, networks, devices)
 
