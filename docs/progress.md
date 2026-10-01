@@ -105,5 +105,5 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-01 | Web and API on separate origins; session cookie works across them because they share a site (`SameSite=Lax`) |
 | 2026-10-01 | No hand-written API types: responses are inferred from the Drizzle schema via explicit column selects and Hono RPC. Removed `@mesh/types` |
 | 2026-10-01 | TanStack Query for data fetching and mutations in `web`; shadcn `form` (react-hook-form + zod) for forms |
-| 2026-10-01 | Next.js `proxy.ts` guards routes by validating the session against the API, mirroring erp |
+| 2026-10-01 | Next.js `proxy.ts` guards routes with a server-side Better Auth instance in `web` (`auth.api.getSession`) that reads the shared Postgres, mirroring erp |
 | 2026-10-01 | React version pinned workspace-wide with a pnpm catalog; `@mesh/ui` takes React as a peer dependency |

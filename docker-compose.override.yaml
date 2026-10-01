@@ -49,13 +49,15 @@ services:
     env_file:
       - .env
     environment:
-      - API_URL=http://api:4000
+      - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
     ports:
       - "${WEB_HOST_PORT:-3000}:3000"
     depends_on:
+      postgres:
+        condition: service_healthy
       api:
         condition: service_started
     volumes:
@@ -63,6 +65,9 @@ services:
       - ./apps/web/public:/app/apps/web/public
       - ./packages/ui/src:/app/packages/ui/src
       - ./packages/api-client/dist:/app/packages/api-client/dist
+      - ./packages/auth/dist:/app/packages/auth/dist
+      - ./packages/config/dist:/app/packages/config/dist
+      - ./packages/db/dist:/app/packages/db/dist
 
   relay:
     <<: *go-service
