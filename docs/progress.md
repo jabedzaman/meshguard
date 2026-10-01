@@ -1,0 +1,99 @@
+# Progress
+
+Status of goals and milestones. Update this file in the same commit as the work it describes.
+
+Legend: ✅ done · 🚧 in progress · ⬜ not started
+
+## North star
+
+> Install → Sign in → Devices appear → Click workspace → Everything connects.
+
+Networking should disappear into the workflow.
+
+## Milestones
+
+### M0 — Repo bootstrap ✅
+
+- ✅ pnpm + Turborepo monorepo, `~/*` import alias
+- ✅ Apps: `api` (Hono), `web` (Next.js), `desktop` (Tauri 2), `mcp`, `agent`, `cli`, `relay`, `dns` (Go)
+- ✅ Packages: `types`, `config`, `db`, `auth`, `api-client`, `mcp-sdk`, `ui` (shadcn), `proto`
+- ✅ TS packages built with tsup, apps run with `tsx watch`
+- ✅ Go workspace (`go.work`) with shared `internal/` module
+- ✅ Protobuf contracts linted and generated with buf
+- ✅ Docker dev env: Postgres, Redis, NATS + api/web/relay/dns with hot reload
+- ✅ Typed API client via Hono RPC (`hc<AppType>`), sample `/v1/networks` route
+- ✅ First Drizzle migration (organizations, networks, devices)
+
+### M1 — Working private mesh (the real MVP) 🚧
+
+Goal: Mac A and Mac B on different networks can ping each other's mesh IP, directly over WireGuard, and recover from disconnects automatically.
+
+- ⬜ Human auth: Better Auth sign-up/sign-in wired into `api` and `web`
+- ⬜ Organizations and networks: create, list, address allocation
+- ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
+- ⬜ Enrollment: one-time token → device record → mesh IP assigned
+- ⬜ Coordination: agent receives network map stream, applies peer config
+- ⬜ WireGuard on macOS: userspace `wireguard-go` + utun, routes for mesh range
+- ⬜ Endpoint discovery: report local + STUN-observed endpoints
+- ⬜ NAT traversal: UDP hole punching between peers
+- ⬜ Heartbeats + presence (Redis), device online/offline
+- ⬜ Reconnect after sleep / network change
+- ⬜ `mesh login`, `mesh status`, `mesh devices`, `mesh connect`, `mesh disconnect`
+- ⬜ Agent local API auth (peer credentials on the Unix socket)
+
+### M2 — Reachability and naming ⬜
+
+- ⬜ Relay fallback when direct connection fails
+- ⬜ Private DNS (`<device>.<tld>`), answered locally by the agent
+- ⬜ ACLs (device → service → port)
+- ⬜ Key rotation
+
+### M3 — Desktop app ⬜
+
+- ⬜ Sign in, device enrollment, network selection
+- ⬜ Device list, peer health, connection status
+- ⬜ Agent ↔ desktop over Unix socket
+- ⬜ Menu-bar mode (carry over from Mapper)
+
+### M4 — Workspaces ⬜
+
+- ⬜ Workspace config schema (`workspace.yaml`)
+- ⬜ Activate / deactivate: remote checks, Docker Compose up, port forwarding
+- ⬜ Port conflict detection and resolution
+- ⬜ Service discovery, open URLs
+- ⬜ Git status / diff
+- ⬜ `mesh workspace list|activate|stop`
+
+### M5 — AI and diagnostics ⬜
+
+- ⬜ `mesh doctor`: peer, handshake, route, ACL, DNS, port, Docker checks
+- ⬜ MCP read-only tools (devices, topology, workspace, git, logs)
+- ⬜ MCP mutating tools behind explicit approval
+- ⬜ AI network doctor built on `mesh doctor`
+
+### Later ⬜
+
+- ⬜ Temporary access links (time-limited, audited)
+- ⬜ Windows and Linux agents
+- ⬜ Product name + domain
+
+## Open decisions
+
+| Decision | Options | Notes |
+| --- | --- | --- |
+| Private DNS TLD | `.internal` vs `.mesh` vs owned subdomain | `.internal` is ICANN-reserved for private use; `.mesh` is not reserved |
+| Mesh address ranges | IPv4 range + IPv6 ULA prefix | Avoid `100.64.0.0/10` (collides with Tailscale) |
+| macOS packaging | Root LaunchDaemon vs Network Extension | NE is required for the Mac App Store and means Swift |
+| Mapper | Import existing repo vs port code later | |
+| Product name | — | Check `.dev` / `.app` via RDAP |
+
+## Decision log
+
+| Date | Decision |
+| --- | --- |
+| 2026-10-01 | Keep full stack (Postgres, Redis, NATS, separate relay/dns services) to plan for scale |
+| 2026-10-01 | Hono instead of Fastify for the API |
+| 2026-10-01 | tsup for TS builds, mirroring the erp repo |
+| 2026-10-01 | shadcn in its own `packages/ui` |
+| 2026-10-01 | Hono RPC (`hc`) for the typed API client instead of GraphQL |
+| 2026-10-01 | TypeScript pinned to 5.9 (tsup's dts build doesn't support TS 7 yet) |

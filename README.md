@@ -7,7 +7,7 @@ Private mesh networking and remote development environments.
 | Path | What |
 | --- | --- |
 | `apps/api` | Control plane API (Hono) |
-| `apps/web` | Dashboard (Next.js) |
+| `apps/web` | Dashboard (Next.js, `src/` layout) |
 | `apps/desktop` | Desktop app (Tauri 2 + React) |
 | `apps/mcp` | MCP server |
 | `apps/agent` | Device daemon (Go) |
@@ -65,3 +65,5 @@ cd packages/ui && pnpm dlx shadcn@latest add <component>
 ```
 
 Import them from apps as `@mesh/ui/components/<component>`.
+
+
