@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@mesh/api-client": "workspace:^",
+    "@mesh/types": "workspace:^",
     "@mesh/ui": "workspace:^",
+    "better-auth": "1.7.7",
     "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8"
