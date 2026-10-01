@@ -25,3 +25,19 @@ export type ServerEnv = z.infer<typeof serverEnvSchema>;
 export function loadServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
   return serverEnvSchema.parse(env);
 }
+
+/** Subset needed to run Better Auth, e.g. in the web app's proxy. */
+export const authEnvSchema = serverEnvSchema.pick({
+  DATABASE_URL: true,
+  BETTER_AUTH_SECRET: true,
+  BETTER_AUTH_URL: true,
+  WEB_URL: true,
+  GITHUB_CLIENT_ID: true,
+  GITHUB_CLIENT_SECRET: true,
+});
+
+export type AuthEnv = z.infer<typeof authEnvSchema>;
+
+export function loadAuthEnv(env: NodeJS.ProcessEnv = process.env): AuthEnv {
+  return authEnvSchema.parse(env);
+}

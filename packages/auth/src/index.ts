@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
+import type { AuthEnv } from "@mesh/config";
 import { asc, eq, schema, type Db } from "@mesh/db";
 
 export interface AuthOptions {
@@ -10,6 +11,18 @@ export interface AuthOptions {
   /** Origins allowed to call the auth endpoints with cookies, e.g. the web dashboard. */
   trustedOrigins: string[];
   github?: { clientId: string; clientSecret: string };
+}
+
+export function authOptionsFromEnv(env: AuthEnv): AuthOptions {
+  return {
+    secret: env.BETTER_AUTH_SECRET,
+    baseURL: env.BETTER_AUTH_URL,
+    trustedOrigins: [env.WEB_URL],
+    github:
+      env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
+        ? { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET }
+        : undefined,
+  };
 }
 
 // Human identity only. Devices authenticate with their own key pairs.

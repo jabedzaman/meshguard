@@ -17,6 +17,7 @@
     "auth:generate": "auth generate --config auth.cli.ts --output ../db/src/schema/auth.ts --yes"
   },
   "dependencies": {
+    "@mesh/config": "workspace:^",
     "@mesh/db": "workspace:^",
     "better-auth": "^1.7.7"
   },
