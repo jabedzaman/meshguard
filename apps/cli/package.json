@@ -1,0 +1,11 @@
+{
+  "name": "@mesh/cli",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "go build -o bin/mesh ./cmd/mesh",
+    "dev": "go run ./cmd/mesh",
+    "lint": "go vet ./...",
+    "test": "go test ./..."
+  }
+}
