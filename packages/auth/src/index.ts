@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 import type { AuthEnv } from "@mesh/config";
-import { asc, eq, schema, type Db } from "@mesh/db";
+import { and, asc, eq, schema, type Db } from "@mesh/db";
 
 export interface AuthOptions {
   secret: string;
@@ -36,7 +36,32 @@ export function createAuth(db: Db, options: AuthOptions) {
     database: drizzleAdapter(db, { provider: "pg", schema }),
     emailAndPassword: { enabled: true },
     socialProviders: options.github ? { github: options.github } : {},
-    plugins: [organization()],
+    plugins: [
+      organization({
+        // Sessions keep activeOrganizationId after the org is deleted or the
+        // user is removed from it. Clear it so it can be trusted as-is (the web
+        // proxy routes on it without loading the organization).
+        organizationHooks: {
+          afterDeleteOrganization: async ({ organization }) => {
+            await db
+              .update(schema.session)
+              .set({ activeOrganizationId: null })
+              .where(eq(schema.session.activeOrganizationId, organization.id));
+          },
+          afterRemoveMember: async ({ member, organization }) => {
+            await db
+              .update(schema.session)
+              .set({ activeOrganizationId: null })
+              .where(
+                and(
+                  eq(schema.session.userId, member.userId),
+                  eq(schema.session.activeOrganizationId, organization.id),
+                ),
+              );
+          },
+        },
+      }),
+    ],
     databaseHooks: {
       session: {
         create: {
@@ -49,7 +74,9 @@ export function createAuth(db: Db, options: AuthOptions) {
               .where(eq(schema.member.userId, session.userId))
               .orderBy(asc(schema.member.createdAt))
               .limit(1);
-            return { data: { ...session, activeOrganizationId: membership?.organizationId ?? null } };
+            return {
+              data: { ...session, activeOrganizationId: membership?.organizationId ?? null },
+            };
           },
         },
       },
