@@ -34,7 +34,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ `/v1` routes require a session and are scoped to the active organization
 - ✅ `web` route protection via Next.js proxy with `redirectTo`
 - ✅ All auth routing in `web/proxy.ts` (session, active org); layouts only load data; onboarding at `/organizations/create`; `/api/organizations/[organizationId]/activate` restores a missing active org
-- ⬜ Networks: create, address allocation (blocked on address range decision)
+- ✅ Networks: create (`POST /v1/networks`), default `10.77.0.0/16` (configurable, RFC 1918 only), random IPv6 ULA /48 per network
+- ⬜ Device address allocation (random free address, unique per network; enforced by DB constraints)
 - ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
 - ⬜ Enrollment: one-time token → device record → mesh IP assigned
 - ⬜ Coordination: agent receives network map stream, applies peer config
@@ -87,7 +88,6 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | Decision | Options | Notes |
 | --- | --- | --- |
 | Private DNS TLD | `.internal` vs `.mesh` vs owned subdomain | `.internal` is ICANN-reserved for private use; `.mesh` is not reserved |
-| Mesh address ranges | IPv4 range + IPv6 ULA prefix | Avoid `100.64.0.0/10` (collides with Tailscale) |
 | macOS packaging | Root LaunchDaemon vs Network Extension | NE is required for the Mac App Store and means Swift |
 | Mapper | Import existing repo vs port code later | |
 | Product name | — | Check `.dev` / `.app` via RDAP |
@@ -111,3 +111,4 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-01 | API split into routes → controllers (Hono `createHandlers`) → services in `@mesh/server-core`; one error format with request ids |
 | 2026-10-01 | `createLogger` (pino) in `@mesh/utils` replaces `console` everywhere |
 | 2026-10-01 | Organization id always comes from the session (`requireOrganization`), never from request params |
+| 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |
