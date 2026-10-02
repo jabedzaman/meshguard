@@ -14,10 +14,14 @@ trap 'rm -f "$COOKIES"' EXIT
 
 json() { node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8'))$1"; }
 post() { curl -sf -m 15 -b "$COOKIES" -c "$COOKIES" -H "Origin: $WEB" -H 'Content-Type: application/json' -d "$2" "$API$1"; }
-ip_of() { docker exec "mesh-$1" mesh status | awk -v f="$2" '$1=="mesh" && $2==f {print $3; exit}'; }
-# "direct" or "relay", from the first peer line of mesh status.
-peer_path() { docker exec "mesh-$1" mesh status | awk '/^peers:/ {p=1; next} p && NF {print ($3 == "via" ? "relay" : $3); exit}'; }
-peer_line() { docker exec "mesh-$1" mesh status | awk '/^peers:/ {p=1; next} p && NF {print; exit}'; }
+ip_of() { if [ "$2" = IPv6 ]; then docker exec "mesh-$1" mesh ip -6; else docker exec "mesh-$1" mesh ip; fi; }
+# "direct" or "relay" for the first peer, from mesh peers --json.
+peer_path() {
+  docker exec "mesh-$1" mesh peers --json | node -pe '
+    const p = JSON.parse(require("fs").readFileSync(0, "utf8"))[0] || {};
+    p.viaRelay ? "relay" : (p.endpoint ? "direct" : "")'
+}
+peer_line() { docker exec "mesh-$1" mesh peers | sed -n 2p; }
 
 echo "==> migrating the e2e database"
 DATABASE_URL=${E2E_DATABASE_URL:-postgres://mesh:mesh@localhost:5432/mesh_test} \

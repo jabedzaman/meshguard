@@ -105,6 +105,8 @@ services:
     build:
       context: .
       dockerfile: apps/relay/Dockerfile.dev
+    environment:
+      - STUN_ADDR=:3478,:3479
     ports:
       - "${RELAY_HOST_PORT:-3340}:3340"
     # Also on the lab's "internet", where lab devices reach it (relay + STUN).
@@ -139,7 +141,7 @@ services:
       - BETTER_AUTH_URL=http://localhost:4200
       - WEB_URL=http://localhost:3200
       - RELAY_URL=ws://10.200.0.11:3340/relay
-      - STUN_SERVERS=10.200.0.11:3478
+      - STUN_SERVERS=10.200.0.11:3478,10.200.0.11:3479
       - LOG_LEVEL=warn
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500

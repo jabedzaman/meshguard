@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,7 +24,7 @@ import (
 
 func main() {
 	addr := flag.String("addr", envOr("RELAY_ADDR", ":3340"), "relay (WebSocket) listen address")
-	stunAddr := flag.String("stun-addr", envOr("STUN_ADDR", ":3478"), `STUN (UDP) listen address; "" to disable`)
+	stunAddr := flag.String("stun-addr", envOr("STUN_ADDR", ":3478"), `STUN (UDP) listen addresses, comma-separated; "" to disable`)
 	flag.Parse()
 
 	if err := run(*addr, *stunAddr); err != nil {
@@ -36,13 +37,17 @@ func run(addr, stunAddr string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// STUN tells agents their public address, for hole punching.
-	if stunAddr != "" {
-		pc, err := net.ListenPacket("udp", stunAddr)
+	// STUN tells agents their public address, for hole punching. Two ports
+	// let agents tell symmetric NATs apart (mesh netcheck).
+	for _, a := range strings.Split(stunAddr, ",") {
+		if a = strings.TrimSpace(a); a == "" {
+			continue
+		}
+		pc, err := net.ListenPacket("udp", a)
 		if err != nil {
 			return err
 		}
-		slog.Info("stun listening", "addr", stunAddr)
+		slog.Info("stun listening", "addr", a)
 		go func() {
 			if err := stun.Serve(ctx, pc); err != nil {
 				slog.Error("stun stopped", "err", err)
