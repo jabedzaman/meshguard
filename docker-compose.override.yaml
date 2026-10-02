@@ -108,6 +108,114 @@ services:
       context: .
       dockerfile: apps/dns/Dockerfile.dev
 
+  # ---------------------------------------------------------------------------
+  # E2E stack (`pnpm e2e:up`): same images, separate mesh_test database and
+  # Redis db 1, so tests never touch dev data. Not started by `docker:up`.
+  # ---------------------------------------------------------------------------
+  api-e2e:
+    profiles: [e2e]
+    container_name: mesh-api-e2e
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh_test
+      - REDIS_URL=redis://redis:6379/1
+      - NATS_URL=nats://nats:4222
+      - BETTER_AUTH_URL=http://localhost:4200
+      - WEB_URL=http://localhost:3200
+      - LOG_LEVEL=warn
+      - CHOKIDAR_USEPOLLING=1
+      - CHOKIDAR_INTERVAL=500
+    ports:
+      - "4200:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages/auth/dist:/app/packages/auth/dist
+      - ./packages/config/dist:/app/packages/config/dist
+      - ./packages/db/dist:/app/packages/db/dist
+      - ./packages/emails/dist:/app/packages/emails/dist
+      - ./packages/server-core/dist:/app/packages/server-core/dist
+      - ./packages/utils/dist:/app/packages/utils/dist
+
+  web-e2e:
+    profiles: [e2e]
+    container_name: mesh-web-e2e
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh_test
+      - BETTER_AUTH_URL=http://localhost:4200
+      - WEB_URL=http://localhost:3200
+      - NEXT_PUBLIC_API_URL=http://localhost:4200
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=1
+      - CHOKIDAR_INTERVAL=500
+    ports:
+      - "3200:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api-e2e:
+        condition: service_started
+    volumes:
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
+      - ./packages/ui/src:/app/packages/ui/src
+      - ./packages/api-client/dist:/app/packages/api-client/dist
+      - ./packages/auth/dist:/app/packages/auth/dist
+      - ./packages/config/dist:/app/packages/config/dist
+      - ./packages/db/dist:/app/packages/db/dist
+
+  workers-e2e:
+    profiles: [e2e]
+    container_name: mesh-workers-e2e
+    build:
+      context: .
+      dockerfile: apps/workers/Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/1
+      - SMTP_URL=smtp://mailpit:1025
+      - LOG_LEVEL=warn
+      - CHOKIDAR_USEPOLLING=1
+      - CHOKIDAR_INTERVAL=500
+    depends_on:
+      redis:
+        condition: service_started
+      mailpit:
+        condition: service_started
+    volumes:
+      - ./apps/workers/src:/app/apps/workers/src
+      - ./packages/config/dist:/app/packages/config/dist
+      - ./packages/db/dist:/app/packages/db/dist
+      - ./packages/emails/dist:/app/packages/emails/dist
+      - ./packages/server-core/dist:/app/packages/server-core/dist
+      - ./packages/utils/dist:/app/packages/utils/dist
+
+  # Browser for the tests. Host networking so it reaches the e2e stack on
+  # localhost, where web and API share a site and session cookies work.
+  # Keep the version in step with @playwright/test.
+  playwright:
+    profiles: [e2e]
+    container_name: mesh-playwright
+    image: mcr.microsoft.com/playwright:v1.63.0-noble
+    network_mode: host
+    init: true
+    ipc: host
+    command: ["npx", "-y", "playwright@1.63.0", "run-server", "--port", "3300", "--host", "127.0.0.1"]
+
 volumes:
   go_mod_cache:
   go_build_cache:
