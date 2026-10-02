@@ -77,7 +77,14 @@ Unix socket paths are limited to ~100 characters; keep `MESH_SOCKET` short.
 
 Creating the WireGuard interface needs root. Without it the agent still
 enrolls and syncs, and `mesh status` says WireGuard isn't running. To connect
-for real, run the agent with `sudo -E mesh-agent` (keeping the env vars).
+for real, run it with sudo and pass the paths as flags (sudo may drop env vars):
+
+```sh
+sudo ~/.local/bin/mesh-agent -socket /tmp/mesh.sock -state-dir $HOME/.mesh
+```
+
+Under sudo the agent hands the socket to the invoking user, so `mesh` works
+without sudo.
 
 ## Two-device lab
 
