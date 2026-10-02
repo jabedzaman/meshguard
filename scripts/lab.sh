@@ -14,6 +14,7 @@ trap 'rm -f "$COOKIES"' EXIT
 
 json() { node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8'))$1"; }
 post() { curl -sf -m 15 -b "$COOKIES" -c "$COOKIES" -H "Origin: $WEB" -H 'Content-Type: application/json' -d "$2" "$API$1"; }
+patch() { curl -sf -m 15 -X PATCH -b "$COOKIES" -c "$COOKIES" -H "Origin: $WEB" -H 'Content-Type: application/json' -d "$2" "$API$1"; }
 ip_of() { if [ "$2" = IPv6 ]; then docker exec "meshguard-$1" meshguard ip -6; else docker exec "meshguard-$1" meshguard ip; fi; }
 # "direct" or "relay" for the first peer, from meshguard peers --json.
 peer_path() {
@@ -47,6 +48,19 @@ fail() { echo "  FAIL  $*"; status=1; }
 check_ping() {
   if docker exec "meshguard-$1" ping -c 3 -W 2 "$2" >/dev/null 2>&1; then ok "$1 -> $2"; else fail "$1 -> $2"; fi
 }
+can_ping() { docker exec "meshguard-$1" ping -c 1 -W 1 "$2" >/dev/null 2>&1; }
+can_connect() { docker exec "meshguard-$1" nc -z -w 2 "$2" "$3" >/dev/null 2>&1; }
+# expect_traffic <allowed|blocked> <description> <command...>: polls ~25s, as agents
+# pick up access rules on their next sync (every 10s).
+expect_traffic() {
+  local want=$1 what=$2 got; shift 2
+  for _ in $(seq 25); do
+    if "$@"; then got=allowed; else got=blocked; fi
+    [ "$got" = "$want" ] && { ok "$what: $want"; return; }
+    sleep 1
+  done
+  fail "$what: $got, want $want"
+}
 
 # run_pair <network> <a> <b> <direct|relay>
 run_pair() {
@@ -55,6 +69,7 @@ run_pair() {
   echo "==> $a <-> $b (expect $want)"
   local network
   network=$(post /v1/networks "{\"name\":\"$name\"}" | json .id)
+  LAST_NETWORK=$network
   for device in "$a" "$b"; do
     local token
     token=$(post "/v1/networks/$network/enrollment-tokens" '{}' | json .token)
@@ -83,6 +98,36 @@ run_pair() {
 }
 
 run_pair lab-lan lab-a lab-b direct
+
+# Access rules on the LAN pair: deny by default, then let lab-a reach lab-b's
+# port 8080 and everyone ping. Replies to allowed connections get back.
+echo
+echo "==> access rules (lab-a, lab-b)"
+acl_network=$LAST_NETWORK
+a4=$(ip_of lab-a IPv4); b4=$(ip_of lab-b IPv4)
+a_id=$(docker exec meshguard-lab-a meshguard status --json | json .device.id)
+b_id=$(docker exec meshguard-lab-b meshguard status --json | json .device.id)
+for port in 8080 9090; do docker exec -d meshguard-lab-b nc -lk "$port"; done
+expect_traffic allowed "lab-a -> lab-b:8080 before rules" can_connect lab-a "$b4" 8080
+
+patch "/v1/networks/$acl_network/acl" '{"defaultAction":"deny"}' >/dev/null
+expect_traffic blocked "lab-a -> lab-b ping, deny without rules" can_ping lab-a "$b4"
+expect_traffic blocked "lab-b -> lab-a ping, deny without rules" can_ping lab-b "$a4"
+expect_traffic blocked "lab-a -> lab-b:8080, deny without rules" can_connect lab-a "$b4" 8080
+
+post "/v1/networks/$acl_network/acl/rules" \
+  "{\"sourceDeviceId\":\"$a_id\",\"destinationDeviceId\":\"$b_id\",\"protocol\":\"tcp\",\"portFrom\":8080}" >/dev/null
+expect_traffic allowed "lab-a -> lab-b:8080 by rule" can_connect lab-a "$b4" 8080
+expect_traffic blocked "lab-a -> lab-b:9090, not in the rule" can_connect lab-a "$b4" 9090
+expect_traffic blocked "lab-a -> lab-b ping, not in the rule" can_ping lab-a "$b4"
+
+post "/v1/networks/$acl_network/acl/rules" \
+  '{"sourceDeviceId":null,"destinationDeviceId":null,"protocol":"icmp"}' >/dev/null
+expect_traffic allowed "lab-a -> lab-b ping by rule" can_ping lab-a "$b4"
+expect_traffic allowed "lab-b -> lab-a ping by rule" can_ping lab-b "$a4"
+dropped=$(docker exec meshguard-lab-b meshguard status --json | json .acl.dropped)
+if [ "${dropped:-0}" -gt 0 ]; then ok "lab-b counted $dropped refused packets"; else fail "lab-b counted no refused packets"; fi
+docker exec meshguard-lab-b meshguard status | grep access
 
 # Sanity: lab-f can't open a connection into lab-e's NAT on its own.
 if docker exec meshguard-lab-f ping -c 1 -W 1 10.201.0.10 >/dev/null 2>&1; then
