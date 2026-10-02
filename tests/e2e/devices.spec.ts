@@ -231,6 +231,8 @@ test.describe("devices", () => {
     ]);
     // The relay agents fall back to when a peer isn't directly reachable.
     expect(map.body.relay).toEqual({ url: expect.stringMatching(/^wss?:\/\/.+\/relay$/) });
+    // STUN servers for discovering the device's public address.
+    expect(map.body.stun).toEqual(expect.arrayContaining([expect.stringMatching(/^[^:]+:\d+$/)]));
     // Private identity keys never come back.
     expect(JSON.stringify(map.body)).not.toContain(server.keys.identityPublicKey);
 
