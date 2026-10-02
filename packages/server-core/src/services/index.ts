@@ -1,4 +1,6 @@
 import type { Db } from "@mesh/db";
+import type { Redis } from "ioredis";
+import { PresenceStore } from "~/lib/presence";
 import { DevicesService } from "~/services/devices/devices.service";
 import { EnrollmentTokensService } from "~/services/enrollment-tokens/enrollment-tokens.service";
 import { type CreateNetworkInput, NetworksService } from "~/services/networks/networks.service";
@@ -14,11 +16,11 @@ export interface ServicesOptions {
   stunServers?: string[];
 }
 
-export function createServices(db: Db, options: ServicesOptions = {}) {
+export function createServices(db: Db, redis: Redis, options: ServicesOptions = {}) {
   return {
     networks: new NetworksService(db),
     enrollmentTokens: new EnrollmentTokensService(db),
-    devices: new DevicesService(db, {
+    devices: new DevicesService(db, new PresenceStore(redis), {
       relayUrl: options.relayUrl,
       stunServers: options.stunServers,
     }),

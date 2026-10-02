@@ -1,6 +1,8 @@
 import { createLogger } from "@mesh/utils";
 import { Redis } from "ioredis";
 
+export type { Redis };
+
 const logger = createLogger("redis");
 
 /** Redis connection for BullMQ queues and workers. */

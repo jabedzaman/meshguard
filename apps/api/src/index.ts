@@ -27,6 +27,7 @@ const auth = createAuth(db, {
 });
 const app = createApp({
   db,
+  redis,
   auth,
   corsOrigins: [env.WEB_URL],
   relayUrl: env.RELAY_URL,

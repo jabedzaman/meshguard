@@ -2,12 +2,10 @@ import { and, desc, eq, gt, isNull, ne, schema, type Db } from "@mesh/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import { isUniqueViolation } from "~/lib/db-errors";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
+import type { PresenceStore } from "~/lib/presence";
 import { hashToken } from "~/lib/tokens";
 
 const { devices, enrollmentTokens, networks } = schema;
-
-/** A device is online if it synced within this window (agents sync every 10s). */
-export const ONLINE_WINDOW_MS = 30_000;
 
 /** Address picks before giving up; collisions only matter in nearly full networks. */
 const MAX_ADDRESS_ATTEMPTS = 20;
@@ -25,6 +23,7 @@ export interface EnrollDeviceInput {
 export class DevicesService {
   constructor(
     private readonly db: Db,
+    private readonly presence: PresenceStore,
     private readonly options: { relayUrl?: string; stunServers?: string[] } = {},
   ) {}
 
@@ -124,16 +123,37 @@ export class DevicesService {
   }
 
   /**
-   * Records the device's reachable endpoints and returns its network map: the
-   * device itself plus every peer's WireGuard key, mesh addresses and endpoints.
+   * Records the device's presence and reachable endpoints and returns its
+   * network map: the device itself plus every peer's WireGuard key, mesh
+   * addresses and endpoints. Presence goes to Redis; Postgres is only written
+   * when the endpoints change or lastSeenAt is due to be persisted.
    */
   async sync(deviceId: string, input: { endpoints: string[] }) {
     const [self] = await this.db
-      .update(devices)
-      .set({ endpoints: input.endpoints, lastSeenAt: new Date() })
-      .where(eq(devices.id, deviceId))
-      .returning();
+      .select({
+        id: devices.id,
+        networkId: devices.networkId,
+        name: devices.name,
+        meshIpv4: devices.meshIpv4,
+        meshIpv6: devices.meshIpv6,
+        endpoints: devices.endpoints,
+      })
+      .from(devices)
+      .where(eq(devices.id, deviceId));
     if (!self) throw new NotFoundError("device");
+
+    const now = new Date();
+    const persistLastSeen = await this.presence.touch(self.id, now);
+    const endpointsChanged = !sameEndpoints(self.endpoints, input.endpoints);
+    if (endpointsChanged || persistLastSeen) {
+      await this.db
+        .update(devices)
+        .set({
+          ...(endpointsChanged && { endpoints: input.endpoints }),
+          ...(persistLastSeen && { lastSeenAt: now }),
+        })
+        .where(eq(devices.id, self.id));
+    }
 
     const [network] = await this.db
       .select({
@@ -158,6 +178,7 @@ export class DevicesService {
       .from(devices)
       .where(and(eq(devices.networkId, self.networkId), ne(devices.id, self.id)))
       .orderBy(devices.createdAt);
+    const seen = await this.presence.lastSeen(peers.map((peer) => peer.id));
 
     return {
       self: {
@@ -167,7 +188,7 @@ export class DevicesService {
         meshIpv6: self.meshIpv6,
       },
       network: network!,
-      peers,
+      peers: peers.map((peer) => ({ ...peer, lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt })),
       /** Where to relay WireGuard packets for peers that can't be reached directly. */
       relay: this.options.relayUrl ? { url: this.options.relayUrl } : null,
       /** STUN servers for discovering this device's public address. */
@@ -182,6 +203,7 @@ export class DevicesService {
       .where(eq(devices.id, deviceId))
       .returning({ id: devices.id });
     if (!deleted) throw new NotFoundError("device");
+    await this.presence.clear(deleted.id);
   }
 
   async listForNetwork(organizationId: string, networkId: string) {
@@ -208,12 +230,16 @@ export class DevicesService {
       .where(eq(devices.networkId, networkId))
       .orderBy(desc(devices.createdAt));
 
-    // Decided here, not in the browser: the response changes when a device
-    // goes stale, so clients re-render even though lastSeenAt didn't change.
-    const now = Date.now();
-    return rows.map((row) => ({
-      ...row,
-      online: row.lastSeenAt !== null && now - row.lastSeenAt.getTime() < ONLINE_WINDOW_MS,
-    }));
+    // Online means the device's presence key hasn't expired. Decided here, not
+    // in the browser, so the response changes when a device goes stale.
+    const seen = await this.presence.lastSeen(rows.map((row) => row.id));
+    return rows.map((row) => {
+      const lastSeenAt = seen.get(row.id);
+      return { ...row, lastSeenAt: lastSeenAt ?? row.lastSeenAt, online: lastSeenAt !== undefined };
+    });
   }
+}
+
+function sameEndpoints(a: string[], b: string[]) {
+  return a.length === b.length && a.every((endpoint, i) => endpoint === b[i]);
 }

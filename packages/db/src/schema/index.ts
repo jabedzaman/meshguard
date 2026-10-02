@@ -66,7 +66,7 @@ export const devices = pgTable(
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
     /** UDP "host:port" addresses peers can try to reach this device's WireGuard on, best first. */
     endpoints: jsonb("endpoints").$type<string[]>().notNull().default([]),
-    /** Set on every sync; a device is online if this is recent. */
+    /** Last sync, persisted every few minutes; live presence is in Redis (see PresenceStore). */
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     ...timestamps,
   },

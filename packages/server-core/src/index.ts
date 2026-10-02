@@ -2,6 +2,7 @@ export * from "./errors";
 export * from "./lib/device-auth";
 export * from "./lib/ip";
 export * from "./lib/mailer";
+export * from "./lib/presence";
 export * from "./lib/redis";
 export * from "./lib/tokens";
 export * from "./processors/email.processor";
