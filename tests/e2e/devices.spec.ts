@@ -1,4 +1,5 @@
 import { createHash, generateKeyPairSync, type KeyObject, sign } from "node:crypto";
+import { sql } from "./support/db";
 import { E2E } from "./support/env";
 import { api, expect, test } from "./support/fixtures";
 
@@ -279,5 +280,32 @@ test.describe("devices", () => {
 
     const malformed = await sync(device, { endpoints: ["not-an-endpoint"] });
     expect(malformed.status).toBe(400);
+  });
+
+  test("a device that stops syncing goes offline without a reload", async ({
+    createUser,
+    createOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Presence Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const { token } = await api<{ token: string }>(
+      owner.page,
+      `/v1/networks/${network.id}/enrollment-tokens`,
+      {},
+    );
+    const keys = signingDevice();
+    const enrolled = await enroll({ token, hostname: "laptop", platform: "linux", ...keys.keys });
+    await sync({ id: enrolled.body.device.id, privateKey: keys.privateKey }, { endpoints: [] });
+
+    await owner.page.goto(`/networks/${network.id}`);
+    const row = owner.page.locator("li", { hasText: "laptop" });
+    await expect(row).toContainText("online");
+
+    // The agent stops: its last sync is now older than the online window.
+    await sql("update devices set last_seen_at = now() - interval '1 minute' where id = $1", [
+      enrolled.body.device.id,
+    ]);
+    await expect(row).toContainText("last seen", { timeout: 15_000 });
   });
 });

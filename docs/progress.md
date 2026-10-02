@@ -53,7 +53,9 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ WireGuard: embedded wireguard-go on TUN (`mesh0` / utun), mesh addresses + network routes (Linux in the lab; macOS on a real MacBook Air ↔ WSL, 2026-10-02, 0% loss both ways)
 - ✅ Endpoint discovery: local interface addresses + STUN-observed public address
 - ⬜ NAT traversal: UDP hole punching between peers
-- ✅ Presence: sync updates lastSeenAt; web shows online/offline (Postgres for now, Redis later)
+- ✅ Presence: sync updates lastSeenAt; the API decides online (30s window); web polls every 5s
+- ⬜ Presence in Redis with TTL keys instead of a Postgres write per sync (needed at scale)
+- ⬜ Push device events to the web (WebSocket/SSE, NATS `device.connected`) instead of polling
 - 🚧 Reconnect: agent restart reconnects from saved state (lab-tested); sleep/network change not yet handled
 - ⬜ `mesh login`, `mesh status`, `mesh devices`, `mesh connect`, `mesh disconnect`
 - ⬜ Agent local API auth (peer credentials on the Unix socket)

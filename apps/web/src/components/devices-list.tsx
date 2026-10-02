@@ -7,14 +7,11 @@ import { deviceQueries, enrollmentTokenQueries } from "~/lib/queries";
 
 const PLATFORM_LABELS = { darwin: "macOS", linux: "Linux", windows: "Windows" } as const;
 
-/** Agents sync every 10s; matches ONLINE_WINDOW_MS on the server. */
-const ONLINE_WINDOW_MS = 30_000;
-
-function presence(lastSeenAt: string | null) {
-  if (!lastSeenAt) return { online: false, label: "never connected" };
-  const ago = Date.now() - new Date(lastSeenAt).getTime();
-  if (ago < ONLINE_WINDOW_MS) return { online: true, label: "online" };
-  return { online: false, label: `last seen ${new Date(lastSeenAt).toLocaleString()}` };
+/** The API decides `online` (see ONLINE_WINDOW_MS in server-core). */
+function presence(device: { online: boolean; lastSeenAt: string | null }) {
+  if (device.online) return { online: true, label: "online" };
+  if (!device.lastSeenAt) return { online: false, label: "never connected" };
+  return { online: false, label: `last seen ${new Date(device.lastSeenAt).toLocaleString()}` };
 }
 
 export function DevicesList({ networkId }: { networkId: string }) {
@@ -56,12 +53,12 @@ export function DevicesList({ networkId }: { networkId: string }) {
             <span className="flex items-center gap-2 font-medium">
               <span
                 aria-hidden
-                className={`size-2 rounded-full ${presence(device.lastSeenAt).online ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+                className={`size-2 rounded-full ${presence(device).online ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
               />
               {device.name}
             </span>
             <span className="text-muted-foreground text-xs">
-              {PLATFORM_LABELS[device.platform]} · {presence(device.lastSeenAt).label}
+              {PLATFORM_LABELS[device.platform]} · {presence(device).label}
             </span>
           </div>
           <span className="text-muted-foreground grid text-right font-mono text-xs">

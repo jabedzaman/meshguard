@@ -175,6 +175,15 @@ export class DevicesService {
     };
   }
 
+  /** A device leaving its network (`mesh logout`). */
+  async deleteSelf(deviceId: string) {
+    const [deleted] = await this.db
+      .delete(devices)
+      .where(eq(devices.id, deviceId))
+      .returning({ id: devices.id });
+    if (!deleted) throw new NotFoundError("device");
+  }
+
   async listForNetwork(organizationId: string, networkId: string) {
     const [network] = await this.db
       .select({ id: networks.id })
@@ -182,7 +191,7 @@ export class DevicesService {
       .where(and(eq(networks.id, networkId), eq(networks.organizationId, organizationId)));
     if (!network) throw new NotFoundError("network");
 
-    return await this.db
+    const rows = await this.db
       .select({
         id: devices.id,
         networkId: devices.networkId,
@@ -198,5 +207,13 @@ export class DevicesService {
       .from(devices)
       .where(eq(devices.networkId, networkId))
       .orderBy(desc(devices.createdAt));
+
+    // Decided here, not in the browser: the response changes when a device
+    // goes stale, so clients re-render even though lastSeenAt didn't change.
+    const now = Date.now();
+    return rows.map((row) => ({
+      ...row,
+      online: row.lastSeenAt !== null && now - row.lastSeenAt.getTime() < ONLINE_WINDOW_MS,
+    }));
   }
 }
