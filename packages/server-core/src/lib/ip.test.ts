@@ -5,6 +5,8 @@ import {
   isPrivateIpv4Cidr,
   parseIpv4,
   parseIpv4Cidr,
+  randomIpv4InCidr,
+  randomIpv6InPrefix,
   randomUlaPrefix,
 } from "~/lib/ip";
 
@@ -70,5 +72,38 @@ describe("randomUlaPrefix", () => {
   it("is random", () => {
     const prefixes = new Set(Array.from({ length: 100 }, randomUlaPrefix));
     expect(prefixes.size).toBe(100);
+  });
+});
+
+describe("randomIpv4InCidr", () => {
+  it("stays inside the range and skips network/broadcast", () => {
+    for (let i = 0; i < 2000; i++) {
+      const ip = randomIpv4InCidr("10.77.0.0/30");
+      expect(["10.77.0.1", "10.77.0.2"]).toContain(ip);
+    }
+  });
+
+  it("spreads across a /16", () => {
+    const ips = new Set(Array.from({ length: 200 }, () => randomIpv4InCidr("10.77.0.0/16")));
+    expect(ips.size).toBeGreaterThan(190);
+    for (const ip of ips) expect(ip.startsWith("10.77.")).toBe(true);
+  });
+
+  it("rejects ranges with no hosts", () => {
+    expect(() => randomIpv4InCidr("10.77.0.0/31")).toThrow();
+    expect(() => randomIpv4InCidr("nope")).toThrow();
+  });
+});
+
+describe("randomIpv6InPrefix", () => {
+  it("is inside the /48 on subnet 0", () => {
+    const ip = randomIpv6InPrefix("fd12:3456:789a::/48");
+    expect(ip).toMatch(/^fd12:3456:789a:0(:[0-9a-f]{1,4}){4}$/);
+  });
+
+  it("works with generated prefixes", () => {
+    const prefix = randomUlaPrefix();
+    const ip = randomIpv6InPrefix(prefix);
+    expect(ip.startsWith(prefix.replace("::/48", ":0:"))).toBe(true);
   });
 });

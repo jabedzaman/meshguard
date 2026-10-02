@@ -99,3 +99,27 @@ export function randomUlaPrefix(): string {
       .replace(/^0+(?=.)/, "");
   return `fd${id[0]!.toString(16).padStart(2, "0")}:${hex(id[1]!, id[2]!)}:${hex(id[3]!, id[4]!)}::/48`;
 }
+
+/**
+ * A random host address in the range, excluding the network and broadcast
+ * addresses. Callers retry on conflict; the database enforces uniqueness.
+ */
+export function randomIpv4InCidr(cidr: string): string {
+  const parsed = parseIpv4Cidr(cidr);
+  if (!parsed || parsed.prefix > 30) throw new Error(`Not a usable IPv4 range: ${cidr}`);
+  const hostCount = 2 ** (32 - parsed.prefix) - 2;
+  const [random] = crypto.getRandomValues(new Uint32Array(1));
+  return formatIpv4(parsed.address + 1 + (random! % hostCount));
+}
+
+/**
+ * A random address in a /48 ULA prefix: subnet 0, random 64-bit interface id
+ * (e.g. fd12:3456:789a:0:xxxx:xxxx:xxxx:xxxx).
+ */
+export function randomIpv6InPrefix(prefix: string): string {
+  const match = /^([0-9a-f]{1,4}):([0-9a-f]{1,4}):([0-9a-f]{1,4})::\/48$/i.exec(prefix);
+  if (!match) throw new Error(`Not a /48 prefix: ${prefix}`);
+  const iid = crypto.getRandomValues(new Uint16Array(4));
+  const hextets = [match[1], match[2], match[3], "0", ...Array.from(iid, (h) => h.toString(16))];
+  return hextets.join(":");
+}
