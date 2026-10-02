@@ -129,6 +129,7 @@ thinkpad in home (connected)
   server     http://localhost:4000
   interface  meshguard0
   dns        thinkpad.internal (resolver 10.77.141.90:53, via systemd-resolved)
+  access     only by 2 rules (13 packets refused)
   public     203.0.113.7:51820
   relay      ws://localhost:3340/relay (connected)
 

@@ -85,7 +85,7 @@ Containerized agents on the e2e stack, around a fake internet (`lab_inet`,
 
 ```sh
 pnpm e2e:up
-pnpm lab        # enrolls each pair, pings v4 both ways and v6, checks the path
+pnpm lab        # enrolls each pair, pings v4 both ways and v6, checks the path and access rules
 docker exec meshguard-lab-e meshguard status   # public address, "direct" peer
 pnpm lab:down
 ```

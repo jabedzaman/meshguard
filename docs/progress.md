@@ -69,9 +69,10 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M2.5 Device names use the short hostname (no `.local`)
 - ✅ M2.6 Rename devices from the web: owners/admins, DNS-label names unique per network; agents pick up the name on their next sync (peers' DNS, own status and state)
 - ✅ M2.7 Private DNS: `<device>.internal`, answered by the agent on its mesh IP; split DNS via `/etc/resolver` (macOS) and systemd-resolved (Linux); device names are DNS labels unique per network (lab: all pairs resolve each other; MacBook resolves and pings `thinkpad.internal`, 2026-10-02)
-- ⬜ M2.8 ACLs (device → service → port)
+- ✅ M2.8 Access rules: per-network default (allow / deny) plus rules (device or any → device or every, protocol, port range), managed by owners/admins on the network page; each agent filters traffic from peers on its TUN with flow tracking for replies (lab: deny, port and ICMP rules on real agents)
 - ⬜ M2.9 Key rotation
 - ✅ M2.10 Remove devices from the web (owners/admins): peers drop it on their next sync; the removed agent is refused and says how to re-join
+- ⬜ M2.11 Access rules by tag or group (`tag:server`), and pushing rule changes to agents instead of waiting for the next sync
 
 ### M3 — Desktop app ⬜
 
@@ -142,4 +143,5 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Device presence in Redis (30s TTL key per device); Postgres `last_seen_at` persisted every 5 min only for "last seen" |
 | 2026-10-02 | Device events to the web over SSE (one-way, works through the existing cookie/CORS setup) fed by NATS; events are refetch hints, not state |
 | 2026-10-02 | Agent local API authorizes by kernel peer credentials on top of the socket's file mode; one level of access (no read-only tier for other users yet) |
+| 2026-10-02 | Access rules are enforced by the destination's agent only (it gets just the rules naming it as destination); new networks default to allow, deny is opt-in per network. The agent drops new inbound traffic until its first sync, and treats rules it can't parse as absent (never widening them) |
 | 2026-10-02 | Private DNS under `.internal` (ICANN-reserved), answered by each agent from its network map; only `.internal` is routed to it (split DNS), resolv.conf is never rewritten |

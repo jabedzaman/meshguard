@@ -184,6 +184,39 @@ the same answer as an unknown device, so ids can't be probed.
 - Names are answered locally, so lookups work offline and never reach the
   control plane. No `meshguard-dns` service is involved yet.
 
+## Access rules
+
+Each network has a default action. `allow` (the default for new networks)
+lets every device reach every other. `deny` lets traffic in only when a rule
+allows it. A rule names a source (one device, or any device), a
+destination (one device, or every device), a protocol (`any`, `tcp`, `udp`,
+`icmp`) and, for TCP/UDP, a destination port range. Owners and admins manage
+them on the network page (`GET`/`PATCH /v1/networks/:networkId/acl`,
+`POST .../acl/rules`, `DELETE /v1/acl-rules/:id`); members can read them.
+Rules naming a device are deleted with it.
+
+Enforcement happens at the destination. On sync each agent gets only the rules
+that let traffic in to it, with sources resolved to mesh addresses
+(`acl.inbound`). The agent wraps WireGuard's TUN (`internal/acl`,
+`internal/wireguard/filter.go`):
+
+- Packets from peers (written to the TUN) are dropped unless a rule matches
+  the source address, protocol and destination port. WireGuard's allowed IPs
+  already pin each peer to its mesh addresses, so the source can't be forged.
+- Packets to peers (read from the TUN) are recorded as flows for 5 minutes,
+  so replies to connections this device opened always get back, as do echo
+  replies to its pings. ICMP errors (unreachable, packet too big) and
+  non-first fragments pass too.
+- Until its first sync the agent lets only replies in. A control plane that
+  sends no `acl` (older API) means allow. Rules the agent can't parse are
+  skipped, which can only deny more.
+- Changes reach agents on their next sync (≤10s). Removing a rule stops new
+  connections. A connection that is already open stays up while the
+  destination keeps answering, because its replies are tracked as flows.
+
+`meshguard status` shows the rules in effect and how many packets were
+refused.
+
 ## Email
 
 Every email goes through the `email` queue: the API enqueues a job

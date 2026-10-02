@@ -35,7 +35,8 @@ To use a local browser instead, set `E2E_LOCAL_BROWSER=1` (on Linux this needs
 check for the data plane: real agents with WireGuard in containers must ping
 each other's mesh IPv4 and IPv6 addresses: directly on a shared LAN, directly
 through a NAT router (STUN + hole punching), and through the relay behind a
-symmetric NAT.
+symmetric NAT. On the LAN pair it also turns on access rules and checks that
+pings and TCP ports are blocked and allowed as the rules say.
 
 ## Agent service
 
