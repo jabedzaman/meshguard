@@ -318,7 +318,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	if err != nil {
 		if c.ctx.Err() == nil {
 			slog.Warn("sync failed", "err", err)
-			a.setProblem(c, "cannot reach the control plane: "+err.Error())
+			a.setProblem(c, syncProblem(err))
 		}
 		return
 	}
@@ -480,6 +480,18 @@ func (a *Agent) setProblem(c *connection, p string) {
 }
 
 // statusLocked builds the status. Caller holds a.mu.
+// syncProblem explains a failed sync. A refused signature almost always means
+// the device was removed (from the web); the API doesn't say which, so ids
+// can't be probed.
+func syncProblem(err error) string {
+	var apiErr *coordination.Error
+	if errors.As(err, &apiErr) && apiErr.Code == "invalid_device_signature" {
+		return "the control plane doesn't recognize this device: it was removed from the network " +
+			"(or this clock is off by minutes). To join again: meshguard logout --force, then meshguard up --token <new token>"
+	}
+	return "cannot reach the control plane: " + err.Error()
+}
+
 // saveNameLocked keeps the saved device name in step with the control plane,
 // where it can be renamed. Caller holds a.mu.
 func (a *Agent) saveNameLocked(name string) {

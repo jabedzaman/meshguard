@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -386,4 +387,11 @@ func TestClassifyNAT(t *testing.T) {
 	assert.Equal(t, "unknown", classifyNAT([]netip.AddrPort{a}))
 	assert.Equal(t, "endpoint-independent", classifyNAT([]netip.AddrPort{a, a}))
 	assert.Equal(t, "symmetric", classifyNAT([]netip.AddrPort{a, b}))
+}
+
+func TestSyncProblem(t *testing.T) {
+	removed := &coordination.Error{Status: http.StatusUnauthorized, Code: "invalid_device_signature"}
+	assert.Contains(t, syncProblem(removed), "removed from the network")
+	assert.Contains(t, syncProblem(removed), "meshguard logout --force")
+	assert.Equal(t, "cannot reach the control plane: boom", syncProblem(errors.New("boom")))
 }
