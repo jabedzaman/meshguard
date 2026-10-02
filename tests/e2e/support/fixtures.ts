@@ -15,11 +15,21 @@ export interface TestUser {
   page: Page;
 }
 
-/** Calls Better Auth / API endpoints as the page's signed-in user. */
-export async function api<T = unknown>(page: Page, path: string, data?: unknown): Promise<T> {
-  const res = data
-    ? await page.request.post(`${E2E.apiUrl}${path}`, { headers: { Origin: E2E.webUrl }, data })
-    : await page.request.get(`${E2E.apiUrl}${path}`, { headers: { Origin: E2E.webUrl } });
+/**
+ * Calls Better Auth / API endpoints as the page's signed-in user. GET without
+ * data, POST with data, or pass `method`.
+ */
+export async function api<T = unknown>(
+  page: Page,
+  path: string,
+  data?: unknown,
+  { method = data === undefined ? "GET" : "POST" }: { method?: string } = {},
+): Promise<T> {
+  const res = await page.request.fetch(`${E2E.apiUrl}${path}`, {
+    method,
+    headers: { Origin: E2E.webUrl },
+    ...(data !== undefined && { data }),
+  });
   const body = await res.json().catch(() => null);
   if (!res.ok())
     throw Object.assign(new Error(`${path} -> ${res.status()}`), { status: res.status(), body });
