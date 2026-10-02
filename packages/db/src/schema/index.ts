@@ -1,6 +1,7 @@
 import {
   index,
   inet,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -26,6 +27,9 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 };
 
+/** What happens to traffic between devices that no access rule allows. */
+export const aclDefaultAction = pgEnum("acl_default_action", ["allow", "deny"]);
+
 export const networks = pgTable(
   "networks",
   {
@@ -38,6 +42,8 @@ export const networks = pgTable(
     // within a network. The IPv6 /48 is random per network.
     ipv4Cidr: text("ipv4_cidr").notNull(),
     ipv6Cidr: text("ipv6_cidr").notNull().unique(),
+    /** "allow": every device reaches every other; "deny": only what acl_rules allow. */
+    aclDefaultAction: aclDefaultAction("acl_default_action").notNull().default("allow"),
     ...timestamps,
   },
   (t) => [
@@ -108,4 +114,35 @@ export const enrollmentTokens = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("enrollment_tokens_network_id_idx").on(t.networkId)],
+);
+
+export const aclProtocol = pgEnum("acl_protocol", ["any", "tcp", "udp", "icmp"]);
+
+/**
+ * Lets a device (or any device) reach another (or every other) on a protocol
+ * and port range. Only enforced when the network's default action is "deny".
+ * Rules naming a device go away with it.
+ */
+export const aclRules = pgTable(
+  "acl_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    networkId: uuid("network_id")
+      .notNull()
+      .references(() => networks.id, { onDelete: "cascade" }),
+    /** Null: any device in the network. */
+    sourceDeviceId: uuid("source_device_id").references(() => devices.id, {
+      onDelete: "cascade",
+    }),
+    /** Null: every device in the network. */
+    destinationDeviceId: uuid("destination_device_id").references(() => devices.id, {
+      onDelete: "cascade",
+    }),
+    protocol: aclProtocol("protocol").notNull().default("any"),
+    /** TCP/UDP destination ports, inclusive; null for every port. */
+    portFrom: integer("port_from"),
+    portTo: integer("port_to"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("acl_rules_network_id_idx").on(t.networkId)],
 );

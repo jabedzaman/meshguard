@@ -6,6 +6,7 @@ import { deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
 import type { PresenceStore } from "~/lib/presence";
 import { hashToken } from "~/lib/tokens";
+import type { AclService } from "~/services/acl/acl.service";
 
 const { devices, enrollmentTokens, networks } = schema;
 
@@ -27,6 +28,7 @@ export class DevicesService {
     private readonly db: Db,
     private readonly presence: PresenceStore,
     private readonly events: DeviceEvents,
+    private readonly acl: AclService,
     private readonly options: { relayUrl?: string; stunServers?: string[] } = {},
   ) {}
 
@@ -156,7 +158,7 @@ export class DevicesService {
   /**
    * Records the device's presence and reachable endpoints and returns its
    * network map: the device itself plus every peer's WireGuard key, mesh
-   * addresses and endpoints. Presence goes to Redis; Postgres is only written
+   * addresses and endpoints, and what may reach it. Presence goes to Redis; Postgres is only written
    * when the endpoints change or lastSeenAt is due to be persisted.
    */
   async sync(deviceId: string, input: { endpoints: string[] }) {
@@ -230,6 +232,8 @@ export class DevicesService {
       },
       network: network!,
       peers: peers.map((peer) => ({ ...peer, lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt })),
+      /** Traffic from peers the agent lets in. */
+      acl: await this.acl.policyFor(self.networkId, self.id),
       /** Where to relay WireGuard packets for peers that can't be reached directly. */
       relay: this.options.relayUrl ? { url: this.options.relayUrl } : null,
       /** STUN servers for discovering this device's public address. */

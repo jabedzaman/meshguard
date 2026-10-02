@@ -36,6 +36,13 @@
       "when": 1790944025230,
       "tag": "0004_device_dns_names",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790968966333,
+      "tag": "0005_access_rules",
+      "breakpoints": true
     }
   ]
 }
