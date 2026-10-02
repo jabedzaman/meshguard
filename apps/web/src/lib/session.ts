@@ -9,6 +9,10 @@ import { auth } from "~/lib/auth";
 
 export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }));
 
+export const listOrganizations = cache(async () =>
+  auth.api.listOrganizations({ headers: await headers() }),
+);
+
 export const getActiveOrganization = cache(async () =>
   auth.api.getFullOrganization({ headers: await headers() }),
 );

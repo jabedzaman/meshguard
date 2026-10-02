@@ -18,6 +18,7 @@
     "@mesh/ui": "workspace:^",
     "@tanstack/react-query": "^5.104.0",
     "better-auth": "1.7.7",
+    "lucide-react": "catalog:",
     "next": "16.3.8",
     "react": "catalog:",
     "react-dom": "catalog:",

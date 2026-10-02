@@ -58,7 +58,7 @@ export function CreateOrganization() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
-        <CardTitle>Create your organization</CardTitle>
+        <CardTitle>Create an organization</CardTitle>
         <CardDescription>Networks and devices belong to an organization.</CardDescription>
       </CardHeader>
       <Form {...form}>
