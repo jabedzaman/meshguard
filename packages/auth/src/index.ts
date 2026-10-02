@@ -12,6 +12,19 @@ export interface AuthOptions {
   /** Origins allowed to call the auth endpoints with cookies, e.g. the web dashboard. */
   trustedOrigins: string[];
   github?: { clientId: string; clientSecret: string };
+  /**
+   * Sends the invitation email. Only the API (which serves /api/auth) needs
+   * it; other instances, like the web app's session reader, can omit it.
+   */
+  sendInvitationEmail?: (invitation: InvitationEmailData) => Promise<void>;
+}
+
+export interface InvitationEmailData {
+  id: string;
+  email: string;
+  role: string;
+  organizationName: string;
+  inviterName: string;
 }
 
 export function authOptionsFromEnv(env: AuthEnv): AuthOptions {
@@ -41,6 +54,18 @@ export function createAuth(db: Db, options: AuthOptions) {
       organization({
         ac,
         roles,
+        sendInvitationEmail: async (data) => {
+          if (!options.sendInvitationEmail) {
+            throw new Error("Invitation emails are not configured on this auth instance");
+          }
+          await options.sendInvitationEmail({
+            id: data.id,
+            email: data.email,
+            role: data.role,
+            organizationName: data.organization.name,
+            inviterName: data.inviter.user.name,
+          });
+        },
         // Sessions keep activeOrganizationId after the org is deleted or the
         // user is removed from it. Clear it so it can be trusted as-is (the web
         // proxy routes on it without loading the organization).
