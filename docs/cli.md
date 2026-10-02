@@ -22,6 +22,12 @@ agent exits — a **launchd** daemon on macOS, a **systemd** unit on Linux — a
 makes you (the user who ran sudo) the owner of the agent socket, so `mesh`
 works without sudo.
 
+The local API is guarded twice: the socket's file mode (only its owner and
+root can connect), and the caller's peer credentials, which the kernel reports
+for every connection (`SO_PEERCRED` on Linux, `LOCAL_PEERCRED` on macOS). The
+agent answers only root, its own user and the socket owner, and refuses
+callers it can't identify.
+
 Agent flags passed to `install` are saved into the service, e.g. to keep an
 enrollment from a dev run:
 
@@ -40,7 +46,7 @@ sudo mesh-agent uninstall
 | Flag | Default | |
 | --- | --- | --- |
 | `-socket` | `/var/run/mesh/agent.sock` (`$MESH_SOCKET`) | local API socket |
-| `-socket-owner` | the sudo user | `uid:gid` that may use the socket without sudo |
+| `-socket-owner` | the sudo user | `uid:gid` that owns the socket and may use the agent without sudo |
 | `-state-dir` | `/var/lib/mesh` (Linux), `/Library/Application Support/Mesh` (macOS) (`$MESH_STATE_DIR`) | keys and enrollment |
 | `-port` | `51820` | WireGuard UDP port |
 | `-interface` | `mesh0` (Linux), `utunN` (macOS) | interface name |
@@ -168,6 +174,7 @@ mesh completion bash > /etc/bash_completion.d/mesh
 | --- | --- |
 | `agent not reachable … no agent socket here` | Start the agent: `sudo mesh-agent install`, or point `--socket` / `MESH_SOCKET` at where it listens. |
 | `agent not reachable … permission denied` | The socket belongs to another user. Reinstall with `sudo mesh-agent install` as yourself, or run `mesh` with sudo. |
+| `this user may not control the mesh agent` | The socket was reachable but you aren't root, the agent's user or the socket owner. Run `mesh` with sudo, or reinstall with `sudo mesh-agent install` as yourself. |
 | `! WireGuard is not running … needs root` | The agent isn't running as root. Use the service, or `sudo mesh-agent`. |
 | Peer stays `relay` | Expected behind symmetric NATs, or when both peers are behind home routers (see [architecture.md](architecture.md#hole-punching)). `mesh netcheck` on both ends shows the NAT types. |
 | Peers drop after sleep or a Wi-Fi change | They should come back within ~15s (relay first, then direct). The agent log shows `rebinding reason=wake` or `reason="network change"`; if it doesn't, report it with the log. |

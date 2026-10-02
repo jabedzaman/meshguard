@@ -58,7 +58,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.23 Push device events to the web instead of polling: NATS `network.<id>.device.<type>` (enrolled, connected, updated, disconnected via Redis key expiry, removed) → SSE → the device list refetches
 - ✅ M1.24 Reconnect: agent restart reconnects from saved state; network changes and wake from sleep rebind sockets, reset NAT/disco state, redial the relay and resync (lab: peer changes address → direct again in ~13s; verified on the MacBook, 2026-10-02)
 - ✅ M1.25 CLI (cobra): `mesh up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
-- ⬜ M1.26 Agent local API auth (peer credentials on the Unix socket)
+- ✅ M1.26 Agent local API auth: peer credentials on the Unix socket (`SO_PEERCRED` / `LOCAL_PEERCRED`); only root, the agent's user and the socket owner are answered, unknown callers refused
 
 ### M2 — Reachability and naming 🚧
 
@@ -141,3 +141,4 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |
 | 2026-10-02 | Device presence in Redis (30s TTL key per device); Postgres `last_seen_at` persisted every 5 min only for "last seen" |
 | 2026-10-02 | Device events to the web over SSE (one-way, works through the existing cookie/CORS setup) fed by NATS; events are refetch hints, not state |
+| 2026-10-02 | Agent local API authorizes by kernel peer credentials on top of the socket's file mode; one level of access (no read-only tier for other users yet) |
