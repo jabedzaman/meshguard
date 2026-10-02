@@ -6,7 +6,9 @@ import { auth } from "~/lib/auth";
 const AUTH_ROUTES = new Set(["/sign-in", "/sign-up"]);
 
 /** Need a session but not an active organization. */
-const ONBOARDING_ROUTES = new Set(["/organizations/create"]);
+function isOnboardingRoute(pathname: string) {
+  return pathname === "/organizations/create" || pathname.startsWith("/invitations/");
+}
 
 // All routing on auth state lives here; layouts and pages can assume a session
 // and, outside onboarding, an active organization.
@@ -24,7 +26,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (AUTH_ROUTES.has(pathname)) return redirect("/");
-  if (ONBOARDING_ROUTES.has(pathname)) return NextResponse.next();
+  if (isOnboardingRoute(pathname)) return NextResponse.next();
 
   if (!session.session.activeOrganizationId) {
     const [first] = await auth.api.listOrganizations({ headers: requestHeaders });
