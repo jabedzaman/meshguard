@@ -24,9 +24,10 @@ import (
 )
 
 type fakeEngine struct {
-	mu    sync.Mutex
-	peers []wireguard.Peer
-	cfg   wireguard.Config
+	mu      sync.Mutex
+	peers   []wireguard.Peer
+	cfg     wireguard.Config
+	rebinds atomic.Int32
 }
 
 func (e *fakeEngine) Name() string { return "mesh-test0" }
@@ -214,6 +215,7 @@ func TestChooseEndpoint(t *testing.T) {
 
 func (e *fakeEngine) SetInterceptor(wireguard.Interceptor) {}
 func (e *fakeEngine) SendTo(netip.AddrPort, []byte) error  { return nil }
+func (e *fakeEngine) Rebind() error                        { e.rebinds.Add(1); return nil }
 
 func runningAgent(t *testing.T, server string) (*Agent, http.Handler) {
 	t.Helper()

@@ -33,6 +33,7 @@ type Engine interface {
 	DeliverRelay(relay.Packet)
 	SetInterceptor(wireguard.Interceptor)
 	SendTo(netip.AddrPort, []byte) error
+	Rebind() error
 	Close()
 }
 
@@ -48,6 +49,12 @@ type Agent struct {
 	SyncInterval time.Duration
 	// Creates the WireGuard engine. Default wireguard.Start.
 	StartEngine func(wireguard.Config) (Engine, error)
+	// How often to check for network changes and wake from sleep. Default 2s.
+	NetCheckInterval time.Duration
+
+	// linkState summarizes the network attachment; a change means the
+	// network changed. Default: the advertisable local addresses.
+	linkState func(engine Engine, exclude []netip.Prefix) string
 
 	mu   sync.Mutex // guards ctx and conn, and serializes up/down/logout
 	ctx  context.Context
@@ -63,6 +70,8 @@ type Agent struct {
 type connection struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+	// syncNow asks the loop to sync right away (after a network change).
+	syncNow chan struct{}
 
 	engine   Engine // nil if WireGuard couldn't start (problem says why)
 	disco    *disco.Manager
@@ -99,7 +108,7 @@ func (a *Agent) startLocked(st *state.State) {
 		return
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
-	c := &connection{ctx: ctx, cancel: cancel}
+	c := &connection{ctx: ctx, cancel: cancel, syncNow: make(chan struct{}, 1)}
 	a.conn = c
 
 	cfg, err := a.engineConfig(st)
@@ -113,6 +122,7 @@ func (a *Agent) startLocked(st *state.State) {
 		slog.Warn("wireguard unavailable", "err", err)
 	} else {
 		a.startHolePunching(c, st)
+		go a.watchNetwork(c, st)
 	}
 	go a.loop(c, st)
 }
@@ -246,13 +256,7 @@ func (a *Agent) loop(c *connection, st *state.State) {
 		return
 	}
 
-	var exclude []netip.Prefix
-	for _, cidr := range []string{st.Network.IPv4CIDR, st.Network.IPv6CIDR} {
-		if p, err := netip.ParsePrefix(cidr); err == nil {
-			exclude = append(exclude, p)
-		}
-	}
-
+	exclude := meshPrefixes(st)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -261,8 +265,21 @@ func (a *Agent) loop(c *connection, st *state.State) {
 		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
+		case <-c.syncNow:
+			ticker.Reset(interval)
 		}
 	}
+}
+
+// meshPrefixes are the network's mesh ranges, never advertised as endpoints.
+func meshPrefixes(st *state.State) []netip.Prefix {
+	var prefixes []netip.Prefix
+	for _, cidr := range []string{st.Network.IPv4CIDR, st.Network.IPv6CIDR} {
+		if p, err := netip.ParsePrefix(cidr); err == nil {
+			prefixes = append(prefixes, p)
+		}
+	}
+	return prefixes
 }
 
 // endpoints returns the addresses to advertise: local first, then the public
