@@ -170,6 +170,7 @@ mesh completion bash > /etc/bash_completion.d/mesh
 | `agent not reachable … permission denied` | The socket belongs to another user. Reinstall with `sudo mesh-agent install` as yourself, or run `mesh` with sudo. |
 | `! WireGuard is not running … needs root` | The agent isn't running as root. Use the service, or `sudo mesh-agent`. |
 | Peer stays `relay` | Expected behind symmetric NATs, or when both peers are behind home routers (see [architecture.md](architecture.md#hole-punching)). `mesh netcheck` on both ends shows the NAT types. |
+| Peers drop after sleep or a Wi-Fi change | They should come back within ~15s (relay first, then direct). The agent log shows `rebinding reason=wake` or `reason="network change"`; if it doesn't, report it with the log. |
 | Peer handshake `never` | The peer is offline or down (`mesh status` on it), or the relay is unreachable from one side. |
 
 ## Testing the service

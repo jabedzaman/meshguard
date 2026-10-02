@@ -122,6 +122,17 @@ to (same LAN), a hole-punched path (below), and the relay otherwise.
 - **Learning from pings.** A valid ping's source address is the peer's real
   NAT mapping toward us (it can differ from the STUN result after a port
   clash), so it is pinged back too.
+- **Following a peer.** A confirmed path that misses a keepalive goes back
+  to pinging every candidate, and a ping from a new address is pinged back,
+  so a peer that moved is found before its old path expires.
+- **Network changes and sleep.** The agent checks its local addresses every
+  2s and compares the wall clock with Go's monotonic clock (which stops
+  during sleep). On a change or a wake it reopens WireGuard's sockets, drops
+  the STUN result and confirmed paths, redials the relay, re-probes STUN and
+  syncs right away. Peers use the relay until disco finds direct paths again
+  (`pnpm lab` moves a peer to a new address: direct again in ~13s, bounded by
+  the 10s sync). The relay connection is also pinged every 15s, so a
+  half-open connection is replaced.
 - `wireguard.Bind` hands STUN and disco packets to the agent and everything
   else to WireGuard; they're told apart by their first bytes.
 
