@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync, type KeyObject, sign } from "node:crypto";
 import { E2E } from "./support/env";
 import { api, expect, test } from "./support/fixtures";
 
@@ -10,6 +10,44 @@ function deviceKeys() {
       .subarray(-32)
       .toString("base64");
   return { identityPublicKey: raw("ed25519"), wireguardPublicKey: raw("x25519") };
+}
+
+/** A device with its private identity key, for signing sync requests like the agent. */
+function signingDevice() {
+  const identity = generateKeyPairSync("ed25519");
+  const raw = (key: KeyObject) =>
+    key.export({ format: "der", type: "spki" }).subarray(-32).toString("base64");
+  return {
+    privateKey: identity.privateKey,
+    keys: {
+      identityPublicKey: raw(identity.publicKey),
+      wireguardPublicKey: raw(generateKeyPairSync("x25519").publicKey),
+    },
+  };
+}
+
+/** Signed POST /v1/devices/self/sync, as internal/coordination/sign.go does it. */
+async function sync(
+  device: { id: string; privateKey: KeyObject },
+  body: unknown,
+  { tamper = false, timestamp = Date.now() } = {},
+) {
+  const path = "/v1/devices/self/sync";
+  const json = JSON.stringify(body);
+  const bodyHash = createHash("sha256").update(json).digest("hex");
+  const message = `POST\n${path}\n${timestamp}\n${bodyHash}`;
+  const signature = sign(null, Buffer.from(message), device.privateKey).toString("base64");
+  const res = await fetch(`${E2E.apiUrl}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Mesh-Device": device.id,
+      "X-Mesh-Timestamp": String(timestamp),
+      "X-Mesh-Signature": signature,
+    },
+    body: tamper ? JSON.stringify({ endpoints: ["6.6.6.6:51820"] }) : json,
+  });
+  return { status: res.status, body: (await res.json()) as any };
 }
 
 /** What `mesh up` sends. No session: the token is the credential. */
@@ -142,5 +180,100 @@ test.describe("devices", () => {
 
     const devices = await api<unknown[]>(owner.page, `/v1/networks/${network.id}/devices`);
     expect(devices).toHaveLength(10);
+  });
+
+  test("signed sync returns the network map and marks the device online", async ({
+    createUser,
+    createOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Sync Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const token = () =>
+      api<{ token: string }>(owner.page, `/v1/networks/${network.id}/enrollment-tokens`, {}).then(
+        (t) => t.token,
+      );
+
+    const laptop = signingDevice();
+    const server = signingDevice();
+    const a = await enroll({
+      token: await token(),
+      hostname: "laptop",
+      platform: "darwin",
+      ...laptop.keys,
+    });
+    const b = await enroll({
+      token: await token(),
+      hostname: "server",
+      platform: "linux",
+      ...server.keys,
+    });
+    const laptopDevice = { id: a.body.device.id, privateKey: laptop.privateKey };
+    const serverDevice = { id: b.body.device.id, privateKey: server.privateKey };
+
+    // Server reports its endpoints; laptop sees it as a peer with them.
+    expect(
+      (await sync(serverDevice, { endpoints: ["192.168.1.9:51820", "[2001:db8::9]:51820"] }))
+        .status,
+    ).toBe(200);
+    const map = await sync(laptopDevice, { endpoints: ["192.168.1.5:51820"] });
+    expect(map.status).toBe(200);
+    expect(map.body.self).toMatchObject({ id: laptopDevice.id, name: "laptop" });
+    expect(map.body.network).toMatchObject({ id: network.id, ipv4Cidr: "10.77.0.0/16" });
+    expect(map.body.peers).toEqual([
+      expect.objectContaining({
+        id: serverDevice.id,
+        name: "server",
+        wireguardPublicKey: server.keys.wireguardPublicKey,
+        meshIpv4: b.body.device.meshIpv4,
+        endpoints: ["192.168.1.9:51820", "[2001:db8::9]:51820"],
+      }),
+    ]);
+    // Private identity keys never come back.
+    expect(JSON.stringify(map.body)).not.toContain(server.keys.identityPublicKey);
+
+    // Both synced, so both show as online.
+    await owner.page.goto(`/networks/${network.id}`);
+    await expect(owner.page.locator("li", { hasText: "laptop" })).toContainText("online");
+    await expect(owner.page.locator("li", { hasText: "server" })).toContainText("online");
+  });
+
+  test("sync rejects unsigned, tampered, stale and malformed requests", async ({
+    createUser,
+    createOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Reject Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const { token } = await api<{ token: string }>(
+      owner.page,
+      `/v1/networks/${network.id}/enrollment-tokens`,
+      {},
+    );
+    const keys = signingDevice();
+    const enrolled = await enroll({ token, hostname: "box", platform: "linux", ...keys.keys });
+    const device = { id: enrolled.body.device.id, privateKey: keys.privateKey };
+
+    const unsigned = await fetch(`${E2E.apiUrl}/v1/devices/self/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoints: [] }),
+    });
+    expect(unsigned.status).toBe(401);
+
+    for (const res of [
+      await sync(device, { endpoints: [] }, { tamper: true }),
+      await sync(device, { endpoints: [] }, { timestamp: Date.now() - 5 * 60 * 1000 }),
+      await sync({ ...device, privateKey: signingDevice().privateKey }, { endpoints: [] }),
+      await sync({ ...device, id: "00000000-0000-4000-8000-000000000000" }, { endpoints: [] }),
+    ]) {
+      expect(res).toMatchObject({
+        status: 401,
+        body: { error: { code: "invalid_device_signature" } },
+      });
+    }
+
+    const malformed = await sync(device, { endpoints: ["not-an-endpoint"] });
+    expect(malformed.status).toBe(400);
   });
 });
