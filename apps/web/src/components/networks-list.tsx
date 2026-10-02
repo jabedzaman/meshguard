@@ -22,7 +22,10 @@ export function NetworksList() {
       {networks.map((n) => (
         <li key={n.id} className="flex items-center justify-between p-3 text-sm">
           <span className="font-medium">{n.name}</span>
-          <span className="text-muted-foreground font-mono">{n.ipv4Cidr}</span>
+          <span className="text-muted-foreground flex gap-3 font-mono text-xs">
+            <span>{n.ipv4Cidr}</span>
+            <span>{n.ipv6Cidr}</span>
+          </span>
         </li>
       ))}
     </ul>
