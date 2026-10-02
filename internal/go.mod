@@ -3,6 +3,7 @@ module github.com/twinlabshq/mesh/internal
 go 1.27.1
 
 require (
+	github.com/coder/websocket v1.8.15
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/crypto v0.57.0
 	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446
