@@ -40,7 +40,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ Invitations: invite by email (owner/admin), pending list, cancel; email via workers + react-email
 - ✅ Invitation page `/invitations/[invitationId]`: accept / decline, sign-up from the link, wrong-account, expired / cancelled / used states
 - ✅ Role assignment on the members list (owners: any role; admins: admin/member, not owners; own row read-only)
-- ⬜ Member list (full): search, remove member, leave organization
+- ✅ Remove member (owners/admins; only owners act on owners) and leave organization (proxy then activates the next org)
+- ⬜ Member search (when orgs grow); stale active org on a leaver's other devices (layout fallback)
 - ⬜ Device address allocation (random free address, unique per network; enforced by DB constraints)
 - ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
 - ⬜ Enrollment: one-time token → device record → mesh IP assigned

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { InviteMemberForm } from "~/components/invite-member-form";
+import { LeaveOrganization } from "~/components/leave-organization";
 import { MembersList } from "~/components/members-list";
 import { PendingInvitations } from "~/components/pending-invitations";
 
@@ -19,6 +20,10 @@ export default function MembersPage() {
       <section className="flex flex-col gap-4">
         <h2 className="font-medium">Pending invitations</h2>
         <PendingInvitations />
+      </section>
+      <section className="flex flex-col gap-4">
+        <h2 className="font-medium">Leave</h2>
+        <LeaveOrganization />
       </section>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ROLES, type Role } from "@mesh/auth/permissions";
+import { Button } from "@mesh/ui/components/button";
 import {
   Select,
   SelectContent,
@@ -9,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@mesh/ui/components/select";
+import { ConfirmDialog } from "~/components/confirm-dialog";
 import {
   useCurrentUser,
   useOrganization,
@@ -23,6 +25,7 @@ export function MembersList() {
   const currentUser = useCurrentUser();
   const myRole = useRole();
   const canUpdateRoles = usePermission({ member: ["update"] });
+  const canRemove = usePermission({ member: ["delete"] });
   const queryClient = useQueryClient();
   const { data: members, isPending, error } = useQuery(memberQueries.list(organization.id));
 
@@ -48,8 +51,11 @@ export function MembersList() {
       <ul className="divide-border divide-y rounded-md border">
         {members.map((member) => {
           const isSelf = member.userId === currentUser.id;
-          const editable =
-            canUpdateRoles && !isSelf && (member.role !== "owner" || myRole === "owner");
+          // Only owners can act on owners; nobody acts on themselves here
+          // (leaving is a separate action).
+          const canActOn = !isSelf && (member.role !== "owner" || myRole === "owner");
+          const editable = canUpdateRoles && canActOn;
+          const removable = canRemove && canActOn;
           return (
             <li key={member.id} className="flex items-center justify-between gap-4 p-3 text-sm">
               <div className="grid">
@@ -59,32 +65,55 @@ export function MembersList() {
                 </span>
                 <span className="text-muted-foreground text-xs">{member.user.email}</span>
               </div>
-              {editable ? (
-                <Select
-                  value={member.role}
-                  disabled={updateRole.isPending && updateRole.variables?.memberId === member.id}
-                  onValueChange={(role) =>
-                    updateRole.mutate({ memberId: member.id, role: role as Role })
-                  }
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="w-28"
-                    aria-label={`Role for ${member.user.email}`}
+              <div className="flex items-center gap-2">
+                {editable ? (
+                  <Select
+                    value={member.role}
+                    disabled={updateRole.isPending && updateRole.variables?.memberId === member.id}
+                    onValueChange={(role) =>
+                      updateRole.mutate({ memberId: member.id, role: role as Role })
+                    }
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {assignableRoles.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {role}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <span className="text-muted-foreground w-28 px-3 text-sm">{member.role}</span>
-              )}
+                    <SelectTrigger
+                      size="sm"
+                      className="w-28"
+                      aria-label={`Role for ${member.user.email}`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignableRoles.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {role}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-muted-foreground w-28 px-3 text-sm">{member.role}</span>
+                )}
+                {removable ? (
+                  <ConfirmDialog
+                    trigger={
+                      <Button variant="ghost" size="sm" aria-label={`Remove ${member.user.email}`}>
+                        Remove
+                      </Button>
+                    }
+                    title={`Remove ${member.user.name}?`}
+                    description={`${member.user.email} will lose access to ${organization.name}.`}
+                    confirmLabel="Remove member"
+                    onConfirm={async () => {
+                      await unwrap(
+                        authClient.organization.removeMember({ memberIdOrEmail: member.id }),
+                      );
+                      await queryClient.invalidateQueries({ queryKey: memberQueries.all() });
+                    }}
+                  />
+                ) : (
+                  // Keeps role columns aligned across rows.
+                  canRemove && <span className="w-[68px]" />
+                )}
+              </div>
             </li>
           );
         })}
