@@ -14,6 +14,8 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
+
+	"github.com/twinlabshq/mesh/internal/relay"
 )
 
 // MTU leaves room for WireGuard's overhead on a 1500-byte path, plus IPv6.
@@ -36,6 +38,7 @@ type Engine struct {
 	name string
 	tun  tun.Device
 	dev  *device.Device
+	bind *Bind
 
 	mu       sync.Mutex
 	lastUAPI string
@@ -55,7 +58,8 @@ func Start(cfg Config) (*Engine, error) {
 	}
 
 	logger := device.NewLogger(device.LogLevelError, "wireguard: ")
-	dev := device.NewDevice(t, conn.NewDefaultBind(), logger)
+	bind := NewBind(conn.NewDefaultBind())
+	dev := device.NewDevice(t, bind, logger)
 	base := fmt.Sprintf("private_key=%s\nlisten_port=%d\n", hex.EncodeToString(cfg.PrivateKey[:]), cfg.ListenPort)
 	if err := dev.IpcSet(base); err != nil {
 		dev.Close()
@@ -70,8 +74,14 @@ func Start(cfg Config) (*Engine, error) {
 		return nil, fmt.Errorf("configure %s: %w", name, err)
 	}
 	slog.Info("wireguard up", "interface", name, "port", cfg.ListenPort, "addresses", cfg.Addresses)
-	return &Engine{name: name, tun: t, dev: dev}, nil
+	return &Engine{name: name, tun: t, dev: dev, bind: bind}, nil
 }
+
+// SetRelay sets how packets for relay/<key> endpoints are sent.
+func (e *Engine) SetRelay(send RelaySender) { e.bind.SetRelay(send) }
+
+// DeliverRelay hands a packet received from the relay to WireGuard.
+func (e *Engine) DeliverRelay(p relay.Packet) { e.bind.Deliver(p) }
 
 // Name is the actual interface name.
 func (e *Engine) Name() string { return e.name }

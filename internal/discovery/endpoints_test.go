@@ -30,3 +30,12 @@ func TestEndpointsRuns(t *testing.T) {
 		assert.NotContains(t, ep, "127.0.0.1")
 	}
 }
+
+func TestDirectEndpoint(t *testing.T) {
+	local := []netip.Prefix{netip.MustParsePrefix("192.168.1.0/24"), netip.MustParsePrefix("172.18.0.0/16")}
+
+	assert.Equal(t, "172.18.0.4:51820",
+		DirectEndpoint([]string{"10.0.0.5:51820", "172.18.0.4:51820"}, local), "first endpoint on a shared network")
+	assert.Equal(t, "", DirectEndpoint([]string{"10.0.0.5:51820", "[2001:db8::1]:51820"}, local), "no shared network")
+	assert.Equal(t, "", DirectEndpoint([]string{"garbage"}, local))
+}

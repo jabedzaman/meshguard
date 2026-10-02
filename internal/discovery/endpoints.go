@@ -62,3 +62,46 @@ func Filter(addrs []netip.Addr, port int, exclude []netip.Prefix) []string {
 	}
 	return append(v4, v6...)
 }
+
+// LocalPrefixes returns the networks this machine is directly attached to
+// (interface addresses with their masks), skipping loopback and skipInterface.
+// A peer endpoint inside one of these is reachable without NAT.
+func LocalPrefixes(skipInterface string) []netip.Prefix {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var prefixes []netip.Prefix
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || iface.Name == skipInterface {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			if p, err := netip.ParsePrefix(a.String()); err == nil && !p.Addr().IsLinkLocalUnicast() {
+				prefixes = append(prefixes, p.Masked())
+			}
+		}
+	}
+	return prefixes
+}
+
+// DirectEndpoint picks the first endpoint on a directly attached network, or
+// "" if none is (the peer is behind NAT or elsewhere).
+func DirectEndpoint(endpoints []string, local []netip.Prefix) string {
+	for _, ep := range endpoints {
+		addrPort, err := netip.ParseAddrPort(ep)
+		if err != nil {
+			continue
+		}
+		for _, p := range local {
+			if p.Contains(addrPort.Addr().Unmap()) {
+				return ep
+			}
+		}
+	}
+	return ""
+}

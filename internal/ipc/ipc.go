@@ -31,17 +31,26 @@ type Status struct {
 	Network *Network `json:"network,omitempty"`
 	Server  string   `json:"server,omitempty"`
 	// WireGuard interface name, once up.
-	Interface  string     `json:"interface,omitempty"`
-	LastSyncAt *time.Time `json:"lastSyncAt,omitempty"`
-	Peers      []Peer     `json:"peers,omitempty"`
+	Interface  string       `json:"interface,omitempty"`
+	Relay      *RelayStatus `json:"relay,omitempty"`
+	LastSyncAt *time.Time   `json:"lastSyncAt,omitempty"`
+	Peers      []Peer       `json:"peers,omitempty"`
+}
+
+// RelayStatus describes the agent's relay connection.
+type RelayStatus struct {
+	URL       string `json:"url"`
+	Connected bool   `json:"connected"`
 }
 
 // Peer is another device in the network, as this agent sees it.
 type Peer struct {
-	Name          string     `json:"name"`
-	MeshIPv4      string     `json:"meshIpv4"`
-	MeshIPv6      string     `json:"meshIpv6"`
+	Name     string `json:"name"`
+	MeshIPv4 string `json:"meshIpv4"`
+	MeshIPv6 string `json:"meshIpv6"`
+	// "ip:port" when direct, "relay/..." when through the relay.
 	Endpoint      string     `json:"endpoint,omitempty"`
+	ViaRelay      bool       `json:"viaRelay,omitempty"`
 	LastHandshake *time.Time `json:"lastHandshake,omitempty"`
 }
 

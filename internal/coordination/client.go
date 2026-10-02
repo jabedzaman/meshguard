@@ -71,11 +71,17 @@ type Peer struct {
 	LastSeenAt         *time.Time `json:"lastSeenAt"`
 }
 
+// Relay is where to send packets for peers that can't be reached directly.
+type Relay struct {
+	URL string `json:"url"`
+}
+
 // NetworkMap is everything the agent needs to configure WireGuard.
 type NetworkMap struct {
 	Self    state.Device  `json:"self"`
 	Network state.Network `json:"network"`
 	Peers   []Peer        `json:"peers"`
+	Relay   *Relay        `json:"relay"`
 }
 
 // SyncRequest reports where this device can be reached.
