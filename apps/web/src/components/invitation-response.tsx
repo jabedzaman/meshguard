@@ -3,6 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { Button } from "@mesh/ui/components/button";
+import { useHydrated } from "~/hooks/use-hydrated";
 import { authClient, unwrap } from "~/lib/auth-client";
 
 export function InvitationResponse({
@@ -12,6 +13,7 @@ export function InvitationResponse({
   invitationId: string;
   organizationName: string;
 }) {
+  const hydrated = useHydrated();
   // Accepting makes the organization active; a full navigation drops caches.
   const accept = useMutation({
     mutationFn: () => unwrap(authClient.organization.acceptInvitation({ invitationId })),
@@ -34,7 +36,7 @@ export function InvitationResponse({
   }
 
   const error = accept.error ?? decline.error;
-  const busy = accept.isPending || decline.isPending || accept.isSuccess;
+  const busy = !hydrated || accept.isPending || decline.isPending || accept.isSuccess;
 
   return (
     <div className="flex flex-col gap-3">
