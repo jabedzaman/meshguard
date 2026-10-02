@@ -22,6 +22,7 @@ peer_path() {
     p.viaRelay ? "relay" : (p.endpoint ? "direct" : "")'
 }
 peer_line() { docker exec "mesh-$1" mesh peers | sed -n 2p; }
+dns_name() { docker exec "mesh-$1" mesh status --json | json .dns.name; }
 
 echo "==> migrating the e2e database"
 DATABASE_URL=${E2E_DATABASE_URL:-postgres://mesh:mesh@localhost:5432/mesh_test} \
@@ -73,6 +74,11 @@ run_pair() {
   check_ping "$a" "$b4"
   check_ping "$b" "$a4"
   check_ping "$a" "$b6"
+  # The lab has no systemd-resolved, so ask the agent's resolver directly.
+  local b_name resolved
+  b_name=$(dns_name "$b")
+  resolved=$(docker exec "mesh-$a" dig +short +time=2 +tries=1 @"$a4" "$b_name" A)
+  if [ "$resolved" = "$b4" ]; then ok "$a resolves $b_name -> $b4"; else fail "$a resolves $b_name to '${resolved}', want $b4"; fi
   if [ "$path" = "$want" ]; then ok "path: $(peer_line "$a" | awk '{$1=$1; print}')"; else fail "path is ${path:-unknown}, want $want: $(peer_line "$a")"; fi
 }
 

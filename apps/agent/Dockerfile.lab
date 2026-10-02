@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     cd ../cli && go build -o /out/mesh ./cmd/mesh
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends iproute2 iputils-ping ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends iproute2 iputils-ping dnsutils ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/ /usr/local/bin/
 ENV MESH_SOCKET=/run/mesh/agent.sock MESH_STATE_DIR=/var/lib/mesh
