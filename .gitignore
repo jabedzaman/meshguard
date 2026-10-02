@@ -19,3 +19,7 @@ packages/proto/gen/
 # Playwright
 playwright-report/
 test-results/
+
+# Go binaries built in place (`go build` in an app folder)
+/apps/*/mesh
+/apps/*/mesh-*

@@ -1,10 +1,9 @@
-// Command mesh-agent is the device daemon. It owns the WireGuard interface and
-// serves a local API to the desktop app and CLI.
+// Command mesh-agent is the device daemon. It owns the device's keys and
+// WireGuard interface and serves a local API to the desktop app and CLI.
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"log/slog"
@@ -13,22 +12,25 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/twinlabshq/mesh/apps/agent/internal/agent"
 	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/twinlabshq/mesh/internal/state"
 )
 
 var version = "dev"
 
 func main() {
 	socket := flag.String("socket", ipc.DefaultSocketPath(), "local API socket path")
+	stateDir := flag.String("state-dir", state.DefaultDir(), "directory for keys and enrollment state")
 	flag.Parse()
 
-	if err := run(*socket); err != nil {
+	if err := run(*socket, *stateDir); err != nil {
 		slog.Error("agent exited", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(socket string) error {
+func run(socket, stateDir string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -37,19 +39,14 @@ func run(socket string) error {
 		return err
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/status", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ipc.Status{Version: version, State: "disconnected"})
-	})
-
-	srv := &http.Server{Handler: mux}
+	a := &agent.Agent{Version: version, StateDir: stateDir}
+	srv := &http.Server{Handler: a.Handler()}
 	go func() {
 		<-ctx.Done()
 		srv.Shutdown(context.Background())
 	}()
 
-	slog.Info("agent listening", "socket", socket)
+	slog.Info("agent listening", "socket", socket, "state", stateDir)
 	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

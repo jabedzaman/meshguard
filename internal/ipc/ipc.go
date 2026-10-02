@@ -22,7 +22,37 @@ func DefaultSocketPath() string {
 // Status is returned by GET /v1/status.
 type Status struct {
 	Version string `json:"version"`
-	State   string `json:"state"`
+	// "not_enrolled" or "enrolled" for now; "connected" once WireGuard is up.
+	State   string   `json:"state"`
+	Device  *Device  `json:"device,omitempty"`
+	Network *Network `json:"network,omitempty"`
+	Server  string   `json:"server,omitempty"`
+}
+
+// Device is this machine's record in the mesh.
+type Device struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MeshIPv4 string `json:"meshIpv4"`
+	MeshIPv6 string `json:"meshIpv6"`
+}
+
+// Network is the network this machine belongs to.
+type Network struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// UpRequest is the body of POST /v1/up: enroll this machine with a token.
+type UpRequest struct {
+	Token  string `json:"token"`
+	Server string `json:"server"`
+}
+
+// Error is returned by the local API with a non-2xx status.
+type Error struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 // NewClient returns an HTTP client that dials the agent socket. Request URLs
