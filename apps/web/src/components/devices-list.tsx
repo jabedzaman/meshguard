@@ -1,13 +1,13 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getErrorMessage } from "@mesh/api-client";
-import { deviceQueries, enrollmentTokenQueries } from "~/lib/queries";
+import { useDeviceEvents } from "~/hooks/use-device-events";
+import { deviceQueries } from "~/lib/queries";
 
 const PLATFORM_LABELS = { darwin: "macOS", linux: "Linux", windows: "Windows" } as const;
 
-/** The API decides `online` (see ONLINE_WINDOW_MS in server-core). */
+/** The API decides `online` (see PresenceStore in server-core). */
 function presence(device: { online: boolean; lastSeenAt: string | null }) {
   if (device.online) return { online: true, label: "online" };
   if (!device.lastSeenAt) return { online: false, label: "never connected" };
@@ -15,25 +15,9 @@ function presence(device: { online: boolean; lastSeenAt: string | null }) {
 }
 
 export function DevicesList({ networkId }: { networkId: string }) {
-  const queryClient = useQueryClient();
-  const {
-    data: devices,
-    isPending,
-    error,
-  } = useQuery({
-    ...deviceQueries.list(networkId),
-    // Devices join from the command line; pick them up without a reload.
-    refetchInterval: 5_000,
-  });
-
-  // A new device used up a token; refresh the active tokens list too.
-  const deviceCount = devices?.length;
-  useEffect(() => {
-    if (deviceCount === undefined) return;
-    void queryClient.invalidateQueries({
-      queryKey: enrollmentTokenQueries.active(networkId).queryKey,
-    });
-  }, [deviceCount, networkId, queryClient]);
+  const { data: devices, isPending, error } = useQuery(deviceQueries.list(networkId));
+  // Devices join and drop from the command line; the API pushes the changes.
+  useDeviceEvents(networkId);
 
   if (isPending) return <p className="text-muted-foreground text-sm">Loading devices…</p>;
   if (error) return <p className="text-destructive text-sm">{getErrorMessage(error)}</p>;

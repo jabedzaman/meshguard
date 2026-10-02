@@ -84,11 +84,14 @@ test.describe("devices", () => {
     expect(res.body.device.meshIpv4).toMatch(/^10\.77\.\d+\.\d+$/);
     expect(res.body.network).toMatchObject({ id: network.id, name: "home" });
 
-    // The list polls, so the device appears without a reload.
+    // The API pushes the enrollment, so the device appears without a reload
+    // (well inside the 5s the list used to poll at).
     const row = owner.page.locator("li", { hasText: "laptop" });
-    await expect(row).toContainText("macOS");
+    await expect(row).toContainText("macOS", { timeout: 3_000 });
     await expect(row).toContainText(res.body.device.meshIpv4);
-    await expect(owner.page.getByText("No active enrollment tokens.")).toBeVisible();
+    await expect(owner.page.getByText("No active enrollment tokens.")).toBeVisible({
+      timeout: 3_000,
+    });
   });
 
   test("tokens are single-use, revocable and keys can't enroll twice", async ({
@@ -283,7 +286,7 @@ test.describe("devices", () => {
     expect(malformed.status).toBe(400);
   });
 
-  test("a device that stops syncing goes offline without a reload", async ({
+  test("presence changes reach the page without a reload", async ({
     createUser,
     createOrganization,
   }) => {
@@ -312,8 +315,15 @@ test.describe("devices", () => {
     const row = owner.page.locator("li", { hasText: "laptop" });
     await expect(row).toContainText("online");
 
-    // The agent stops: its presence key expires after the online window.
-    await redis((client) => client.del(`presence:device:${enrolled.body.device.id}`));
-    await expect(row).toContainText("last seen", { timeout: 15_000 });
+    // The agent stops: its presence key expires (as it would 30s after the last
+    // sync) and the page hears about it without polling.
+    await redis((client) =>
+      client.pexpire(`presence:device:${network.id}:${enrolled.body.device.id}`, 1),
+    );
+    await expect(row).toContainText("last seen", { timeout: 3_000 });
+
+    // The agent comes back: its next sync is pushed as a connect.
+    await sync(device, { endpoints: [] });
+    await expect(row).toContainText("online", { timeout: 3_000 });
   });
 });
