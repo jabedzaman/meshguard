@@ -15,6 +15,13 @@
       "when": 1790898978100,
       "tag": "0001_damp_toad_men",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790904015683,
+      "tag": "0002_slow_fixer",
+      "breakpoints": true
     }
   ]
 }

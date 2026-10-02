@@ -10,7 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { organization } from "./auth";
+import { organization, user } from "./auth";
 
 // Human auth tables (users, sessions, organizations, members) are owned by
 // Better Auth and generated into ./auth.ts by `pnpm --filter @mesh/auth
@@ -74,4 +74,33 @@ export const devices = pgTable(
     unique("devices_network_id_mesh_ipv4_unique").on(t.networkId, t.meshIpv4),
     unique("devices_network_id_mesh_ipv6_unique").on(t.networkId, t.meshIpv6),
   ],
+);
+
+/**
+ * One-time tokens a device uses to join a network (`mesh up --token ...`).
+ * Only a hash is stored; the token is shown once when created.
+ */
+export const enrollmentTokens = pgTable(
+  "enrollment_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    networkId: uuid("network_id")
+      .notNull()
+      .references(() => networks.id, { onDelete: "cascade" }),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** SHA-256 of the token, hex. */
+    tokenHash: text("token_hash").notNull().unique(),
+    /** First characters of the token, for telling tokens apart in lists. */
+    tokenPrefix: text("token_prefix").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    usedByDeviceId: uuid("used_by_device_id").references(() => devices.id, {
+      onDelete: "set null",
+    }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("enrollment_tokens_network_id_idx").on(t.networkId)],
 );
