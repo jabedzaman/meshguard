@@ -84,6 +84,13 @@ func status() error {
 	if s.Interface != "" {
 		fmt.Printf("  interface  %s\n", s.Interface)
 	}
+	if s.Relay != nil {
+		state := "connecting"
+		if s.Relay.Connected {
+			state = "connected"
+		}
+		fmt.Printf("  relay      %s (%s)\n", s.Relay.URL, state)
+	}
 	if s.Problem != "" {
 		fmt.Printf("\n  ! %s\n", s.Problem)
 	}
@@ -95,6 +102,9 @@ func status() error {
 				handshake = "handshake " + time.Since(*p.LastHandshake).Round(time.Second).String() + " ago"
 			}
 			endpoint := p.Endpoint
+			if p.ViaRelay {
+				endpoint = "via relay"
+			}
 			if endpoint == "" {
 				endpoint = "-"
 			}

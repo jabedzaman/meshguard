@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/twinlabshq/mesh/internal/coordination"
 	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/twinlabshq/mesh/internal/relay"
 	"github.com/twinlabshq/mesh/internal/wireguard"
 )
 
@@ -35,6 +38,8 @@ func (e *fakeEngine) SetPeers(p []wireguard.Peer) (bool, error) {
 	return true, nil
 }
 func (e *fakeEngine) Stats() (map[string]wireguard.PeerStats, error) { return nil, nil }
+func (e *fakeEngine) SetRelay(wireguard.RelaySender)                 {}
+func (e *fakeEngine) DeliverRelay(relay.Packet)                      {}
 func (e *fakeEngine) Config() wireguard.Config {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -178,4 +183,19 @@ func TestTypedNilEngineDoesNotCrash(t *testing.T) {
 	_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
 	assert.Equal(t, "enrolled", status.State)
 	assert.Contains(t, status.Problem, "WireGuard is not running")
+}
+
+func TestChooseEndpoint(t *testing.T) {
+	key := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	local := []netip.Prefix{netip.MustParsePrefix("192.168.1.0/24")}
+
+	sameLAN := coordination.Peer{WireGuardPublicKey: key, Endpoints: []string{"10.9.9.9:51820", "192.168.1.7:51820"}}
+	assert.Equal(t, "192.168.1.7:51820", chooseEndpoint(sameLAN, local, true), "direct beats relay on a shared network")
+
+	elsewhere := coordination.Peer{WireGuardPublicKey: key, Endpoints: []string{"10.9.9.9:51820"}}
+	assert.Equal(t, "relay/"+strings.Repeat("00", 32), chooseEndpoint(elsewhere, local, true), "relay when not on a shared network")
+	assert.Equal(t, "10.9.9.9:51820", chooseEndpoint(elsewhere, local, false), "no relay: try what the peer advertised")
+
+	unknown := coordination.Peer{WireGuardPublicKey: key}
+	assert.Equal(t, "", chooseEndpoint(unknown, local, false))
 }

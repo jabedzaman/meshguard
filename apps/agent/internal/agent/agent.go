@@ -4,6 +4,7 @@ package agent
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -20,6 +21,7 @@ import (
 	"github.com/twinlabshq/mesh/internal/discovery"
 	"github.com/twinlabshq/mesh/internal/identity"
 	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/twinlabshq/mesh/internal/relay"
 	"github.com/twinlabshq/mesh/internal/state"
 	"github.com/twinlabshq/mesh/internal/wireguard"
 )
@@ -29,6 +31,8 @@ type Engine interface {
 	Name() string
 	SetPeers([]wireguard.Peer) (changed bool, err error)
 	Stats() (map[string]wireguard.PeerStats, error)
+	SetRelay(wireguard.RelaySender)
+	DeliverRelay(relay.Packet)
 	Close()
 }
 
@@ -52,6 +56,10 @@ type Agent struct {
 	problem  string
 	lastSync time.Time
 	peers    []coordination.Peer
+
+	relayClient *relay.Client
+	relayURL    string
+	stopRelay   context.CancelFunc
 }
 
 // Run starts the background loop if the device is already enrolled, then
@@ -170,7 +178,7 @@ func (a *Agent) loop(ctx context.Context, st *state.State) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		a.syncOnce(ctx, client, exclude)
+		a.syncOnce(ctx, client, exclude, keys.WireGuard)
 		select {
 		case <-ctx.Done():
 			return
@@ -179,7 +187,7 @@ func (a *Agent) loop(ctx context.Context, st *state.State) {
 	}
 }
 
-func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclude []netip.Prefix) {
+func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclude []netip.Prefix, wgPrivate [32]byte) {
 	a.mu.Lock()
 	engine := a.engine
 	a.mu.Unlock()
@@ -206,6 +214,8 @@ func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclu
 
 	var applyErr error
 	if engine != nil {
+		relayOn := a.ensureRelay(ctx, nm.Relay, engine, wgPrivate)
+		local := discovery.LocalPrefixes(engine.Name())
 		peers := make([]wireguard.Peer, 0, len(nm.Peers))
 		for _, p := range nm.Peers {
 			peer := wireguard.Peer{PublicKey: p.WireGuardPublicKey}
@@ -214,9 +224,7 @@ func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclu
 					peer.AllowedIPs = append(peer.AllowedIPs, prefix)
 				}
 			}
-			if len(p.Endpoints) > 0 {
-				peer.Endpoint = p.Endpoints[0]
-			}
+			peer.Endpoint = chooseEndpoint(p, local, relayOn)
 			peers = append(peers, peer)
 		}
 		changed, err := engine.SetPeers(peers)
@@ -236,6 +244,71 @@ func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclu
 	case a.engine != nil:
 		a.problem = ""
 	}
+}
+
+// chooseEndpoint picks how to reach a peer: directly if it advertises an
+// address on a network we're attached to, otherwise through the relay, and as
+// a last resort its first advertised endpoint.
+func chooseEndpoint(p coordination.Peer, local []netip.Prefix, relayOn bool) string {
+	if direct := discovery.DirectEndpoint(p.Endpoints, local); direct != "" {
+		return direct
+	}
+	if relayOn {
+		if key, err := peerKey(p.WireGuardPublicKey); err == nil {
+			return wireguard.RelayEndpointString(key)
+		}
+	}
+	if len(p.Endpoints) > 0 {
+		return p.Endpoints[0]
+	}
+	return ""
+}
+
+func peerKey(b64 string) (relay.Key, error) {
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(raw) != relay.KeyLen {
+		return relay.Key{}, errors.New("invalid peer key")
+	}
+	return relay.Key(raw), nil
+}
+
+// ensureRelay keeps a relay connection matching the network map and wires it
+// into WireGuard. Returns whether a relay is configured.
+func (a *Agent) ensureRelay(ctx context.Context, cfg *coordination.Relay, engine Engine, wgPrivate [32]byte) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	url := ""
+	if cfg != nil {
+		url = cfg.URL
+	}
+	if url == a.relayURL {
+		return url != ""
+	}
+	if a.stopRelay != nil {
+		a.stopRelay()
+		a.stopRelay, a.relayClient = nil, nil
+		engine.SetRelay(nil)
+	}
+	a.relayURL = url
+	if url == "" {
+		return false
+	}
+
+	client, err := relay.NewClient(url, wgPrivate)
+	if err != nil {
+		slog.Warn("relay client", "err", err)
+		return false
+	}
+	client.Deliver = engine.DeliverRelay
+	relayCtx, cancel := context.WithCancel(ctx)
+	engine.SetRelay(func(dst relay.Key, packet []byte) error {
+		return client.Send(relayCtx, dst, packet)
+	})
+	a.relayClient, a.stopRelay = client, cancel
+	go client.Run(relayCtx)
+	slog.Info("relay configured", "url", url)
+	return true
 }
 
 func (a *Agent) setProblem(p string) {
@@ -343,6 +416,9 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		at := a.lastSync
 		s.LastSyncAt = &at
 	}
+	if a.relayClient != nil {
+		s.Relay = &ipc.RelayStatus{URL: a.relayURL, Connected: a.relayClient.Connected()}
+	}
 	var stats map[string]wireguard.PeerStats
 	if a.engine != nil {
 		s.Interface = a.engine.Name()
@@ -356,6 +432,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		if hexKey, err := wireguard.KeyToHex(p.WireGuardPublicKey); err == nil {
 			if ps, ok := stats[hexKey]; ok {
 				peer.Endpoint = ps.Endpoint
+				peer.ViaRelay = strings.HasPrefix(ps.Endpoint, wireguard.RelayEndpointPrefix)
 				if !ps.LastHandshake.IsZero() {
 					hs := ps.LastHandshake
 					peer.LastHandshake = &hs
