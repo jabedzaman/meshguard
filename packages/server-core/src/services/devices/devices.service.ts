@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, isNull, ne, schema, type Db } from "@mesh/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
+import type { DeviceEvents } from "~/events/device-events";
 import { isUniqueViolation } from "~/lib/db-errors";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
 import type { PresenceStore } from "~/lib/presence";
@@ -24,6 +25,7 @@ export class DevicesService {
   constructor(
     private readonly db: Db,
     private readonly presence: PresenceStore,
+    private readonly events: DeviceEvents,
     private readonly options: { relayUrl?: string; stunServers?: string[] } = {},
   ) {}
 
@@ -33,7 +35,7 @@ export class DevicesService {
    * enroll at most one device.
    */
   async enroll(input: EnrollDeviceInput) {
-    return await this.db.transaction(async (tx) => {
+    const enrolled = await this.db.transaction(async (tx) => {
       const [token] = await tx
         .update(enrollmentTokens)
         .set({ usedAt: new Date() })
@@ -107,6 +109,12 @@ export class DevicesService {
       }
       throw new ConflictError("network_full", "No free address left in this network");
     });
+    this.events.publish({
+      type: "enrolled",
+      networkId: enrolled.network.id,
+      deviceId: enrolled.device.id,
+    });
+    return enrolled;
   }
 
   /** The device and its identity key, for verifying a signed request. */
@@ -143,16 +151,23 @@ export class DevicesService {
     if (!self) throw new NotFoundError("device");
 
     const now = new Date();
-    const persistLastSeen = await this.presence.touch(self.id, now);
+    const presence = await this.presence.touch(self.networkId, self.id, now);
     const endpointsChanged = !sameEndpoints(self.endpoints, input.endpoints);
-    if (endpointsChanged || persistLastSeen) {
+    if (endpointsChanged || presence.persist) {
       await this.db
         .update(devices)
         .set({
           ...(endpointsChanged && { endpoints: input.endpoints }),
-          ...(persistLastSeen && { lastSeenAt: now }),
+          ...(presence.persist && { lastSeenAt: now }),
         })
         .where(eq(devices.id, self.id));
+    }
+    if (presence.connected || endpointsChanged) {
+      this.events.publish({
+        type: presence.connected ? "connected" : "updated",
+        networkId: self.networkId,
+        deviceId: self.id,
+      });
     }
 
     const [network] = await this.db
@@ -178,7 +193,10 @@ export class DevicesService {
       .from(devices)
       .where(and(eq(devices.networkId, self.networkId), ne(devices.id, self.id)))
       .orderBy(devices.createdAt);
-    const seen = await this.presence.lastSeen(peers.map((peer) => peer.id));
+    const seen = await this.presence.lastSeen(
+      self.networkId,
+      peers.map((peer) => peer.id),
+    );
 
     return {
       self: {
@@ -201,17 +219,20 @@ export class DevicesService {
     const [deleted] = await this.db
       .delete(devices)
       .where(eq(devices.id, deviceId))
-      .returning({ id: devices.id });
+      .returning({ id: devices.id, networkId: devices.networkId });
     if (!deleted) throw new NotFoundError("device");
-    await this.presence.clear(deleted.id);
+    await this.presence.clear(deleted.networkId, deleted.id);
+    this.events.publish({ type: "removed", networkId: deleted.networkId, deviceId: deleted.id });
+  }
+
+  /** Live device events for a network in the organization; call `close` when done. */
+  async subscribe(organizationId: string, networkId: string) {
+    await this.assertNetworkInOrganization(organizationId, networkId);
+    return this.events.subscribe(networkId);
   }
 
   async listForNetwork(organizationId: string, networkId: string) {
-    const [network] = await this.db
-      .select({ id: networks.id })
-      .from(networks)
-      .where(and(eq(networks.id, networkId), eq(networks.organizationId, organizationId)));
-    if (!network) throw new NotFoundError("network");
+    await this.assertNetworkInOrganization(organizationId, networkId);
 
     const rows = await this.db
       .select({
@@ -232,11 +253,22 @@ export class DevicesService {
 
     // Online means the device's presence key hasn't expired. Decided here, not
     // in the browser, so the response changes when a device goes stale.
-    const seen = await this.presence.lastSeen(rows.map((row) => row.id));
+    const seen = await this.presence.lastSeen(
+      networkId,
+      rows.map((row) => row.id),
+    );
     return rows.map((row) => {
       const lastSeenAt = seen.get(row.id);
       return { ...row, lastSeenAt: lastSeenAt ?? row.lastSeenAt, online: lastSeenAt !== undefined };
     });
+  }
+
+  private async assertNetworkInOrganization(organizationId: string, networkId: string) {
+    const [network] = await this.db
+      .select({ id: networks.id })
+      .from(networks)
+      .where(and(eq(networks.id, networkId), eq(networks.organizationId, organizationId)));
+    if (!network) throw new NotFoundError("network");
   }
 }
 

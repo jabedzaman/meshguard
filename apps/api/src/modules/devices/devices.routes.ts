@@ -9,4 +9,6 @@ export const devicesRoutes = new Hono<AppEnv>()
   .delete("/self", ...controller.deleteSelf);
 
 /** Nested under the networks router: /v1/networks/:networkId/devices. */
-export const networkDevicesRoutes = new Hono<AppEnv>().get("/", ...controller.listForNetwork);
+export const networkDevicesRoutes = new Hono<AppEnv>()
+  .get("/", ...controller.listForNetwork)
+  .get("/events", ...controller.events);

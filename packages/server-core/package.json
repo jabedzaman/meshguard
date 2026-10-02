@@ -25,6 +25,7 @@
     "@mesh/db": "workspace:^",
     "@mesh/emails": "workspace:^",
     "@mesh/utils": "workspace:^",
+    "@nats-io/transport-node": "^3.4.0",
     "bullmq": "^6.3.11",
     "ioredis": "^6.0.0",
     "nodemailer": "^10.0.13",

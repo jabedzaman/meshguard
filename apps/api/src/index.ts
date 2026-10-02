@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { authOptionsFromEnv, createAuth } from "@mesh/auth";
 import { loadServerEnv } from "@mesh/config";
 import { createDb } from "@mesh/db";
-import { createEmailQueue, createRedis } from "@mesh/server-core";
+import { createEmailQueue, createNats, createRedis, DeviceEvents } from "@mesh/server-core";
 import { createApp } from "~/app";
 import { logger } from "~/lib/logger";
 
@@ -10,6 +10,7 @@ const env = loadServerEnv();
 const db = createDb(env.DATABASE_URL);
 const redis = createRedis(env.REDIS_URL);
 const emailQueue = createEmailQueue(redis);
+const nats = await createNats(env.NATS_URL, "mesh-api");
 const auth = createAuth(db, {
   ...authOptionsFromEnv(env),
   // Queued, not sent: the workers app renders and delivers every email.
@@ -28,6 +29,7 @@ const auth = createAuth(db, {
 const app = createApp({
   db,
   redis,
+  deviceEvents: new DeviceEvents(nats),
   auth,
   corsOrigins: [env.WEB_URL],
   relayUrl: env.RELAY_URL,
@@ -46,5 +48,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       redis.disconnect();
       process.exit(0);
     });
+    // Ends open device event streams, which server.close waits for.
+    void nats.drain();
   });
 }
