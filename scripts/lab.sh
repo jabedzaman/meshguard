@@ -85,6 +85,23 @@ else
   echo; ok "lab-f cannot reach lab-e's LAN address 10.201.0.10 outside the mesh"
 fi
 run_pair lab-nat lab-e lab-f direct
+
+# lab-f moves to a new address, as on a new Wi-Fi: it rebinds and both sides
+# find the direct path again at the new address.
+echo
+echo "==> lab-f changes address 10.200.0.30 -> 10.200.0.31"
+docker exec mesh-lab-f sh -c '
+  dev=$(ip -o -4 addr show | awk "/10.200.0.30/ {print \$2}")
+  ip addr del 10.200.0.30/24 dev "$dev" && ip addr add 10.200.0.31/24 dev "$dev"'
+start=$(date +%s)
+moved=""
+for _ in $(seq 60); do
+  if [ "$(peer_path lab-e)" = direct ] && peer_line lab-e | grep -q 10.200.0.31; then moved=1; break; fi
+  sleep 1
+done
+if [ -n "$moved" ]; then ok "direct to the new address after $(($(date +%s) - start))s"; else fail "still not direct to 10.200.0.31: $(peer_line lab-e)"; fi
+check_ping lab-e "$(ip_of lab-f IPv4)"
+check_ping lab-f "$(ip_of lab-e IPv4)"
 run_pair lab-symmetric lab-g lab-h relay
 
 echo
