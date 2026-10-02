@@ -1,16 +1,21 @@
 import { factory } from "~/lib/factory";
 import { validate } from "~/lib/validator";
-import { requireOrganization } from "~/middlewares/auth.middleware";
+import { requireOrganization, requirePermission } from "~/middlewares/auth.middleware";
 import { createNetworkBody } from "~/modules/networks/networks.schema";
 import { idParams } from "~/schemas/params.schema";
 
-export const list = factory.createHandlers(requireOrganization, async (c) => {
-  const networks = await c.var.services.networks.list(c.var.organizationId);
-  return c.json(networks, 200);
-});
+export const list = factory.createHandlers(
+  requireOrganization,
+  requirePermission({ network: ["read"] }),
+  async (c) => {
+    const networks = await c.var.services.networks.list(c.var.organizationId);
+    return c.json(networks, 200);
+  },
+);
 
 export const get = factory.createHandlers(
   requireOrganization,
+  requirePermission({ network: ["read"] }),
   validate("param", idParams),
   async (c) => {
     const { id } = c.req.valid("param");
@@ -21,6 +26,7 @@ export const get = factory.createHandlers(
 
 export const create = factory.createHandlers(
   requireOrganization,
+  requirePermission({ network: ["create"] }),
   validate("json", createNetworkBody),
   async (c) => {
     const network = await c.var.services.networks.create(c.var.organizationId, c.req.valid("json"));

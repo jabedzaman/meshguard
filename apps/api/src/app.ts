@@ -32,6 +32,7 @@ export function createApp({ db, auth, corsOrigins }: AppDeps) {
     .use(cors({ origin: corsOrigins, credentials: true, exposeHeaders: ["X-Request-Id"] }))
     .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
     .use(async (c, next) => {
+      c.set("auth", auth);
       c.set("services", services);
       await next();
     })

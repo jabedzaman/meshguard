@@ -1,6 +1,6 @@
 import { createMiddleware } from "hono/factory";
-import type { Auth, Session, User } from "@mesh/auth";
-import { BadRequestError, UnauthorizedError } from "@mesh/server-core";
+import type { Auth, Permissions, Session, User } from "@mesh/auth";
+import { BadRequestError, ForbiddenError, UnauthorizedError } from "@mesh/server-core";
 import type { AppEnv } from "~/types";
 
 /** Resolves the Better Auth session (if any) from the request cookies. */
@@ -36,3 +36,24 @@ export const requireOrganization = createMiddleware<{
   c.set("organizationId", session.activeOrganizationId);
   await next();
 });
+
+/**
+ * Requires the caller's role in the active organization to grant every action
+ * in `permissions`. Use after requireOrganization. Roles live in
+ * @mesh/auth/permissions.
+ */
+export function requirePermission(permissions: Permissions) {
+  return createMiddleware<AppEnv>(async (c, next) => {
+    const result = await c.var.auth.api.hasPermission({
+      headers: c.req.raw.headers,
+      body: { permissions },
+    });
+    if (!result.success) {
+      throw new ForbiddenError(
+        "insufficient_permissions",
+        "Your role in this organization doesn't allow this",
+      );
+    }
+    await next();
+  });
+}
