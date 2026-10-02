@@ -46,6 +46,17 @@ export const rename = factory.createHandlers(
   },
 );
 
+/** Removes a device from its network; its agent is refused from then on. */
+export const remove = factory.createHandlers(
+  requireOrganization,
+  requirePermission({ device: ["delete"] }),
+  validate("param", idParams),
+  async (c) => {
+    await c.var.services.devices.remove(c.var.organizationId, c.req.valid("param").id);
+    return c.body(null, 204);
+  },
+);
+
 /** Keeps idle event streams from being closed by proxies. */
 const HEARTBEAT_MS = 25_000;
 

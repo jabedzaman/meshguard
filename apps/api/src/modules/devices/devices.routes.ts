@@ -7,7 +7,8 @@ export const devicesRoutes = new Hono<AppEnv>()
   .post("/enroll", ...controller.enroll)
   .post("/self/sync", ...controller.sync)
   .delete("/self", ...controller.deleteSelf)
-  .patch("/:id", ...controller.rename);
+  .patch("/:id", ...controller.rename)
+  .delete("/:id", ...controller.remove);
 
 /** Nested under the networks router: /v1/networks/:networkId/devices. */
 export const networkDevicesRoutes = new Hono<AppEnv>()

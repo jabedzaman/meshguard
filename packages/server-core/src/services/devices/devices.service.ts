@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, isNull, ne, schema, type Db } from "@meshguard/db";
+import { and, desc, eq, gt, inArray, isNull, ne, schema, type Db, type SQL } from "@meshguard/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import type { DeviceEvents } from "~/events/device-events";
 import { isUniqueViolation } from "~/lib/db-errors";
@@ -239,9 +239,23 @@ export class DevicesService {
 
   /** A device leaving its network (`meshguard logout`). */
   async deleteSelf(deviceId: string) {
+    await this.removeWhere(eq(devices.id, deviceId));
+  }
+
+  /**
+   * Removes a device in the organization (from the web). Peers drop it on
+   * their next sync; the device's own syncs are refused from then on.
+   */
+  async remove(organizationId: string, deviceId: string) {
+    await this.removeWhere(
+      and(eq(devices.id, deviceId), inArray(devices.networkId, this.networksIn(organizationId))),
+    );
+  }
+
+  private async removeWhere(where: SQL | undefined) {
     const [deleted] = await this.db
       .delete(devices)
-      .where(eq(devices.id, deviceId))
+      .where(where)
       .returning({ id: devices.id, networkId: devices.networkId });
     if (!deleted) throw new NotFoundError("device");
     await this.presence.clear(deleted.networkId, deleted.id);
@@ -253,15 +267,16 @@ export class DevicesService {
    * must stay unique in the network; agents pick it up on their next sync.
    */
   async rename(organizationId: string, deviceId: string, name: string) {
-    const inOrganization = this.db
-      .select({ id: networks.id })
-      .from(networks)
-      .where(eq(networks.organizationId, organizationId));
     try {
       const [device] = await this.db
         .update(devices)
         .set({ name })
-        .where(and(eq(devices.id, deviceId), inArray(devices.networkId, inOrganization)))
+        .where(
+          and(
+            eq(devices.id, deviceId),
+            inArray(devices.networkId, this.networksIn(organizationId)),
+          ),
+        )
         .returning({ id: devices.id, networkId: devices.networkId, name: devices.name });
       if (!device) throw new NotFoundError("device");
       this.events.publish({ type: "updated", networkId: device.networkId, deviceId: device.id });
@@ -313,6 +328,14 @@ export class DevicesService {
       const lastSeenAt = seen.get(row.id);
       return { ...row, lastSeenAt: lastSeenAt ?? row.lastSeenAt, online: lastSeenAt !== undefined };
     });
+  }
+
+  /** Subquery: ids of the organization's networks. */
+  private networksIn(organizationId: string) {
+    return this.db
+      .select({ id: networks.id })
+      .from(networks)
+      .where(eq(networks.organizationId, organizationId));
   }
 
   private async assertNetworkInOrganization(organizationId: string, networkId: string) {
