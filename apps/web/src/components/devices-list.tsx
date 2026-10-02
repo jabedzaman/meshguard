@@ -2,6 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getErrorMessage } from "@meshguard/api-client";
+import { usePermission } from "~/components/providers/organization-provider";
+import { RenameDeviceDialog } from "~/components/rename-device-dialog";
 import { useDeviceEvents } from "~/hooks/use-device-events";
 import { deviceQueries } from "~/lib/queries";
 
@@ -16,6 +18,7 @@ function presence(device: { online: boolean; lastSeenAt: string | null }) {
 
 export function DevicesList({ networkId }: { networkId: string }) {
   const { data: devices, isPending, error } = useQuery(deviceQueries.list(networkId));
+  const canRename = usePermission({ device: ["update"] });
   // Devices join and drop from the command line; the API pushes the changes.
   useDeviceEvents(networkId);
 
@@ -45,10 +48,13 @@ export function DevicesList({ networkId }: { networkId: string }) {
               {PLATFORM_LABELS[device.platform]} · {presence(device).label}
             </span>
           </div>
-          <span className="text-muted-foreground grid text-right font-mono text-xs">
-            <span>{device.meshIpv4}</span>
-            <span>{device.meshIpv6}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground grid text-right font-mono text-xs">
+              <span>{device.meshIpv4}</span>
+              <span>{device.meshIpv6}</span>
+            </span>
+            {canRename && <RenameDeviceDialog device={device} />}
+          </div>
         </li>
       ))}
     </ul>

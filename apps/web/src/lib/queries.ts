@@ -84,3 +84,8 @@ export const deviceQueries = {
         parseResponse(api.v1.networks[":networkId"].devices.$get({ param: { networkId } })),
     }),
 };
+
+export const deviceMutations = {
+  rename: (id: string, name: string) =>
+    parseResponse(api.v1.devices[":id"].$patch({ param: { id }, json: { name } })),
+};
