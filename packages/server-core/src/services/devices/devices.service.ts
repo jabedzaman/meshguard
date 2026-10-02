@@ -1,10 +1,13 @@
-import { and, desc, eq, gt, isNull, schema, type Db } from "@mesh/db";
+import { and, desc, eq, gt, isNull, ne, schema, type Db } from "@mesh/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import { isUniqueViolation } from "~/lib/db-errors";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
 import { hashToken } from "~/lib/tokens";
 
 const { devices, enrollmentTokens, networks } = schema;
+
+/** A device is online if it synced within this window (agents sync every 10s). */
+export const ONLINE_WINDOW_MS = 30_000;
 
 /** Address picks before giving up; collisions only matter in nearly full networks. */
 const MAX_ADDRESS_ATTEMPTS = 20;
@@ -104,6 +107,67 @@ export class DevicesService {
     });
   }
 
+  /** The device and its identity key, for verifying a signed request. */
+  async findForAuth(deviceId: string) {
+    const [device] = await this.db
+      .select({
+        id: devices.id,
+        networkId: devices.networkId,
+        identityPublicKey: devices.identityPublicKey,
+      })
+      .from(devices)
+      .where(eq(devices.id, deviceId));
+    return device ?? null;
+  }
+
+  /**
+   * Records the device's reachable endpoints and returns its network map: the
+   * device itself plus every peer's WireGuard key, mesh addresses and endpoints.
+   */
+  async sync(deviceId: string, input: { endpoints: string[] }) {
+    const [self] = await this.db
+      .update(devices)
+      .set({ endpoints: input.endpoints, lastSeenAt: new Date() })
+      .where(eq(devices.id, deviceId))
+      .returning();
+    if (!self) throw new NotFoundError("device");
+
+    const [network] = await this.db
+      .select({
+        id: networks.id,
+        name: networks.name,
+        ipv4Cidr: networks.ipv4Cidr,
+        ipv6Cidr: networks.ipv6Cidr,
+      })
+      .from(networks)
+      .where(eq(networks.id, self.networkId));
+
+    const peers = await this.db
+      .select({
+        id: devices.id,
+        name: devices.name,
+        wireguardPublicKey: devices.wireguardPublicKey,
+        meshIpv4: devices.meshIpv4,
+        meshIpv6: devices.meshIpv6,
+        endpoints: devices.endpoints,
+        lastSeenAt: devices.lastSeenAt,
+      })
+      .from(devices)
+      .where(and(eq(devices.networkId, self.networkId), ne(devices.id, self.id)))
+      .orderBy(devices.createdAt);
+
+    return {
+      self: {
+        id: self.id,
+        name: self.name,
+        meshIpv4: self.meshIpv4,
+        meshIpv6: self.meshIpv6,
+      },
+      network: network!,
+      peers,
+    };
+  }
+
   async listForNetwork(organizationId: string, networkId: string) {
     const [network] = await this.db
       .select({ id: networks.id })
@@ -120,6 +184,7 @@ export class DevicesService {
         platform: devices.platform,
         meshIpv4: devices.meshIpv4,
         meshIpv6: devices.meshIpv6,
+        endpoints: devices.endpoints,
         lastSeenAt: devices.lastSeenAt,
         createdAt: devices.createdAt,
       })
