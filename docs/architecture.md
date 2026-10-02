@@ -91,7 +91,11 @@ its mesh addresses with the network prefix (so the whole range routes through
 the interface) and replaces the peer list when the map changes. Each peer gets
 its first endpoint, host routes for its mesh addresses and a 25s keepalive.
 
-Devices are shown online if they synced in the last 30s.
+Presence lives in Redis, not Postgres: each sync sets
+`presence:device:<id>` with a 30s TTL, and a device is online while that key
+exists. Postgres is written only when the endpoints change, plus
+`last_seen_at` at most every 5 minutes (a `presence:persisted:<id>` NX key
+gates it) so offline devices still show when they were last seen.
 
 ## Relay
 
