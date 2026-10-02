@@ -18,10 +18,15 @@
   "scripts": {
     "build": "tsup",
     "watch": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@mesh/db": "workspace:^",
-    "@mesh/utils": "workspace:^"
+    "@mesh/utils": "workspace:^",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.3"
   }
 }
