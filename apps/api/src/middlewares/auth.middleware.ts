@@ -37,6 +37,18 @@ export const requireOrganization = createMiddleware<{
   await next();
 });
 
+/** Whether the caller's role in the active organization grants every action in `permissions`. */
+export async function hasPermission(
+  c: { var: { auth: Auth }; req: { raw: Request } },
+  permissions: Permissions,
+) {
+  const result = await c.var.auth.api.hasPermission({
+    headers: c.req.raw.headers,
+    body: { permissions },
+  });
+  return result.success;
+}
+
 /**
  * Requires the caller's role in the active organization to grant every action
  * in `permissions`. Use after requireOrganization. Roles live in
@@ -44,11 +56,7 @@ export const requireOrganization = createMiddleware<{
  */
 export function requirePermission(permissions: Permissions) {
   return createMiddleware<AppEnv>(async (c, next) => {
-    const result = await c.var.auth.api.hasPermission({
-      headers: c.req.raw.headers,
-      body: { permissions },
-    });
-    if (!result.success) {
+    if (!(await hasPermission(c, permissions))) {
       throw new ForbiddenError(
         "insufficient_permissions",
         "Your role in this organization doesn't allow this",

@@ -7,7 +7,7 @@ import { createServices } from "@mesh/server-core";
 import { sessionMiddleware } from "~/middlewares/auth.middleware";
 import { errorHandler, notFoundHandler } from "~/middlewares/error.middleware";
 import { loggingMiddleware } from "~/middlewares/logging.middleware";
-import { networksRoutes } from "~/modules/networks/networks.routes";
+import { v1Routes } from "~/routes/v1";
 import type { AppEnv } from "~/types";
 
 export interface AppDeps {
@@ -21,8 +21,6 @@ export interface AppDeps {
 // @mesh/api-client uses to type every request and response.
 export function createApp({ db, auth, corsOrigins }: AppDeps) {
   const services = createServices(db);
-
-  const v1 = new Hono<AppEnv>().route("/networks", networksRoutes);
 
   return new Hono<AppEnv>()
     .onError(errorHandler)
@@ -38,7 +36,7 @@ export function createApp({ db, auth, corsOrigins }: AppDeps) {
     })
     .use(sessionMiddleware(auth))
     .get("/healthz", (c) => c.json({ ok: true }))
-    .route("/v1", v1);
+    .route("/v1", v1Routes);
 }
 
 export type AppType = ReturnType<typeof createApp>;

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /*
  * Shared path-param schemas, named after the route segment they validate
- * (`idParams` for "/:id", `userIdParams` for "/:userId").
+ * (`idParams` for "/:id", `networkIdParams` for "/:networkId").
  *
  * ID formats differ by owner:
  * - our tables (networks, devices, ...) use UUIDs
@@ -18,6 +18,9 @@ const betterAuthId = z.string().min(1).max(64);
 
 /** "/:id" for resources in our own tables. */
 export const idParams = z.object({ id: uuid });
+
+/** "/:networkId" for routes nested under a network. */
+export const networkIdParams = z.object({ networkId: uuid });
 
 /** "/:userId" for Better Auth users. */
 export const userIdParams = z.object({ userId: betterAuthId });
