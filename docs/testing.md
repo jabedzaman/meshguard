@@ -36,3 +36,10 @@ check for the data plane: real agents with WireGuard in containers must ping
 each other's mesh IPv4 and IPv6 addresses: directly on a shared LAN, directly
 through a NAT router (STUN + hole punching), and through the relay behind a
 symmetric NAT.
+
+## Agent service
+
+`pnpm test:systemd` installs the agent with `mesh-agent install` in a Debian
+container running systemd as PID 1 and checks the unit, socket ownership,
+restart on crash and uninstall. See [cli.md](cli.md#testing-the-service) for
+testing on your own Linux or macOS machine.

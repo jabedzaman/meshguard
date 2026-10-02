@@ -64,42 +64,13 @@ pnpm --filter @mesh/ui ui:add --overwrite <component>   # if it depends on exist
 
 ## Agent and CLI
 
-Run an unprivileged dev agent with its socket and state in a temp dir, then
-enroll it with a token from a network's **Add device** dialog:
-
-```sh
-export MESH_SOCKET=/tmp/mesh.sock MESH_STATE_DIR=/tmp/mesh-state
-pnpm --filter @mesh/agent start &
-pnpm --filter @mesh/cli start up --token mesh_enr_...   # server: $MESH_SERVER or http://localhost:4000
-pnpm --filter @mesh/cli start status
-```
-
-Unix socket paths are limited to ~100 characters; keep `MESH_SOCKET` short.
-
-Creating the WireGuard interface needs root. Without it the agent still
-enrolls and syncs, and `mesh status` says WireGuard isn't running. To connect
-for real, run it with sudo and pass the paths as flags (sudo may drop env vars):
+See [cli.md](cli.md) for installing the agent and every `mesh` command. For a
+quick dev run without installing the service:
 
 ```sh
 sudo ~/.local/bin/mesh-agent -socket /tmp/mesh.sock -state-dir $HOME/.mesh
+MESH_SOCKET=/tmp/mesh.sock mesh up --token mesh_enr_...
 ```
-
-Under sudo the agent hands the socket to the invoking user, so `mesh` works
-without sudo.
-
-### Running the agent as a service
-
-```sh
-sudo mesh-agent install                         # launchd (macOS) / systemd (Linux), starts at boot
-sudo mesh-agent install -state-dir $HOME/.mesh  # keep an existing enrollment from a dev run
-mesh status                                     # default socket; no sudo or MESH_SOCKET needed
-sudo mesh-agent uninstall                       # stops and removes the service, keeps state
-```
-
-`install` copies `mesh-agent` (and `mesh`, if it's in the same folder) to
-`/usr/local/bin`, saves any agent flags you pass into the service, and makes
-the user who ran sudo the socket owner. Logs: `/var/log/mesh-agent.log` on
-macOS, `journalctl -u mesh-agent` on Linux.
 
 ## Mesh lab
 

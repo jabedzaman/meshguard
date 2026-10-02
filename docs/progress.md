@@ -57,7 +57,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ Presence in Redis with TTL keys instead of a Postgres write per sync (needed at scale)
 - ⬜ Push device events to the web (WebSocket/SSE, NATS `device.connected`) instead of polling
 - 🚧 Reconnect: agent restart reconnects from saved state (lab-tested); sleep/network change not yet handled
-- ⬜ `mesh login`, `mesh status`, `mesh devices`, `mesh connect`, `mesh disconnect`
+- ✅ CLI (cobra): `mesh up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
 - ⬜ Agent local API auth (peer credentials on the Unix socket)
 
 ### M2 — Reachability and naming 🚧
@@ -74,7 +74,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 
 ### M3 — Desktop app ⬜
 
-- ✅ Agent runs as a system service: `sudo mesh-agent install` (launchd / systemd)
+- ✅ Agent runs as a system service: `sudo mesh-agent install` (launchd / systemd; systemd tested by `pnpm test:systemd`)
 
 - ⬜ Sign in, device enrollment, network selection
 - ⬜ Device list, peer health, connection status
