@@ -44,9 +44,9 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ Remove member (owners/admins; only owners act on owners) and leave organization (proxy then activates the next org)
 - ⬜ Member search (when orgs grow); stale active org on a leaver's other devices (layout fallback)
 - ⬜ Device address allocation (random free address, unique per network; enforced by DB constraints)
-- ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
+- ✅ Device identity: Ed25519 identity + Curve25519 WireGuard keys, state file 0600 in a 0700 dir
 - ✅ Enrollment tokens: create (shown once, hashed), list active, revoke; network page with Add device
-- ⬜ Enrollment: agent redeems token → device record → mesh IP assigned
+- ✅ Enrollment: `mesh up --token` → agent generates keys → `POST /v1/devices/enroll` → device with random free mesh IPv4/IPv6; devices listed on the network page
 - ⬜ Coordination: agent receives network map stream, applies peer config
 - ⬜ WireGuard on macOS: userspace `wireguard-go` + utun, routes for mesh range
 - ⬜ Endpoint discovery: report local + STUN-observed endpoints
@@ -123,4 +123,6 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Three roles (owner, admin, member) on Better Auth access control; definitions shared by API (enforcement) and web (hiding UI) via `@mesh/auth/permissions` |
 | 2026-10-02 | All email goes through BullMQ (`email` queue) to `apps/workers`; templates in `@mesh/emails` (react-email); Mailpit in dev |
 | 2026-10-02 | E2E tests run on a separate Compose profile (`e2e`) with its own database; browser in the official Playwright image so WSL needs no system packages |
+| 2026-10-02 | Agent ↔ API uses HTTP/JSON (Hono routes) for the MVP instead of protobuf/gRPC; revisit for the coordination stream |
+| 2026-10-02 | Go tests use testify; Go apps `replace` the local `internal` module so they build without go.work |
 | 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |

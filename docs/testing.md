@@ -3,8 +3,11 @@
 ## Unit tests
 
 ```sh
-pnpm test   # turbo runs every package's test script (vitest)
+pnpm test   # turbo runs every package's test script: vitest for TypeScript, go test for Go
 ```
+
+Go tests use [testify](https://github.com/stretchr/testify) (`require` for
+preconditions, `assert` for checks) and `httptest` for fake servers.
 
 ## End-to-end tests
 

@@ -68,6 +68,13 @@ shown once, and stored only as a SHA-256 hash with a short display prefix.
 They expire (1h / 24h / 7d), can be revoked, and are single-use. Members can
 create tokens; revoking someone else's needs `device: delete`.
 
+`mesh up --token` asks the local agent (Unix socket) to enroll. The agent
+generates an Ed25519 identity key and a Curve25519 WireGuard key, sends only
+the public keys to `POST /v1/devices/enroll`, and saves its state (0600) in
+`/var/lib/mesh` (`MESH_STATE_DIR` overrides). The API consumes the token and
+creates the device in one transaction, picking random free addresses and
+retrying on the per-network unique constraints.
+
 ## Email
 
 Every email goes through the `email` queue: the API enqueues a job
