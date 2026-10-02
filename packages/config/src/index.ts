@@ -18,6 +18,8 @@ export const serverEnvSchema = z.object({
   WEB_URL: z.url(),
   GITHUB_CLIENT_ID: optional,
   GITHUB_CLIENT_SECRET: optional,
+  /** Relay agents use when peers can't reach each other directly, e.g. wss://relay.example.com/relay. */
+  RELAY_URL: optional.pipe(z.url().optional()),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

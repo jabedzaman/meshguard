@@ -15,12 +15,14 @@ export interface AppDeps {
   auth: Auth;
   /** Browser origins allowed to call the API with cookies. */
   corsOrigins: string[];
+  /** Relay URL handed to agents. */
+  relayUrl?: string;
 }
 
 // Routes must be chained so their types accumulate into AppType, which
 // @mesh/api-client uses to type every request and response.
-export function createApp({ db, auth, corsOrigins }: AppDeps) {
-  const services = createServices(db);
+export function createApp({ db, auth, corsOrigins, relayUrl }: AppDeps) {
+  const services = createServices(db, { relayUrl });
 
   return new Hono<AppEnv>()
     .onError(errorHandler)

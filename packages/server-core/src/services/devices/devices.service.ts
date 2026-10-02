@@ -23,7 +23,10 @@ export interface EnrollDeviceInput {
 }
 
 export class DevicesService {
-  constructor(private readonly db: Db) {}
+  constructor(
+    private readonly db: Db,
+    private readonly options: { relayUrl?: string } = {},
+  ) {}
 
   /**
    * Redeems an enrollment token and registers the device with random free
@@ -165,6 +168,8 @@ export class DevicesService {
       },
       network: network!,
       peers,
+      /** Where to relay WireGuard packets for peers that can't be reached directly. */
+      relay: this.options.relayUrl ? { url: this.options.relayUrl } : null,
     };
   }
 

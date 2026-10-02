@@ -7,11 +7,16 @@ export { NetworksService, type CreateNetworkInput };
 export * from "~/services/devices/devices.service";
 export * from "~/services/enrollment-tokens/enrollment-tokens.service";
 
-export function createServices(db: Db) {
+export interface ServicesOptions {
+  /** Relay URL handed to agents in their network map. */
+  relayUrl?: string;
+}
+
+export function createServices(db: Db, options: ServicesOptions = {}) {
   return {
     networks: new NetworksService(db),
     enrollmentTokens: new EnrollmentTokensService(db),
-    devices: new DevicesService(db),
+    devices: new DevicesService(db, { relayUrl: options.relayUrl }),
   };
 }
 
