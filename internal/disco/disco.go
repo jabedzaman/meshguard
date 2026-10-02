@@ -96,6 +96,19 @@ func (m *Manager) SetPeers(candidates map[Key][]netip.AddrPort) {
 	}
 }
 
+// Reset forgets every confirmed path and learned address and pings all
+// candidates on the next Tick. Call it when this device's network changed:
+// old paths and NAT mappings are likely gone.
+func (m *Manager) Reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, p := range m.peers {
+		p.best, p.lastPong, p.lastPing = netip.AddrPort{}, time.Time{}, time.Time{}
+		p.pending = map[txID]sentPing{}
+		p.observed = map[netip.AddrPort]time.Time{}
+	}
+}
+
 // Direct returns the confirmed direct path to a peer, if any.
 func (m *Manager) Direct(key Key) (netip.AddrPort, bool) {
 	m.mu.Lock()
@@ -137,7 +150,14 @@ func (m *Manager) Tick() {
 		}
 		every := pingEvery
 		if confirmed {
+			// Keep the confirmed path alive, and follow the peer if it
+			// pinged us from somewhere new since (its network changed).
 			targets, every = []netip.AddrPort{p.best}, keepEvery
+			for addr, at := range p.observed {
+				if addr != p.best && at.After(p.lastPong) {
+					targets = append(targets, addr)
+				}
+			}
 		}
 		if now.Sub(p.lastPing) < every {
 			continue

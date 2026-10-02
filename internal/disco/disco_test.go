@@ -156,3 +156,36 @@ func TestLearnsPeerAddressFromItsPings(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, n.from[a], got)
 }
+
+// b's network changes: it resets and pings a from a new address. a was
+// confirmed on b's old address and moves to the new one.
+func TestFollowsPeerToNewAddress(t *testing.T) {
+	a, b, aKey, bKey, n, c := pair(t)
+	a.SetPeers(map[Key][]netip.AddrPort{bKey: {n.from[b]}})
+	b.SetPeers(map[Key][]netip.AddrPort{aKey: {n.from[a]}})
+	a.Tick()
+	_, ok := a.Direct(bKey)
+	require.True(t, ok)
+
+	moved := netip.MustParseAddrPort("203.0.113.77:41000")
+	n.mu.Lock()
+	delete(n.nodes, n.from[b])
+	n.nodes[moved], n.from[b] = b, moved
+	n.mu.Unlock()
+
+	b.Reset()
+	_, ok = b.Direct(aKey)
+	assert.False(t, ok, "reset forgets confirmed paths")
+
+	c.add(time.Millisecond)
+	b.Tick() // pings a from the new address right away
+	got, ok := b.Direct(aKey)
+	require.True(t, ok)
+	assert.Equal(t, n.from[a], got)
+
+	c.add(time.Millisecond)
+	a.Tick() // a pings the address b's ping came from
+	got, ok = a.Direct(bKey)
+	require.True(t, ok)
+	assert.Equal(t, moved, got)
+}
