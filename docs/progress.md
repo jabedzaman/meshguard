@@ -60,7 +60,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 
 ### M2 — Reachability and naming 🚧
 
-- ✅ Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks connect via relay)
+- ✅ Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks; real hardware: MacBook ↔ WSL via relay, 2026-10-02)
 - ⬜ NAT traversal: STUN-observed endpoints and hole punching, then switch from relay to direct
 - ✅ Point-to-point (VPN) interfaces are never advertised or treated as shared networks
 - ✅ Device names use the short hostname (no `.local`)
