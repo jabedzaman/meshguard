@@ -18,6 +18,7 @@ import {
 import { Input } from "@mesh/ui/components/input";
 import { usePermission } from "~/components/providers/organization-provider";
 import { networkMutations, networkQueries } from "~/lib/queries";
+import { useHydrated } from "~/hooks/use-hydrated";
 
 // Shape checks only; the API validates the range (private, prefix, host bits)
 // and its message is shown on the field.
@@ -35,6 +36,7 @@ export function CreateNetworkForm() {
 }
 
 function CreateNetworkFormInner() {
+  const hydrated = useHydrated();
   const queryClient = useQueryClient();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -106,7 +108,11 @@ function CreateNetworkFormInner() {
             {form.formState.errors.root.message}
           </p>
         )}
-        <Button type="submit" className="self-start" disabled={createNetwork.isPending}>
+        <Button
+          type="submit"
+          className="self-start"
+          disabled={!hydrated || createNetwork.isPending}
+        >
           {createNetwork.isPending ? "Creating…" : "Create network"}
         </Button>
       </form>

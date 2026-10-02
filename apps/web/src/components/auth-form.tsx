@@ -16,6 +16,7 @@ import {
 import { Input } from "@mesh/ui/components/input";
 import { Label } from "@mesh/ui/components/label";
 import { authClient, unwrap } from "~/lib/auth-client";
+import { useHydrated } from "~/hooks/use-hydrated";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -44,6 +45,7 @@ const copy = {
 } as const;
 
 export function AuthForm({ mode }: { mode: Mode }) {
+  const hydrated = useHydrated();
   const searchParams = useSearchParams();
   const t = copy[mode];
 
@@ -78,7 +80,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
         <CardTitle>{t.title}</CardTitle>
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
-      <form onSubmit={onSubmit}>
+      {/* method="post": a submit before hydration must never put the password in the URL. */}
+      <form method="post" onSubmit={onSubmit}>
         <CardContent className="flex flex-col gap-4">
           {mode === "sign-up" && (
             <div className="flex flex-col gap-2">
@@ -108,14 +111,14 @@ export function AuthForm({ mode }: { mode: Mode }) {
           )}
         </CardContent>
         <CardFooter className="mt-6 flex flex-col gap-3">
-          <Button type="submit" className="w-full" disabled={emailAuth.isPending}>
+          <Button type="submit" className="w-full" disabled={!hydrated || emailAuth.isPending}>
             {emailAuth.isPending ? "Please wait…" : t.submit}
           </Button>
           <Button
             type="button"
             variant="outline"
             className="w-full"
-            disabled={githubAuth.isPending}
+            disabled={!hydrated || githubAuth.isPending}
             onClick={() => {
               emailAuth.reset();
               githubAuth.mutate();

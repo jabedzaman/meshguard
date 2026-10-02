@@ -23,6 +23,7 @@ import {
 } from "@mesh/ui/components/form";
 import { Input } from "@mesh/ui/components/input";
 import { authClient, unwrap } from "~/lib/auth-client";
+import { useHydrated } from "~/hooks/use-hydrated";
 
 const schema = z.object({
   name: z.string().trim().min(2, "At least 2 characters").max(64, "At most 64 characters"),
@@ -39,6 +40,7 @@ function slugify(name: string) {
 }
 
 export function CreateOrganization() {
+  const hydrated = useHydrated();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { name: "" },
@@ -84,7 +86,11 @@ export function CreateOrganization() {
             )}
           </CardContent>
           <CardFooter className="mt-6">
-            <Button type="submit" className="w-full" disabled={createOrganization.isPending}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={!hydrated || createOrganization.isPending}
+            >
               {createOrganization.isPending ? "Creating…" : "Create organization"}
             </Button>
           </CardFooter>

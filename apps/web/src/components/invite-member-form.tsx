@@ -24,6 +24,7 @@ import {
 import { usePermission } from "~/components/providers/organization-provider";
 import { authClient, unwrap } from "~/lib/auth-client";
 import { invitationQueries } from "~/lib/queries";
+import { useHydrated } from "~/hooks/use-hydrated";
 
 // Owners are made through role assignment, not invited directly.
 const INVITABLE_ROLES = ["member", "admin"] as const;
@@ -42,6 +43,7 @@ export function InviteMemberForm() {
 }
 
 function InviteMemberFormInner() {
+  const hydrated = useHydrated();
   const queryClient = useQueryClient();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -101,7 +103,7 @@ function InviteMemberFormInner() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="sm:mt-[22px]" disabled={invite.isPending}>
+        <Button type="submit" className="sm:mt-[22px]" disabled={!hydrated || invite.isPending}>
           {invite.isPending ? "Sending…" : "Send invite"}
         </Button>
       </form>
