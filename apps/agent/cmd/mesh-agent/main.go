@@ -101,9 +101,11 @@ func run(o *options, a *agent.Agent) error {
 	if err != nil {
 		return err
 	}
-	shareSocket(o.socket, o.socketOwner)
+	if uid, ok := shareSocket(o.socket, o.socketOwner); ok {
+		a.Operators = append(a.Operators, uid)
+	}
 
-	srv := &http.Server{Handler: a.Handler()}
+	srv := &http.Server{Handler: a.Handler(), ConnContext: ipc.ConnContext}
 	done := make(chan struct{})
 	go func() {
 		a.Run(ctx) // returns after ctx is done and WireGuard is torn down
@@ -123,10 +125,11 @@ func run(o *options, a *agent.Agent) error {
 }
 
 // shareSocket lets one non-root user use the CLI without sudo: the owner from
-// -socket-owner, or the user who ran `sudo mesh-agent`.
-func shareSocket(socket, owner string) {
+// -socket-owner, or the user who ran `sudo mesh-agent`. It returns that user's
+// uid, which the agent then accepts as an operator.
+func shareSocket(socket, owner string) (uint32, bool) {
 	if os.Geteuid() != 0 {
-		return
+		return 0, false
 	}
 	if owner == "" {
 		if uid, gid := os.Getenv("SUDO_UID"), os.Getenv("SUDO_GID"); uid != "" && gid != "" {
@@ -134,16 +137,18 @@ func shareSocket(socket, owner string) {
 		}
 	}
 	if owner == "" {
-		return
+		return 0, false
 	}
 	uidText, gidText, _ := strings.Cut(owner, ":")
 	uid, err1 := strconv.Atoi(uidText)
 	gid, err2 := strconv.Atoi(gidText)
 	if err1 != nil || err2 != nil {
 		slog.Warn("invalid -socket-owner, want uid:gid", "value", owner)
-		return
+		return 0, false
 	}
 	if err := os.Chown(socket, uid, gid); err != nil {
 		slog.Warn("could not share socket", "owner", owner, "err", err)
+		return 0, false
 	}
+	return uint32(uid), true
 }

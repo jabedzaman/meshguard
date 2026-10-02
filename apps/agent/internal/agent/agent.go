@@ -51,6 +51,9 @@ type Agent struct {
 	StartEngine func(wireguard.Config) (Engine, error)
 	// How often to check for network changes and wake from sleep. Default 2s.
 	NetCheckInterval time.Duration
+	// UIDs allowed to use the local API besides root and the agent's own
+	// user (the -socket-owner).
+	Operators []uint32
 
 	// linkState summarizes the network attachment; a change means the
 	// network changed. Default: the advertisable local addresses.

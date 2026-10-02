@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,8 @@ func call(t *testing.T, h http.Handler, method, path string, body any) (*httptes
 		require.NoError(t, json.NewEncoder(&buf).Encode(body))
 	}
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(method, path, &buf))
+	req := httptest.NewRequest(method, path, &buf)
+	h.ServeHTTP(rec, req.WithContext(ipc.WithCaller(req.Context(), ipc.Caller{UID: uint32(os.Geteuid())})))
 	var status ipc.Status
 	var apiErr ipc.Error
 	if rec.Code < 300 {
@@ -122,4 +124,24 @@ func TestDeviceName(t *testing.T) {
 	assert.Equal(t, "my-laptop", deviceName("my laptop"))
 	assert.Equal(t, "device", deviceName(""))
 	assert.Equal(t, "device", deviceName(".local"))
+}
+
+func TestLocalAPIRefusesOtherUsers(t *testing.T) {
+	a := &Agent{Version: "test", StateDir: t.TempDir(), Operators: []uint32{4242}}
+	h := a.Handler()
+	serve := func(req *http.Request) int {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	as := func(uid uint32) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
+		return req.WithContext(ipc.WithCaller(req.Context(), ipc.Caller{UID: uid}))
+	}
+
+	assert.Equal(t, http.StatusOK, serve(as(0)), "root")
+	assert.Equal(t, http.StatusOK, serve(as(uint32(os.Geteuid()))), "agent's own user")
+	assert.Equal(t, http.StatusOK, serve(as(4242)), "operator")
+	assert.Equal(t, http.StatusForbidden, serve(as(4343)), "other user")
+	assert.Equal(t, http.StatusForbidden, serve(httptest.NewRequest(http.MethodGet, "/v1/status", nil)), "unknown caller")
 }

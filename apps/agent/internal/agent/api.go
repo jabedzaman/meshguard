@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,7 +20,8 @@ import (
 	"github.com/twinlabshq/mesh/internal/state"
 )
 
-// Handler returns the local API routes.
+// Handler returns the local API routes. Serve it with ipc.ConnContext so each
+// request carries its caller's peer credentials.
 func (a *Agent) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/status", a.handleStatus)
@@ -27,7 +29,35 @@ func (a *Agent) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/down", a.handleDown)
 	mux.HandleFunc("POST /v1/logout", a.handleLogout)
 	mux.HandleFunc("GET /v1/netcheck", a.handleNetcheck)
-	return mux
+	return a.authorize(mux)
+}
+
+// authorize lets through only callers the kernel vouches for: root, the
+// agent's own user and the operators. The socket's file mode is the first
+// check; this one holds even if the socket is reachable by others (a shared
+// group, a socket under /tmp). Callers with unknown credentials are refused.
+func (a *Agent) authorize(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		caller, ok := ipc.CallerFrom(r.Context())
+		if !ok {
+			writeError(w, http.StatusForbidden, "forbidden", "couldn't identify the calling user")
+			return
+		}
+		if !a.allowed(caller.UID) {
+			slog.Warn("refused local API caller", "uid", caller.UID, "path", r.URL.Path)
+			writeError(w, http.StatusForbidden, "forbidden",
+				"this user may not control the mesh agent: run with sudo, or reinstall it with sudo mesh-agent install as this user")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (a *Agent) allowed(uid uint32) bool {
+	if uid == 0 || uid == uint32(os.Geteuid()) {
+		return true
+	}
+	return slices.Contains(a.Operators, uid)
 }
 
 func (a *Agent) handleStatus(w http.ResponseWriter, _ *http.Request) {
