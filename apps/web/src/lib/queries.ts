@@ -26,7 +26,16 @@ export const invitationQueries = {
       queryKey: [...invitationQueries.all(), organizationId],
       queryFn: async () => {
         const invitations = await unwrap(authClient.organization.listInvitations());
-        return (invitations ?? []).filter((invitation) => invitation.status === "pending");
+        return invitations.filter((invitation) => invitation.status === "pending");
       },
+    }),
+};
+
+export const memberQueries = {
+  all: () => ["members"] as const,
+  list: (organizationId: string) =>
+    queryOptions({
+      queryKey: [...memberQueries.all(), organizationId],
+      queryFn: async () => (await unwrap(authClient.organization.listMembers())).members,
     }),
 };

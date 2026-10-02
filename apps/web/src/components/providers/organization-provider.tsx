@@ -10,9 +10,15 @@ export interface ActiveOrganization {
   slug: string;
 }
 
+export interface CurrentUser {
+  id: string;
+  email: string;
+}
+
 interface OrganizationContextValue {
   organization: ActiveOrganization;
   role: Role;
+  user: CurrentUser;
 }
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
@@ -21,9 +27,10 @@ const OrganizationContext = createContext<OrganizationContextValue | null>(null)
 export function OrganizationProvider({
   organization,
   role,
+  user,
   children,
 }: OrganizationContextValue & { children: React.ReactNode }) {
-  return <OrganizationContext value={{ organization, role }}>{children}</OrganizationContext>;
+  return <OrganizationContext value={{ organization, role, user }}>{children}</OrganizationContext>;
 }
 
 function useOrganizationContext(): OrganizationContextValue {
@@ -34,6 +41,10 @@ function useOrganizationContext(): OrganizationContextValue {
 
 export function useOrganization(): ActiveOrganization {
   return useOrganizationContext().organization;
+}
+
+export function useCurrentUser(): CurrentUser {
+  return useOrganizationContext().user;
 }
 
 export function useRole(): Role {

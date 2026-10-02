@@ -29,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <OrganizationProvider
       organization={{ id: organization.id, name: organization.name, slug: organization.slug }}
       role={role}
+      user={{ id: session.user.id, email: session.user.email }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-6">
         <header className="flex items-center justify-between">
