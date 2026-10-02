@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getErrorMessage } from "@meshguard/api-client";
+import { AccessRules } from "~/components/access-rules";
 import { AddDeviceDialog } from "~/components/add-device-dialog";
 import { DevicesList } from "~/components/devices-list";
 import { EnrollmentTokensList } from "~/components/enrollment-tokens-list";
@@ -31,6 +32,10 @@ export function NetworkDetail({ networkId }: { networkId: string }) {
       <section className="flex flex-col gap-3">
         <h3 className="font-medium">Devices</h3>
         <DevicesList networkId={network.id} />
+      </section>
+      <section className="flex flex-col gap-3">
+        <h3 className="font-medium">Access</h3>
+        <AccessRules networkId={network.id} />
       </section>
       <section className="flex flex-col gap-3">
         <h3 className="font-medium">Active enrollment tokens</h3>

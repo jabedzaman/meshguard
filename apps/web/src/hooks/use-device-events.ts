@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { api } from "~/lib/api";
-import { deviceQueries, enrollmentTokenQueries } from "~/lib/queries";
+import { aclQueries, deviceQueries, enrollmentTokenQueries } from "~/lib/queries";
 
 /** Wait before reopening a stream the browser gave up on (e.g. the API restarted with an error). */
 const RETRY_MS = 5_000;
@@ -35,6 +35,10 @@ export function useDeviceEvents(networkId: string) {
           void queryClient.invalidateQueries({
             queryKey: enrollmentTokenQueries.active(networkId).queryKey,
           });
+        }
+        // Access rules show device names and go away with their devices.
+        if (type === "updated" || type === "removed") {
+          void queryClient.invalidateQueries({ queryKey: aclQueries.get(networkId).queryKey });
         }
       });
       // The browser retries dropped streams itself, but not failed responses.

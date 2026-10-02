@@ -90,3 +90,29 @@ export const deviceMutations = {
     parseResponse(api.v1.devices[":id"].$patch({ param: { id }, json: { name } })),
   remove: (id: string) => parseResponse(api.v1.devices[":id"].$delete({ param: { id } })),
 };
+
+type AclRoute = (typeof api.v1.networks)[":networkId"]["acl"];
+export type AclDefaultAction = InferRequestType<AclRoute["$patch"]>["json"]["defaultAction"];
+export type CreateAclRuleInput = InferRequestType<AclRoute["rules"]["$post"]>["json"];
+
+export const aclQueries = {
+  all: () => ["acl"] as const,
+  get: (networkId: string) =>
+    queryOptions({
+      queryKey: [...aclQueries.all(), networkId],
+      queryFn: () =>
+        parseResponse(api.v1.networks[":networkId"].acl.$get({ param: { networkId } })),
+    }),
+};
+
+export const aclMutations = {
+  setDefaultAction: (networkId: string, defaultAction: AclDefaultAction) =>
+    parseResponse(
+      api.v1.networks[":networkId"].acl.$patch({ param: { networkId }, json: { defaultAction } }),
+    ),
+  createRule: (networkId: string, rule: CreateAclRuleInput) =>
+    parseResponse(
+      api.v1.networks[":networkId"].acl.rules.$post({ param: { networkId }, json: rule }),
+    ),
+  removeRule: (id: string) => parseResponse(api.v1["acl-rules"][":id"].$delete({ param: { id } })),
+};
