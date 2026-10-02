@@ -102,6 +102,22 @@ services:
       - ./packages/config/dist:/app/packages/config/dist
       - ./packages/db/dist:/app/packages/db/dist
 
+  www:
+    container_name: meshguard-www
+    build:
+      context: .
+      dockerfile: apps/www/Dockerfile.dev
+    environment:
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=1
+      - CHOKIDAR_INTERVAL=500
+    ports:
+      - "${WWW_HOST_PORT:-3001}:3001"
+    volumes:
+      - ./apps/www/src:/app/apps/www/src
+      - ./apps/www/public:/app/apps/www/public
+      - ./packages/ui/src:/app/packages/ui/src
+
   relay:
     <<: *go-volumes
     container_name: meshguard-relay
