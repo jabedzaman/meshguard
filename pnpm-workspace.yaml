@@ -9,3 +9,4 @@ catalog:
   react-dom: 19.2.8
   "@types/react": ^19
   "@types/react-dom": ^19
+  lucide-react: ^1.49.0
