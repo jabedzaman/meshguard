@@ -208,6 +208,69 @@ test.describe("devices", () => {
     });
   });
 
+  test("admins remove devices; peers drop them and the device is refused", async ({
+    createUser,
+    createOrganization,
+    addToOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Remove Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const token = () =>
+      api<{ token: string }>(owner.page, `/v1/networks/${network.id}/enrollment-tokens`, {}).then(
+        (t) => t.token,
+      );
+    const old = signingDevice();
+    const a = await enroll({
+      token: await token(),
+      hostname: "old-mac",
+      platform: "darwin",
+      ...old.keys,
+    });
+    const server = signingDevice();
+    const b = await enroll({
+      token: await token(),
+      hostname: "server",
+      platform: "linux",
+      ...server.keys,
+    });
+    const oldDevice = { id: a.body.device.id, privateKey: old.privateKey };
+    const serverDevice = { id: b.body.device.id, privateKey: server.privateKey };
+    const remove = (page = owner.page, id = oldDevice.id) =>
+      api(page, `/v1/devices/${id}`, undefined, { method: "DELETE" });
+
+    // Members can't remove, and see no button.
+    const member = await createUser("Member");
+    await addToOrganization(owner, member, "member");
+    await expect(remove(member.page)).rejects.toMatchObject({ status: 403 });
+    await member.page.goto(`/networks/${network.id}`);
+    const memberRow = member.page.locator("li", { hasText: "old-mac" });
+    await expect(memberRow).toBeVisible();
+    await expect(memberRow.getByRole("button", { name: /^Remove/ })).toHaveCount(0);
+
+    // Another organization's device is not found.
+    const outsider = await createUser("Outsider");
+    await createOrganization(outsider, "Other Org");
+    await expect(remove(outsider.page)).rejects.toMatchObject({ status: 404 });
+
+    // From the web: confirm, and the row goes away.
+    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.getByRole("button", { name: "Remove old-mac" }).click();
+    await owner.page.getByRole("button", { name: "Remove device" }).click();
+    await expect(owner.page.locator("li", { hasText: "old-mac" })).toHaveCount(0);
+    await expect(owner.page.locator("li", { hasText: "server" })).toBeVisible();
+    // The member's open page hears about it too.
+    await expect(memberRow).toHaveCount(0, { timeout: 3_000 });
+
+    // Peers drop it; the removed device can't sync any more.
+    expect((await sync(serverDevice, { endpoints: [] })).body.peers).toEqual([]);
+    expect(await sync(oldDevice, { endpoints: [] })).toMatchObject({
+      status: 401,
+      body: { error: { code: "invalid_device_signature" } },
+    });
+    await expect(remove()).rejects.toMatchObject({ status: 404 });
+  });
+
   test("tokens are single-use, revocable and keys can't enroll twice", async ({
     createUser,
     createOrganization,
