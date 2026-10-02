@@ -18,3 +18,13 @@ export const enrollDeviceBody = z.object({
   identityPublicKey: publicKey32,
   wireguardPublicKey: publicKey32,
 });
+
+/** "1.2.3.4:51820" or "[fd00::1]:51820". */
+const endpoint = z
+  .string()
+  .regex(/^(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-fA-F:.]+\]):\d{1,5}$/, "Must be ip:port");
+
+export const syncDeviceBody = z.object({
+  /** Where peers can reach this device's WireGuard, best first. */
+  endpoints: z.array(endpoint).max(16),
+});

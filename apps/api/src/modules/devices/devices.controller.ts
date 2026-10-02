@@ -1,7 +1,8 @@
 import { factory } from "~/lib/factory";
 import { validate } from "~/lib/validator";
 import { requireOrganization, requirePermission } from "~/middlewares/auth.middleware";
-import { enrollDeviceBody } from "~/modules/devices/devices.schema";
+import { requireDevice } from "~/middlewares/device.middleware";
+import { enrollDeviceBody, syncDeviceBody } from "~/modules/devices/devices.schema";
 import { networkIdParams } from "~/schemas/params.schema";
 
 /** Called by the agent (`mesh up --token ...`); authenticated by the enrollment token. */
@@ -20,5 +21,18 @@ export const listForNetwork = factory.createHandlers(
       c.req.valid("param").networkId,
     );
     return c.json(devices, 200);
+  },
+);
+
+/**
+ * Called by the agent every few seconds (signed with its identity key):
+ * reports its endpoints and returns the network map to configure WireGuard.
+ */
+export const sync = factory.createHandlers(
+  requireDevice,
+  validate("json", syncDeviceBody),
+  async (c) => {
+    const map = await c.var.services.devices.sync(c.var.device.id, c.req.valid("json"));
+    return c.json(map, 200);
   },
 );
