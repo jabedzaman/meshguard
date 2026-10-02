@@ -35,6 +35,9 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ `web` route protection via Next.js proxy with `redirectTo`
 - ✅ All auth routing in `web/proxy.ts` (session, active org); layouts only load data; onboarding at `/organizations/create`; `/api/organizations/[organizationId]/activate` restores a missing active org
 - ✅ Networks: create (`POST /v1/networks`), default `10.77.0.0/16` (configurable, RFC 1918 only), random IPv6 ULA /48 per network
+- ✅ Organization switcher
+- ✅ Roles: owner / admin / member (`@mesh/auth/permissions`), enforced in the API with `requirePermission`
+- ⬜ Invitations, accept/decline, role assignment, member list
 - ⬜ Device address allocation (random free address, unique per network; enforced by DB constraints)
 - ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
 - ⬜ Enrollment: one-time token → device record → mesh IP assigned
@@ -111,4 +114,5 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-01 | API split into routes → controllers (Hono `createHandlers`) → services in `@mesh/server-core`; one error format with request ids |
 | 2026-10-01 | `createLogger` (pino) in `@mesh/utils` replaces `console` everywhere |
 | 2026-10-01 | Organization id always comes from the session (`requireOrganization`), never from request params |
+| 2026-10-02 | Three roles (owner, admin, member) on Better Auth access control; definitions shared by API (enforcement) and web (hiding UI) via `@mesh/auth/permissions` |
 | 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |
