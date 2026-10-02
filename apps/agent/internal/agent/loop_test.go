@@ -6,9 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -143,6 +145,51 @@ func TestUpStartsWireGuardAndSyncsPeers(t *testing.T) {
 	assert.Equal(t, "mesh-test0", status.Interface)
 	require.Len(t, status.Peers, 1)
 	assert.Equal(t, "server", status.Peers[0].Name)
+}
+
+func TestServesPeersOverDNS(t *testing.T) {
+	server, _ := signedControlPlane(t)
+	probe, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	require.NoError(t, err)
+	port := probe.LocalAddr().(*net.UDPAddr).Port
+	probe.Close()
+
+	a := &Agent{
+		Version:      "test",
+		StateDir:     t.TempDir(),
+		SyncInterval: 50 * time.Millisecond,
+		StartEngine:  func(wireguard.Config) (Engine, error) { return &fakeEngine{}, nil },
+		DNSPort:      uint16(port),
+		dnsHost:      netip.MustParseAddr("127.0.0.1"),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	require.Eventually(t, func() bool { a.mu.Lock(); defer a.mu.Unlock(); return a.ctx != nil }, time.Second, 10*time.Millisecond)
+	rec, _, _ := call(t, a.Handler(), http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	r := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, network, net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	}}
+	// The peer appears after the first sync.
+	var ips []netip.Addr
+	require.Eventually(t, func() bool {
+		ips, err = r.LookupNetIP(ctx, "ip", "server.internal")
+		return err == nil
+	}, 2*time.Second, 20*time.Millisecond)
+	assert.ElementsMatch(t, []netip.Addr{netip.MustParseAddr("10.77.0.3"), netip.MustParseAddr("fd00:1:2::3")}, ips)
+	ips, err = r.LookupNetIP(ctx, "ip4", "laptop.internal")
+	require.NoError(t, err)
+	assert.Equal(t, []netip.Addr{netip.MustParseAddr("10.77.0.2")}, ips)
+
+	_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
+	require.NotNil(t, status.DNS)
+	assert.Equal(t, "laptop.internal", status.DNS.Name)
+	assert.Equal(t, "127.0.0.1:"+strconv.Itoa(port), status.DNS.Resolver)
+	assert.Empty(t, status.DNS.Configured, "not on port 53, so the OS isn't touched")
+	assert.Equal(t, "server.internal", status.Peers[0].DNSName)
 }
 
 func TestWithoutWireGuardStillSyncsAndExplains(t *testing.T) {

@@ -17,6 +17,7 @@ import (
 	"github.com/twinlabshq/mesh/internal/coordination"
 	"github.com/twinlabshq/mesh/internal/disco"
 	"github.com/twinlabshq/mesh/internal/discovery"
+	"github.com/twinlabshq/mesh/internal/dns"
 	"github.com/twinlabshq/mesh/internal/ipc"
 	"github.com/twinlabshq/mesh/internal/relay"
 	"github.com/twinlabshq/mesh/internal/state"
@@ -51,6 +52,8 @@ type Agent struct {
 	StartEngine func(wireguard.Config) (Engine, error)
 	// How often to check for network changes and wake from sleep. Default 2s.
 	NetCheckInterval time.Duration
+	// Port for private DNS on the mesh address. Default 53.
+	DNSPort uint16
 	// UIDs allowed to use the local API besides root and the agent's own
 	// user (the -socket-owner).
 	Operators []uint32
@@ -58,6 +61,8 @@ type Agent struct {
 	// linkState summarizes the network attachment; a change means the
 	// network changed. Default: the advertisable local addresses.
 	linkState func(engine Engine, exclude []netip.Prefix) string
+	// dnsHost replaces the mesh IPv4 as the DNS listen address (tests).
+	dnsHost netip.Addr
 
 	mu   sync.Mutex // guards ctx and conn, and serializes up/down/logout
 	ctx  context.Context
@@ -86,6 +91,8 @@ type connection struct {
 	relayClient *relay.Client
 	relayURL    string
 	stopRelay   context.CancelFunc
+
+	dns dnsState
 }
 
 // Run starts connecting if the device is enrolled (and not down), then blocks
@@ -125,6 +132,7 @@ func (a *Agent) startLocked(st *state.State) {
 		slog.Warn("wireguard unavailable", "err", err)
 	} else {
 		a.startHolePunching(c, st)
+		a.startDNSLocked(c, st)
 		go a.watchNetwork(c, st)
 	}
 	go a.loop(c, st)
@@ -137,7 +145,8 @@ func (a *Agent) stopLocked() {
 		return
 	}
 	a.conn = nil
-	c.cancel() // stops the loop, relay and disco ticker
+	c.cancel() // stops the loop, relay, disco ticker and DNS server
+	a.stopDNSLocked(c)
 	if c.engine != nil {
 		c.engine.Close()
 	}
@@ -350,6 +359,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	c.lastSync = time.Now()
 	c.peers = nm.Peers
 	c.stun = nm.Stun
+	a.updateDNSLocked(c, nm)
 	switch {
 	case applyErr != nil:
 		c.problem = "cannot apply peers: " + applyErr.Error()
@@ -502,6 +512,8 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	}
 	var stats map[string]wireguard.PeerStats
 	if c.engine != nil {
+		dnsStatus := c.dns.status
+		s.DNS = &dnsStatus
 		s.Interface = c.engine.Name()
 		stats, _ = c.engine.Stats()
 		if c.problem == "" && !c.lastSync.IsZero() {
@@ -509,7 +521,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		}
 	}
 	for _, p := range c.peers {
-		peer := ipc.Peer{Name: p.Name, MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6}
+		peer := ipc.Peer{Name: p.Name, DNSName: dns.Name(p.Name), MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6}
 		if hexKey, err := wireguard.KeyToHex(p.WireGuardPublicKey); err == nil {
 			if ps, ok := stats[hexKey]; ok {
 				peer.Endpoint = ps.Endpoint

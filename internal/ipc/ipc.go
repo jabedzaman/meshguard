@@ -37,7 +37,20 @@ type Status struct {
 	// Public address as seen by STUN, if known.
 	PublicEndpoint string     `json:"publicEndpoint,omitempty"`
 	LastSyncAt     *time.Time `json:"lastSyncAt,omitempty"`
+	DNS            *DNSStatus `json:"dns,omitempty"`
 	Peers          []Peer     `json:"peers,omitempty"`
+}
+
+// DNSStatus describes private DNS: devices resolve as <name>.internal.
+type DNSStatus struct {
+	// This device's name, e.g. "laptop.internal".
+	Name string `json:"name"`
+	// Where the agent answers, e.g. "10.77.0.9:53"; empty if it couldn't listen.
+	Resolver string `json:"resolver,omitempty"`
+	// How the OS sends .internal queries to it, e.g. "systemd-resolved";
+	// empty if it doesn't (see Problem).
+	Configured string `json:"configured,omitempty"`
+	Problem    string `json:"problem,omitempty"`
 }
 
 // RelayStatus describes the agent's relay connection.
@@ -48,7 +61,9 @@ type RelayStatus struct {
 
 // Peer is another device in the network, as this agent sees it.
 type Peer struct {
-	Name     string `json:"name"`
+	Name string `json:"name"`
+	// e.g. "laptop.internal".
+	DNSName  string `json:"dnsName"`
 	MeshIPv4 string `json:"meshIpv4"`
 	MeshIPv6 string `json:"meshIpv6"`
 	// "ip:port" when direct, "relay/..." when through the relay.
