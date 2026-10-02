@@ -89,6 +89,10 @@ func (e *Engine) SendTo(to netip.AddrPort, packet []byte) error { return e.bind.
 // DeliverRelay hands a packet received from the relay to WireGuard.
 func (e *Engine) DeliverRelay(p relay.Packet) { e.bind.Deliver(p) }
 
+// Rebind reopens the UDP sockets and forgets cached source addresses. Call it
+// after a network change or wake from sleep, when old sockets may be stale.
+func (e *Engine) Rebind() error { return e.dev.BindUpdate() }
+
 // Name is the actual interface name.
 func (e *Engine) Name() string { return e.name }
 
