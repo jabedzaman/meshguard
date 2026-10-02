@@ -2,8 +2,10 @@ package wireguard
 
 import (
 	"net"
+	"net/netip"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,4 +72,56 @@ func TestBindReceivesRelayPackets(t *testing.T) {
 	go func() { _, err := receive(packets, sizes, eps); done <- err }()
 	require.NoError(t, b.Close())
 	assert.ErrorIs(t, <-done, net.ErrClosed)
+}
+
+func TestBindInterceptsBeforeWireGuard(t *testing.T) {
+	// Two binds on localhost: a sends raw packets to b's UDP port.
+	a := NewBind(conn.NewDefaultBind())
+	b := NewBind(conn.NewDefaultBind())
+	_, _, err := a.Open(0)
+	require.NoError(t, err)
+	defer a.Close()
+	fns, port, err := b.Open(0)
+	require.NoError(t, err)
+	defer b.Close()
+
+	var seen []string
+	b.SetInterceptor(func(packet []byte, from netip.AddrPort) bool {
+		if string(packet) == "disco" {
+			seen = append(seen, from.Addr().String())
+			return true
+		}
+		return false
+	})
+
+	to := netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), port)
+	require.NoError(t, a.SendTo(to, []byte("disco")))
+	require.NoError(t, a.SendTo(to, []byte("wireguard")))
+
+	// Read from all of b's UDP receivers at once (batch-sized buffers, as
+	// WireGuard provides): the disco packet is consumed, the other reaches
+	// "WireGuard".
+	results := make(chan string, len(fns))
+	for _, fn := range fns[:len(fns)-1] { // skip the relay receiver
+		go func(fn conn.ReceiveFunc) {
+			bs := b.BatchSize()
+			packets := make([][]byte, bs)
+			for i := range packets {
+				packets[i] = make([]byte, 1500)
+			}
+			sizes := make([]int, bs)
+			eps := make([]conn.Endpoint, bs)
+			if n, err := fn(packets, sizes, eps); err == nil && n > 0 {
+				results <- string(packets[0][:sizes[0]])
+			}
+		}(fn)
+	}
+	var got string
+	select {
+	case got = <-results:
+	case <-time.After(2 * time.Second):
+		t.Fatal("nothing reached WireGuard")
+	}
+	assert.Equal(t, "wireguard", got)
+	assert.Equal(t, []string{"127.0.0.1"}, seen)
 }

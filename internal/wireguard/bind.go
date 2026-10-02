@@ -42,10 +42,68 @@ var errNoRelay = errors.New("no relay connected")
 type Bind struct {
 	std conn.Bind
 
-	mu       sync.Mutex
-	send     RelaySender
-	incoming chan relay.Packet
-	closed   chan struct{}
+	mu        sync.Mutex
+	send      RelaySender
+	intercept Interceptor
+	incoming  chan relay.Packet
+	closed    chan struct{}
+}
+
+// Interceptor sees every UDP packet before WireGuard does and returns true to
+// consume it (STUN responses, disco pings and pongs).
+type Interceptor func(packet []byte, from netip.AddrPort) bool
+
+// SetInterceptor installs the interceptor; nil passes everything to WireGuard.
+func (b *Bind) SetInterceptor(i Interceptor) {
+	b.mu.Lock()
+	b.intercept = i
+	b.mu.Unlock()
+}
+
+// SendTo sends a raw packet from WireGuard's UDP socket, so NAT mappings and
+// STUN results apply to WireGuard traffic too.
+func (b *Bind) SendTo(to netip.AddrPort, packet []byte) error {
+	ep, err := b.std.ParseEndpoint(to.String())
+	if err != nil {
+		return err
+	}
+	return b.std.Send([][]byte{packet}, ep)
+}
+
+// filter wraps a UDP receive function, removing packets the interceptor
+// consumes and compacting the batch for WireGuard.
+func (b *Bind) filter(receive conn.ReceiveFunc) conn.ReceiveFunc {
+	return func(packets [][]byte, sizes []int, eps []conn.Endpoint) (int, error) {
+		for {
+			n, err := receive(packets, sizes, eps)
+			if err != nil || n == 0 {
+				return n, err
+			}
+			b.mu.Lock()
+			intercept := b.intercept
+			b.mu.Unlock()
+			if intercept == nil {
+				return n, nil
+			}
+			kept := 0
+			for i := 0; i < n; i++ {
+				from, perr := netip.ParseAddrPort(eps[i].DstToString())
+				if perr == nil && intercept(packets[i][:sizes[i]], from) {
+					continue
+				}
+				if kept != i {
+					packets[kept], packets[i] = packets[i], packets[kept]
+					sizes[kept], eps[kept] = sizes[i], eps[i]
+				}
+				kept++
+			}
+			if kept > 0 {
+				return kept, nil
+			}
+			// Everything was STUN/disco; keep reading rather than hand
+			// WireGuard an empty batch.
+		}
+	}
 }
 
 // NewBind wraps a UDP bind (conn.NewDefaultBind()).
@@ -73,6 +131,9 @@ func (b *Bind) Open(port uint16) ([]conn.ReceiveFunc, uint16, error) {
 	fns, actual, err := b.std.Open(port)
 	if err != nil {
 		return nil, 0, err
+	}
+	for i, fn := range fns {
+		fns[i] = b.filter(fn)
 	}
 	closed := make(chan struct{})
 	b.mu.Lock()

@@ -82,6 +82,8 @@ type NetworkMap struct {
 	Network state.Network `json:"network"`
 	Peers   []Peer        `json:"peers"`
 	Relay   *Relay        `json:"relay"`
+	// STUN servers ("host:port") for discovering our public address.
+	Stun []string `json:"stun"`
 }
 
 // SyncRequest reports where this device can be reached.

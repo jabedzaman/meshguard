@@ -31,10 +31,12 @@ type Status struct {
 	Network *Network `json:"network,omitempty"`
 	Server  string   `json:"server,omitempty"`
 	// WireGuard interface name, once up.
-	Interface  string       `json:"interface,omitempty"`
-	Relay      *RelayStatus `json:"relay,omitempty"`
-	LastSyncAt *time.Time   `json:"lastSyncAt,omitempty"`
-	Peers      []Peer       `json:"peers,omitempty"`
+	Interface string       `json:"interface,omitempty"`
+	Relay     *RelayStatus `json:"relay,omitempty"`
+	// Public address as seen by STUN, if known.
+	PublicEndpoint string     `json:"publicEndpoint,omitempty"`
+	LastSyncAt     *time.Time `json:"lastSyncAt,omitempty"`
+	Peers          []Peer     `json:"peers,omitempty"`
 }
 
 // RelayStatus describes the agent's relay connection.

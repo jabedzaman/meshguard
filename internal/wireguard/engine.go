@@ -80,6 +80,12 @@ func Start(cfg Config) (*Engine, error) {
 // SetRelay sets how packets for relay/<key> endpoints are sent.
 func (e *Engine) SetRelay(send RelaySender) { e.bind.SetRelay(send) }
 
+// SetInterceptor sees UDP packets before WireGuard (STUN, disco).
+func (e *Engine) SetInterceptor(i Interceptor) { e.bind.SetInterceptor(i) }
+
+// SendTo sends a raw packet from WireGuard's UDP socket.
+func (e *Engine) SendTo(to netip.AddrPort, packet []byte) error { return e.bind.SendTo(to, packet) }
+
 // DeliverRelay hands a packet received from the relay to WireGuard.
 func (e *Engine) DeliverRelay(p relay.Packet) { e.bind.Deliver(p) }
 
