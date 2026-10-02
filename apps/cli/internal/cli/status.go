@@ -54,6 +54,9 @@ func printStatus(s ipc.Status) {
 	if s.DNS != nil {
 		printDNS(*s.DNS)
 	}
+	if s.ACL != nil {
+		printACL(*s.ACL)
+	}
 	if s.Relay != nil {
 		state := "connecting"
 		if s.Relay.Connected {
@@ -68,6 +71,18 @@ func printStatus(s ipc.Status) {
 		fmt.Println("\npeers:")
 		printPeers(s.Peers, "  ")
 	}
+}
+
+func printACL(a ipc.ACLStatus) {
+	if a.DefaultAction == "allow" {
+		fmt.Println("  access     every peer may connect")
+		return
+	}
+	rules := "rules"
+	if a.Rules == 1 {
+		rules = "rule"
+	}
+	fmt.Printf("  access     only by %d %s (%d packets refused)\n", a.Rules, rules, a.Dropped)
 }
 
 func printDNS(d ipc.DNSStatus) {
