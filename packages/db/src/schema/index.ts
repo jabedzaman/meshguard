@@ -64,6 +64,9 @@ export const devices = pgTable(
     meshIpv4: inet("mesh_ipv4"),
     meshIpv6: inet("mesh_ipv6"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    /** UDP "host:port" addresses peers can try to reach this device's WireGuard on, best first. */
+    endpoints: jsonb("endpoints").$type<string[]>().notNull().default([]),
+    /** Set on every sync; a device is online if this is recent. */
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     ...timestamps,
   },
