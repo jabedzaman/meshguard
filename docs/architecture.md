@@ -164,6 +164,9 @@ mappings. Without root the agent stays registered and syncing, and
 Devices resolve as `<name>.internal` (`.internal` is reserved by ICANN for
 private use, so it never collides with a public name). Names are DNS labels,
 unique per network; the API picks `laptop`, `laptop-2`, … at enrollment.
+Owners and admins rename devices (`PATCH /v1/devices/:id`, 409
+`device_name_taken` on a clash); the next sync carries the new name to every
+agent, and each agent saves its own in its state file.
 
 - The agent serves DNS (`internal/dns`) over UDP and TCP on its mesh IPv4,
   port 53 (Linux), or on `127.0.0.1:53053` (macOS, which routes a utun's own

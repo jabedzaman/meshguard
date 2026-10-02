@@ -144,7 +144,9 @@ connected — a `!` line says why, e.g. WireGuard needs root), `down`.
 
 Every device resolves as `<name>.internal`, e.g. `ssh jabeds-macbook-air.internal`.
 Device names come from the hostname (lowercased, first label) and are unique
-in the network: a second `laptop` becomes `laptop-2`.
+in the network: a second `laptop` becomes `laptop-2`. Owners and admins can
+rename a device on its network page (Rename); peers resolve the new name, and
+the device saves it, within one sync (~10s). The old name stops resolving.
 
 The agent answers DNS locally and sends only `.internal` queries there; other
 lookups never touch it:
