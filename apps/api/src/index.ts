@@ -2,12 +2,29 @@ import { serve } from "@hono/node-server";
 import { authOptionsFromEnv, createAuth } from "@mesh/auth";
 import { loadServerEnv } from "@mesh/config";
 import { createDb } from "@mesh/db";
+import { createEmailQueue, createRedis } from "@mesh/server-core";
 import { createApp } from "~/app";
 import { logger } from "~/lib/logger";
 
 const env = loadServerEnv();
 const db = createDb(env.DATABASE_URL);
-const auth = createAuth(db, authOptionsFromEnv(env));
+const redis = createRedis(env.REDIS_URL);
+const emailQueue = createEmailQueue(redis);
+const auth = createAuth(db, {
+  ...authOptionsFromEnv(env),
+  // Queued, not sent: the workers app renders and delivers every email.
+  sendInvitationEmail: async (invitation) => {
+    await emailQueue.enqueue("invitation", {
+      to: invitation.email,
+      props: {
+        organizationName: invitation.organizationName,
+        inviterName: invitation.inviterName,
+        role: invitation.role,
+        url: new URL(`/invitations/${invitation.id}`, env.WEB_URL).toString(),
+      },
+    });
+  },
+});
 const app = createApp({ db, auth, corsOrigins: [env.WEB_URL] });
 
 const server = serve({ fetch: app.fetch, hostname: "0.0.0.0", port: env.API_PORT }, (info) => {
@@ -17,6 +34,10 @@ const server = serve({ fetch: app.fetch, hostname: "0.0.0.0", port: env.API_PORT
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     logger.info({ signal }, "shutting down");
-    server.close(() => process.exit(0));
+    server.close(async () => {
+      await emailQueue.queue.close();
+      redis.disconnect();
+      process.exit(0);
+    });
   });
 }
