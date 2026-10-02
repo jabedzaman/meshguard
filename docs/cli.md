@@ -41,6 +41,28 @@ Remove the service (binaries and state are kept):
 sudo mesh-agent uninstall
 ```
 
+### Updating dev machines
+
+From the repo (Linux/WSL with systemd):
+
+```sh
+scripts/reinstall-agent.sh   # build, sudo mesh-agent install with the service's current flags
+scripts/build-mac.sh         # build dist/mac (arm64; pass amd64 for Intel)
+```
+
+On the Mac, the first time copy `scripts/mac/update.sh` over (later runs
+fetch a fresh copy into `~/Downloads/mesh`), then:
+
+```sh
+~/Downloads/mesh/update.sh             # scp dist/mac from thinkpad over the mesh, reinstall
+~/Downloads/mesh/update.sh --no-fetch  # reinstall what's already in ~/Downloads/mesh
+~/Downloads/mesh/uninstall.sh          # remove the service, keep binaries and state
+~/Downloads/mesh/uninstall.sh --purge  # also mesh logout and delete binaries, state, logs
+```
+
+`MESH_BUILD_HOST` (`user@host`) and `MESH_BUILD_DIR` point `update.sh`
+somewhere else. Both install scripts keep the flags the service already has.
+
 ### Agent flags
 
 | Flag | Default | |
