@@ -216,6 +216,26 @@ services:
     ipc: host
     command: ["npx", "-y", "playwright@1.63.0", "run-server", "--port", "3300", "--host", "127.0.0.1"]
 
+  # ---------------------------------------------------------------------------
+  # Two-device lab (`pnpm lab`): agents in containers with TUN access, enrolled
+  # against the e2e API. Needs the e2e stack (`pnpm e2e:up`).
+  # ---------------------------------------------------------------------------
+  lab-a: &lab-device
+    profiles: [lab]
+    container_name: mesh-lab-a
+    hostname: lab-a
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile.lab
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+  lab-b:
+    <<: *lab-device
+    container_name: mesh-lab-b
+    hostname: lab-b
+
 volumes:
   go_mod_cache:
   go_build_cache:

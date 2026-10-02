@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1.4
+# Agent + CLI in a small image for the two-device lab (`pnpm lab`). Builds
+# without go.work, which also checks the standalone module setup.
+FROM golang:1.27 AS build
+WORKDIR /src
+COPY internal internal
+COPY apps/agent apps/agent
+COPY apps/cli apps/cli
+ENV GOWORK=off CGO_ENABLED=0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    cd apps/agent && go build -o /out/mesh-agent ./cmd/mesh-agent && \
+    cd ../cli && go build -o /out/mesh ./cmd/mesh
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends iproute2 iputils-ping ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/ /usr/local/bin/
+ENV MESH_SOCKET=/run/mesh/agent.sock MESH_STATE_DIR=/var/lib/mesh
+CMD ["mesh-agent"]
