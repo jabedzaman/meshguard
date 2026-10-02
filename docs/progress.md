@@ -56,7 +56,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.21 Presence: sync updates lastSeenAt; the API decides online (30s window); web polls every 5s
 - ⬜ M1.22 Presence in Redis with TTL keys instead of a Postgres write per sync (needed at scale)
 - ⬜ M1.23 Push device events to the web (WebSocket/SSE, NATS `device.connected`) instead of polling
-- 🚧 M1.24 Reconnect: agent restart reconnects from saved state; network changes and wake from sleep rebind sockets, reset NAT/disco state, redial the relay and resync (lab: peer changes address → direct again in ~13s). Remaining: verify sleep/wake and Wi-Fi switching on the MacBook
+- ✅ M1.24 Reconnect: agent restart reconnects from saved state; network changes and wake from sleep rebind sockets, reset NAT/disco state, redial the relay and resync (lab: peer changes address → direct again in ~13s; verified on the MacBook, 2026-10-02)
 - ✅ M1.25 CLI (cobra): `mesh up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
 - ⬜ M1.26 Agent local API auth (peer credentials on the Unix socket)
 
