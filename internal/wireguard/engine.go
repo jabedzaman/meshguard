@@ -15,6 +15,7 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 
+	"github.com/jabedzaman/meshguard/internal/acl"
 	"github.com/jabedzaman/meshguard/internal/relay"
 )
 
@@ -39,13 +40,16 @@ type Engine struct {
 	tun  tun.Device
 	dev  *device.Device
 	bind *Bind
+	// Access rules for packets from peers.
+	filter *acl.Filter
 
 	mu       sync.Mutex
 	lastUAPI string
 }
 
 // Start creates the TUN interface, brings up WireGuard and configures
-// addresses and routes. Needs root (CAP_NET_ADMIN on Linux).
+// addresses and routes. Needs root (CAP_NET_ADMIN on Linux). Nothing from
+// peers is let in, except replies, until SetACL.
 func Start(cfg Config) (*Engine, error) {
 	t, err := tun.CreateTUN(cfg.InterfaceName, MTU)
 	if err != nil {
@@ -59,7 +63,8 @@ func Start(cfg Config) (*Engine, error) {
 
 	logger := device.NewLogger(device.LogLevelError, "wireguard: ")
 	bind := NewBind(conn.NewDefaultBind())
-	dev := device.NewDevice(t, bind, logger)
+	filter := acl.NewFilter(acl.Policy{})
+	dev := device.NewDevice(&filteredTUN{Device: t, filter: filter}, bind, logger)
 	base := fmt.Sprintf("private_key=%s\nlisten_port=%d\n", hex.EncodeToString(cfg.PrivateKey[:]), cfg.ListenPort)
 	if err := dev.IpcSet(base); err != nil {
 		dev.Close()
@@ -74,7 +79,7 @@ func Start(cfg Config) (*Engine, error) {
 		return nil, fmt.Errorf("configure %s: %w", name, err)
 	}
 	slog.Info("wireguard up", "interface", name, "port", cfg.ListenPort, "addresses", cfg.Addresses)
-	return &Engine{name: name, tun: t, dev: dev, bind: bind}, nil
+	return &Engine{name: name, tun: t, dev: dev, bind: bind, filter: filter}, nil
 }
 
 // SetRelay sets how packets for relay/<key> endpoints are sent.
@@ -92,6 +97,12 @@ func (e *Engine) DeliverRelay(p relay.Packet) { e.bind.Deliver(p) }
 // Rebind reopens the UDP sockets and forgets cached source addresses. Call it
 // after a network change or wake from sleep, when old sockets may be stale.
 func (e *Engine) Rebind() error { return e.dev.BindUpdate() }
+
+// SetACL replaces the access rules for packets from peers.
+func (e *Engine) SetACL(p acl.Policy) { e.filter.SetPolicy(p) }
+
+// ACLDropped counts packets from peers the access rules refused.
+func (e *Engine) ACLDropped() uint64 { return e.filter.Dropped() }
 
 // Name is the actual interface name.
 func (e *Engine) Name() string { return e.name }
