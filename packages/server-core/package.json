@@ -23,10 +23,15 @@
   },
   "dependencies": {
     "@mesh/db": "workspace:^",
+    "@mesh/emails": "workspace:^",
     "@mesh/utils": "workspace:^",
+    "bullmq": "^6.3.11",
+    "ioredis": "^6.0.0",
+    "nodemailer": "^10.0.13",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
     "vitest": "^5.0.3"
   }
 }

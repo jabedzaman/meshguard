@@ -1,3 +1,7 @@
 export * from "./errors";
 export * from "./lib/ip";
+export * from "./lib/mailer";
+export * from "./lib/redis";
+export * from "./processors/email.processor";
+export * from "./queues";
 export * from "./services";
