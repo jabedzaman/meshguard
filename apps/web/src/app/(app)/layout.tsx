@@ -1,3 +1,4 @@
+import { AppNav } from "~/components/app-nav";
 import { OrganizationSwitcher } from "~/components/organization-switcher";
 import { OrganizationProvider } from "~/components/providers/organization-provider";
 import { SignOutButton } from "~/components/sign-out-button";
@@ -29,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       organization={{ id: organization.id, name: organization.name, slug: organization.slug }}
       role={role}
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-8 p-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-6">
         <header className="flex items-center justify-between">
           <OrganizationSwitcher
             organizations={organizations.map(({ id, name, slug }) => ({ id, name, slug }))}
@@ -41,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <SignOutButton />
           </div>
         </header>
+        <AppNav />
         <main>{children}</main>
       </div>
     </OrganizationProvider>
