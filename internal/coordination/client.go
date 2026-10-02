@@ -113,16 +113,36 @@ func (c *Client) Enroll(ctx context.Context, req EnrollRequest) (*EnrollResponse
 	return &res, nil
 }
 
+// DeleteSelf removes this device from its network (`mesh logout`).
+// Requires Signer.
+func (c *Client) DeleteSelf(ctx context.Context) error {
+	if c.Signer == nil {
+		return fmt.Errorf("delete requires a device signer")
+	}
+	return c.do(ctx, http.MethodDelete, "/v1/devices/self", nil, nil)
+}
+
 func (c *Client) post(ctx context.Context, path string, body, out any) error {
-	data, err := json.Marshal(body)
+	return c.do(ctx, http.MethodPost, path, body, out)
+}
+
+// do sends a JSON request (signed if Signer is set) and decodes the response
+// into out. A nil body sends no body; a nil out ignores the response.
+func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	var data []byte
+	if body != nil {
+		var err error
+		if data, err = json.Marshal(body); err != nil {
+			return err
+		}
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.ServerURL+path, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.ServerURL+path, bytes.NewReader(data))
-	if err != nil {
-		return err
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Set("Content-Type", "application/json")
 	if c.Signer != nil {
 		c.Signer.Sign(req, data)
 	}
@@ -143,6 +163,9 @@ func (c *Client) post(ctx context.Context, path string, body, out any) error {
 			apiErr = envelope.Error
 		}
 		return apiErr
+	}
+	if out == nil {
+		return nil
 	}
 	return json.NewDecoder(res.Body).Decode(out)
 }

@@ -55,6 +55,9 @@ type State struct {
 	Device              Device    `json:"device"`
 	Network             Network   `json:"network"`
 	EnrolledAt          time.Time `json:"enrolledAt"`
+	// Disabled is set by `mesh down`: stay enrolled but don't connect,
+	// including after the agent restarts.
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 // ErrNotEnrolled is returned by Load when there is no state yet.
@@ -129,4 +132,13 @@ func Save(dir string, s *State) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), filepath.Join(dir, fileName))
+}
+
+// Remove deletes the saved state (`mesh logout`).
+func Remove(dir string) error {
+	err := os.Remove(filepath.Join(dir, fileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }

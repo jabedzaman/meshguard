@@ -23,8 +23,9 @@ func DefaultSocketPath() string {
 // Status is returned by GET /v1/status.
 type Status struct {
 	Version string `json:"version"`
-	// "not_enrolled", "enrolled" (registered but not connected; see Problem)
-	// or "connected" (WireGuard up and synced).
+	// "not_enrolled", "down" (enrolled, disconnected by `mesh down`),
+	// "enrolled" (registered but not connected; see Problem) or "connected"
+	// (WireGuard up and synced).
 	State   string   `json:"state"`
 	Problem string   `json:"problem,omitempty"`
 	Device  *Device  `json:"device,omitempty"`
@@ -70,10 +71,37 @@ type Network struct {
 	Name string `json:"name"`
 }
 
-// UpRequest is the body of POST /v1/up: enroll this machine with a token.
+// UpRequest is the body of POST /v1/up: enroll this machine with a token, or
+// (no token) reconnect after `mesh down`.
 type UpRequest struct {
-	Token  string `json:"token"`
-	Server string `json:"server"`
+	Token  string `json:"token,omitempty"`
+	Server string `json:"server,omitempty"`
+}
+
+// LogoutRequest is the body of POST /v1/logout.
+type LogoutRequest struct {
+	// Forget this device locally even if the control plane can't be told.
+	Force bool `json:"force,omitempty"`
+}
+
+// Netcheck is returned by GET /v1/netcheck: what the network looks like from
+// this device.
+type Netcheck struct {
+	// Addresses advertised to peers (local, then public).
+	Endpoints []string `json:"endpoints"`
+	// Public address per STUN server; differing ports mean a symmetric NAT.
+	Stun []StunResult `json:"stun"`
+	// "endpoint-independent", "symmetric" or "unknown".
+	NAT   string       `json:"nat"`
+	Relay *RelayStatus `json:"relay,omitempty"`
+}
+
+// StunResult is one STUN server's answer.
+type StunResult struct {
+	Server    string `json:"server"`
+	Public    string `json:"public,omitempty"`
+	LatencyMs int64  `json:"latencyMs,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // Error is returned by the local API with a non-2xx status.
