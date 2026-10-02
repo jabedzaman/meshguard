@@ -68,7 +68,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M2.4 Point-to-point (VPN) interfaces are never advertised or treated as shared networks
 - ✅ M2.5 Device names use the short hostname (no `.local`)
 - ⬜ M2.6 Rename devices from the web
-- ⬜ M2.7 Private DNS (`<device>.<tld>`), answered locally by the agent
+- ✅ M2.7 Private DNS: `<device>.internal`, answered by the agent on its mesh IP; split DNS via `/etc/resolver` (macOS) and systemd-resolved (Linux); device names are DNS labels unique per network (lab: all pairs resolve each other)
 - ⬜ M2.8 ACLs (device → service → port)
 - ⬜ M2.9 Key rotation
 
@@ -106,7 +106,6 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 
 | Decision | Options | Notes |
 | --- | --- | --- |
-| Private DNS TLD | `.internal` vs `.mesh` vs owned subdomain | `.internal` is ICANN-reserved for private use; `.mesh` is not reserved |
 | macOS packaging | Root LaunchDaemon vs Network Extension | NE is required for the Mac App Store and means Swift |
 | Mapper | Import existing repo vs port code later | |
 | Product name | — | Check `.dev` / `.app` via RDAP |
@@ -142,3 +141,4 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Device presence in Redis (30s TTL key per device); Postgres `last_seen_at` persisted every 5 min only for "last seen" |
 | 2026-10-02 | Device events to the web over SSE (one-way, works through the existing cookie/CORS setup) fed by NATS; events are refetch hints, not state |
 | 2026-10-02 | Agent local API authorizes by kernel peer credentials on top of the socket's file mode; one level of access (no read-only tier for other users yet) |
+| 2026-10-02 | Private DNS under `.internal` (ICANN-reserved), answered by each agent from its network map; only `.internal` is routed to it (split DNS), resolv.conf is never rewritten |

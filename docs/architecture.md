@@ -159,6 +159,24 @@ simultaneous punching, the low-TTL trick, and UPnP / NAT-PMP / PCP port
 mappings. Without root the agent stays registered and syncing, and
 `mesh status` explains why WireGuard isn't running.
 
+## Private DNS
+
+Devices resolve as `<name>.internal` (`.internal` is reserved by ICANN for
+private use, so it never collides with a public name). Names are DNS labels,
+unique per network; the API picks `laptop`, `laptop-2`, … at enrollment.
+
+- The agent serves DNS (`internal/dns`) on its mesh IPv4, port 53, UDP and
+  TCP, with A/AAAA records for itself and every peer from the latest network
+  map. Unknown names under `.internal` get NXDOMAIN; anything else is refused,
+  since the OS only sends `.internal` here.
+- Split DNS: macOS reads `/etc/resolver/internal`; on Linux the agent sets
+  the resolver and `~internal` routing domain on `mesh0` through
+  systemd-resolved. Nothing else on the machine changes, and without
+  systemd-resolved the agent leaves resolv.conf alone and says so in
+  `mesh status`.
+- Names are answered locally, so lookups work offline and never reach the
+  control plane. No `mesh-dns` service is involved yet.
+
 ## Email
 
 Every email goes through the `email` queue: the API enqueues a job

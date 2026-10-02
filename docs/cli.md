@@ -103,16 +103,32 @@ thinkpad in home (connected)
   mesh IPv6  fda3:ad78:5bac:0:6a19:fb37:e6f8:60e3
   server     http://localhost:4000
   interface  mesh0
+  dns        thinkpad.internal (resolver 10.77.141.90:53, via systemd-resolved)
   public     203.0.113.7:51820
   relay      ws://localhost:3340/relay (connected)
 
 peers:
-  NAME                IPv4         PATH     HANDSHAKE
-  Jabeds-MacBook-Air  10.77.0.214  relay    6s ago
+  NAME                DNS                          IPv4         PATH     HANDSHAKE
+  jabeds-macbook-air  jabeds-macbook-air.internal  10.77.0.214  relay    6s ago
 ```
 
 States: `not_enrolled`, `connected`, `enrolled` (registered but not
 connected — a `!` line says why, e.g. WireGuard needs root), `down`.
+
+### Private DNS
+
+Every device resolves as `<name>.internal`, e.g. `ssh jabeds-macbook-air.internal`.
+Device names come from the hostname (lowercased, first label) and are unique
+in the network: a second `laptop` becomes `laptop-2`.
+
+The agent answers on its own mesh IPv4, port 53, and sends only `.internal`
+queries there; other lookups never touch it:
+
+| | |
+| --- | --- |
+| macOS | writes `/etc/resolver/internal` (removed on `mesh down`) |
+| Linux with systemd-resolved | `resolvectl dns/domain` on `mesh0` (`~internal`) |
+| Other Linux | not configured; `mesh status` says so. Query the resolver directly: `dig @$(mesh ip) laptop.internal` |
 
 ### `mesh peers`
 
@@ -125,7 +141,7 @@ exchanging traffic.
 ```sh
 mesh ip            # this machine's mesh IPv4
 mesh ip -6         # IPv6
-mesh ip macbook    # a peer's (name, unique prefix, or mesh IP)
+mesh ip macbook    # a peer's (name, unique prefix, name.internal, or mesh IP)
 ```
 
 Handy in scripts: `ssh "$(mesh ip macbook)"`.
@@ -178,6 +194,8 @@ mesh completion bash > /etc/bash_completion.d/mesh
 | `! WireGuard is not running … needs root` | The agent isn't running as root. Use the service, or `sudo mesh-agent`. |
 | Peer stays `relay` | Expected behind symmetric NATs, or when both peers are behind home routers (see [architecture.md](architecture.md#hole-punching)). `mesh netcheck` on both ends shows the NAT types. |
 | Peers drop after sleep or a Wi-Fi change | They should come back within ~15s (relay first, then direct). The agent log shows `rebinding reason=wake` or `reason="network change"`; if it doesn't, report it with the log. |
+| `dns … not set up in the OS` | No systemd-resolved (common in containers and WSL), or `/etc/resolver/internal` exists and isn't mesh's. Use `dig @<mesh ip>`, or install systemd-resolved. |
+| `.internal` names don't resolve but `dig @<mesh ip>` works | macOS: `scutil --dns` should list a resolver for `internal`. Linux: `resolvectl status mesh0` should show the mesh IP and `~internal`. |
 | Peer handshake `never` | The peer is offline or down (`mesh status` on it), or the relay is unreachable from one side. |
 
 ## Testing the service
