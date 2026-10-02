@@ -17,12 +17,14 @@ export interface AppDeps {
   corsOrigins: string[];
   /** Relay URL handed to agents. */
   relayUrl?: string;
+  /** STUN servers handed to agents. */
+  stunServers?: string[];
 }
 
 // Routes must be chained so their types accumulate into AppType, which
 // @mesh/api-client uses to type every request and response.
-export function createApp({ db, auth, corsOrigins, relayUrl }: AppDeps) {
-  const services = createServices(db, { relayUrl });
+export function createApp({ db, auth, corsOrigins, relayUrl, stunServers }: AppDeps) {
+  const services = createServices(db, { relayUrl, stunServers });
 
   return new Hono<AppEnv>()
     .onError(errorHandler)

@@ -25,7 +25,13 @@ const auth = createAuth(db, {
     });
   },
 });
-const app = createApp({ db, auth, corsOrigins: [env.WEB_URL], relayUrl: env.RELAY_URL });
+const app = createApp({
+  db,
+  auth,
+  corsOrigins: [env.WEB_URL],
+  relayUrl: env.RELAY_URL,
+  stunServers: env.STUN_SERVERS,
+});
 
 const server = serve({ fetch: app.fetch, hostname: "0.0.0.0", port: env.API_PORT }, (info) => {
   logger.info({ port: info.port }, "api listening");

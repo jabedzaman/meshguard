@@ -10,13 +10,18 @@ export * from "~/services/enrollment-tokens/enrollment-tokens.service";
 export interface ServicesOptions {
   /** Relay URL handed to agents in their network map. */
   relayUrl?: string;
+  /** STUN servers ("host:port") handed to agents for hole punching. */
+  stunServers?: string[];
 }
 
 export function createServices(db: Db, options: ServicesOptions = {}) {
   return {
     networks: new NetworksService(db),
     enrollmentTokens: new EnrollmentTokensService(db),
-    devices: new DevicesService(db, { relayUrl: options.relayUrl }),
+    devices: new DevicesService(db, {
+      relayUrl: options.relayUrl,
+      stunServers: options.stunServers,
+    }),
   };
 }
 

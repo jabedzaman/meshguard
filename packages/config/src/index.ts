@@ -20,6 +20,16 @@ export const serverEnvSchema = z.object({
   GITHUB_CLIENT_SECRET: optional,
   /** Relay agents use when peers can't reach each other directly, e.g. wss://relay.example.com/relay. */
   RELAY_URL: optional.pipe(z.url().optional()),
+  /** Comma-separated host:port STUN servers agents use to find their public address. */
+  STUN_SERVERS: z
+    .string()
+    .optional()
+    .transform((v) =>
+      (v ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

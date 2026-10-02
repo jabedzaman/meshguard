@@ -25,7 +25,7 @@ export interface EnrollDeviceInput {
 export class DevicesService {
   constructor(
     private readonly db: Db,
-    private readonly options: { relayUrl?: string } = {},
+    private readonly options: { relayUrl?: string; stunServers?: string[] } = {},
   ) {}
 
   /**
@@ -170,6 +170,8 @@ export class DevicesService {
       peers,
       /** Where to relay WireGuard packets for peers that can't be reached directly. */
       relay: this.options.relayUrl ? { url: this.options.relayUrl } : null,
+      /** STUN servers for discovering this device's public address. */
+      stun: this.options.stunServers ?? [],
     };
   }
 
