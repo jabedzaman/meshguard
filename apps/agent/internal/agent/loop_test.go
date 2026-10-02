@@ -52,11 +52,15 @@ func (e *fakeEngine) Peers() []wireguard.Peer {
 }
 
 // signedControlPlane enrolls one device and answers signed syncs with one peer.
+// deletes counts DELETE /v1/devices/self calls on the last signedControlPlane.
+var deletes *atomic.Int32
+
 func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 	t.Helper()
 	var mu sync.Mutex
 	var identityKey ed25519.PublicKey
 	var count atomic.Int32
+	deletes = &atomic.Int32{}
 	peerKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +75,13 @@ func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 			identityKey = raw
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"device":{"id":"d1","name":"laptop","meshIpv4":"10.77.0.2","meshIpv6":"fd00:1:2:0::2"},"network":{"id":"n1","name":"home","ipv4Cidr":"10.77.0.0/16","ipv6Cidr":"fd00:1:2::/48"}}`))
+		case "/v1/devices/self":
+			if r.Method == http.MethodDelete && r.Header.Get(coordination.HeaderDevice) == "d1" {
+				deletes.Add(1)
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
 		case "/v1/devices/self/sync":
 			sig, _ := base64.StdEncoding.DecodeString(r.Header.Get(coordination.HeaderSignature))
 			msg := coordination.SigningString(r.Method, r.URL.Path, r.Header.Get(coordination.HeaderTimestamp), body)
@@ -203,3 +214,95 @@ func TestChooseEndpoint(t *testing.T) {
 
 func (e *fakeEngine) SetInterceptor(wireguard.Interceptor) {}
 func (e *fakeEngine) SendTo(netip.AddrPort, []byte) error  { return nil }
+
+func runningAgent(t *testing.T, server string) (*Agent, http.Handler) {
+	t.Helper()
+	a := &Agent{
+		Version:      "test",
+		StateDir:     t.TempDir(),
+		SyncInterval: 50 * time.Millisecond,
+		StartEngine:  func(wireguard.Config) (Engine, error) { return &fakeEngine{}, nil },
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go a.Run(ctx)
+	require.Eventually(t, func() bool { a.mu.Lock(); defer a.mu.Unlock(); return a.ctx != nil }, time.Second, 10*time.Millisecond)
+	rec, _, _ := call(t, a.Handler(), http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
+	require.Equal(t, http.StatusOK, rec.Code)
+	return a, a.Handler()
+}
+
+func status(t *testing.T, h http.Handler) ipc.Status {
+	t.Helper()
+	_, s, _ := call(t, h, http.MethodGet, "/v1/status", nil)
+	return s
+}
+
+func TestDownThenUpReconnects(t *testing.T) {
+	server, syncs := signedControlPlane(t)
+	a, h := runningAgent(t, server)
+	require.Eventually(t, func() bool { return status(t, h).State == "connected" }, 2*time.Second, 20*time.Millisecond)
+
+	rec, s, _ := call(t, h, http.MethodPost, "/v1/down", nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "down", s.State)
+	assert.Empty(t, s.Peers)
+
+	// No syncs while down.
+	before := syncs.Load()
+	time.Sleep(200 * time.Millisecond)
+	assert.Equal(t, before, syncs.Load(), "a down device doesn't sync")
+
+	// Down survives a restart.
+	st, err := stateLoad(a)
+	require.NoError(t, err)
+	assert.True(t, st.Disabled)
+
+	rec, _, _ = call(t, h, http.MethodPost, "/v1/up", ipc.UpRequest{})
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Eventually(t, func() bool { return status(t, h).State == "connected" }, 2*time.Second, 20*time.Millisecond)
+	assert.Greater(t, syncs.Load(), before)
+}
+
+func TestLogoutRemovesDeviceAndState(t *testing.T) {
+	server, _ := signedControlPlane(t)
+	a, h := runningAgent(t, server)
+	require.Eventually(t, func() bool { return status(t, h).State == "connected" }, 2*time.Second, 20*time.Millisecond)
+
+	rec, s, _ := call(t, h, http.MethodPost, "/v1/logout", ipc.LogoutRequest{})
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "not_enrolled", s.State)
+	assert.Equal(t, int32(1), deletes.Load(), "server was told")
+	_, err := stateLoad(a)
+	assert.Error(t, err, "local state is gone")
+}
+
+func TestLogoutNeedsForceWhenServerUnreachable(t *testing.T) {
+	server, _ := signedControlPlane(t)
+	a, h := runningAgent(t, server)
+
+	// Point the saved state at a dead server.
+	st, err := stateLoad(a)
+	require.NoError(t, err)
+	st.ServerURL = "http://127.0.0.1:1"
+	require.NoError(t, stateSave(a, st))
+
+	rec, _, apiErr := call(t, h, http.MethodPost, "/v1/logout", ipc.LogoutRequest{})
+	assert.Equal(t, http.StatusBadGateway, rec.Code)
+	assert.Contains(t, apiErr.Message, "--force")
+	_, err = stateLoad(a)
+	assert.NoError(t, err, "still enrolled")
+
+	rec, _, _ = call(t, h, http.MethodPost, "/v1/logout", ipc.LogoutRequest{Force: true})
+	assert.Equal(t, http.StatusOK, rec.Code)
+	_, err = stateLoad(a)
+	assert.Error(t, err)
+}
+
+func TestClassifyNAT(t *testing.T) {
+	a := netip.MustParseAddrPort("203.0.113.5:51820")
+	b := netip.MustParseAddrPort("203.0.113.5:40000")
+	assert.Equal(t, "unknown", classifyNAT([]netip.AddrPort{a}))
+	assert.Equal(t, "endpoint-independent", classifyNAT([]netip.AddrPort{a, a}))
+	assert.Equal(t, "symmetric", classifyNAT([]netip.AddrPort{a, b}))
+}

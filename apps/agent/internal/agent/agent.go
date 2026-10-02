@@ -5,14 +5,9 @@ package agent
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"log/slog"
-	"net"
-	"net/http"
 	"net/netip"
-	"os"
-	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -22,7 +17,6 @@ import (
 	"github.com/twinlabshq/mesh/internal/coordination"
 	"github.com/twinlabshq/mesh/internal/disco"
 	"github.com/twinlabshq/mesh/internal/discovery"
-	"github.com/twinlabshq/mesh/internal/identity"
 	"github.com/twinlabshq/mesh/internal/ipc"
 	"github.com/twinlabshq/mesh/internal/relay"
 	"github.com/twinlabshq/mesh/internal/state"
@@ -55,76 +49,39 @@ type Agent struct {
 	// Creates the WireGuard engine. Default wireguard.Start.
 	StartEngine func(wireguard.Config) (Engine, error)
 
-	mu       sync.Mutex // guards everything below and serializes enrollment
-	ctx      context.Context
-	running  bool
-	engine   Engine
+	mu   sync.Mutex // guards ctx and conn, and serializes up/down/logout
+	ctx  context.Context
+	conn *connection // nil when not connected
+
+	// nat has its own lock: the interceptor runs on WireGuard's receive goroutines.
+	nat natState
+}
+
+// connection is everything that exists only while the device is connected:
+// WireGuard, the sync loop, the relay and hole punching. Fields are guarded
+// by Agent.mu. down/logout cancel it; up starts a new one.
+type connection struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	engine   Engine // nil if WireGuard couldn't start (problem says why)
+	disco    *disco.Manager
 	problem  string
 	lastSync time.Time
 	peers    []coordination.Peer
+	stun     []string
 
 	relayClient *relay.Client
 	relayURL    string
 	stopRelay   context.CancelFunc
-
-	// Hole punching. disco is set once WireGuard is up; nat has its own lock
-	// because the interceptor runs on WireGuard's receive goroutines.
-	disco *disco.Manager
-	nat   natState
 }
 
-// natState is what STUN told us about our public address.
-type natState struct {
-	mu       sync.Mutex
-	pending  map[stun.TxID]time.Time
-	public   netip.AddrPort
-	publicAt time.Time
-}
-
-// stunFreshFor is how long a STUN result is advertised without a new answer.
-const stunFreshFor = time.Minute
-
-func (n *natState) handle(packet []byte) {
-	tx, addr, err := stun.ParseResponse(packet)
-	if err != nil {
-		return
-	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if _, ok := n.pending[tx]; ok {
-		delete(n.pending, tx)
-		n.public, n.publicAt = addr, time.Now()
-	}
-}
-
-func (n *natState) publicEndpoint() (netip.AddrPort, bool) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	return n.public, n.public.IsValid() && time.Since(n.publicAt) < stunFreshFor
-}
-
-func (n *natState) newRequest() []byte {
-	tx, req := stun.Request()
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.pending == nil {
-		n.pending = map[stun.TxID]time.Time{}
-	}
-	for old, at := range n.pending {
-		if time.Since(at) > 30*time.Second {
-			delete(n.pending, old)
-		}
-	}
-	n.pending[tx] = time.Now()
-	return req
-}
-
-// Run starts the background loop if the device is already enrolled, then
-// blocks until ctx is done and tears WireGuard down.
+// Run starts connecting if the device is enrolled (and not down), then blocks
+// until ctx is done and tears WireGuard down.
 func (a *Agent) Run(ctx context.Context) {
 	a.mu.Lock()
 	a.ctx = ctx
-	if st, err := state.Load(a.StateDir); err == nil {
+	if st, err := state.Load(a.StateDir); err == nil && !st.Disabled {
 		a.startLocked(st)
 	}
 	a.mu.Unlock()
@@ -132,39 +89,55 @@ func (a *Agent) Run(ctx context.Context) {
 	<-ctx.Done()
 
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.engine != nil {
-		a.engine.Close()
-		a.engine = nil
-	}
+	a.stopLocked()
+	a.mu.Unlock()
 }
 
-// startLocked brings up WireGuard (if possible) and starts syncing. Caller holds a.mu.
+// startLocked brings up WireGuard (if possible) and starts syncing.
 func (a *Agent) startLocked(st *state.State) {
-	if a.running || a.ctx == nil {
+	if a.conn != nil || a.ctx == nil {
 		return
 	}
-	a.running = true
+	ctx, cancel := context.WithCancel(a.ctx)
+	c := &connection{ctx: ctx, cancel: cancel}
+	a.conn = c
 
 	cfg, err := a.engineConfig(st)
 	if err == nil {
-		a.engine, err = a.startEngine()(cfg)
-	}
-	if err == nil {
-		a.startHolePunchingLocked(st)
+		c.engine, err = a.startEngine()(cfg)
 	}
 	if err != nil {
-		a.engine = nil // never keep a half-made engine, even a typed nil
+		c.engine = nil // never keep a half-made engine, even a typed nil
 		// Keep syncing so the device shows as online; explain in status.
-		a.problem = "WireGuard is not running: " + err.Error()
+		c.problem = "WireGuard is not running: " + err.Error()
 		slog.Warn("wireguard unavailable", "err", err)
+	} else {
+		a.startHolePunching(c, st)
 	}
-	go a.loop(a.ctx, st)
+	go a.loop(c, st)
 }
 
-// startHolePunchingLocked routes STUN and disco packets out of WireGuard's
-// socket and pings peers' candidate endpoints every second. Caller holds a.mu.
-func (a *Agent) startHolePunchingLocked(st *state.State) {
+// stopLocked tears the connection down; the device stays enrolled.
+func (a *Agent) stopLocked() {
+	c := a.conn
+	if c == nil {
+		return
+	}
+	a.conn = nil
+	c.cancel() // stops the loop, relay and disco ticker
+	if c.engine != nil {
+		c.engine.Close()
+	}
+	a.nat.reset()
+	slog.Info("disconnected")
+}
+
+// current reports whether c is still the live connection. Caller holds a.mu.
+func (a *Agent) current(c *connection) bool { return a.conn == c && c.ctx.Err() == nil }
+
+// startHolePunching routes STUN and disco packets out of WireGuard's socket
+// and pings peers' candidate endpoints every second.
+func (a *Agent) startHolePunching(c *connection, st *state.State) {
 	keys, err := st.Keys()
 	if err != nil {
 		return
@@ -173,10 +146,9 @@ func (a *Agent) startHolePunchingLocked(st *state.State) {
 	if err != nil {
 		return
 	}
-	engine := a.engine
-	d := disco.NewManager(keys.WireGuard, disco.Key(public), engine.SendTo)
-	a.disco = d
-	engine.SetInterceptor(func(packet []byte, from netip.AddrPort) bool {
+	d := disco.NewManager(keys.WireGuard, disco.Key(public), c.engine.SendTo)
+	c.disco = d
+	c.engine.SetInterceptor(func(packet []byte, from netip.AddrPort) bool {
 		if stun.Is(packet) {
 			a.nat.handle(packet)
 			return true
@@ -188,26 +160,13 @@ func (a *Agent) startHolePunchingLocked(st *state.State) {
 		defer ticker.Stop()
 		for {
 			select {
-			case <-a.ctx.Done():
+			case <-c.ctx.Done():
 				return
 			case <-ticker.C:
 				d.Tick()
 			}
 		}
 	}()
-}
-
-// probeStun asks each STUN server for our public address, from WireGuard's
-// socket. Answers arrive through the interceptor and are used next sync.
-func (a *Agent) probeStun(engine Engine, servers []string) {
-	for _, server := range servers {
-		addr, err := net.ResolveUDPAddr("udp4", server)
-		if err != nil {
-			continue
-		}
-		ap := addr.AddrPort()
-		_ = engine.SendTo(netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port()), a.nat.newRequest())
-	}
 }
 
 func (a *Agent) startEngine() func(wireguard.Config) (Engine, error) {
@@ -263,18 +222,29 @@ func (a *Agent) engineConfig(st *state.State) (wireguard.Config, error) {
 	}, nil
 }
 
-func (a *Agent) loop(ctx context.Context, st *state.State) {
+// client returns a control plane client signing as this device.
+func client(st *state.State) (*coordination.Client, *stateKeys, error) {
+	keys, err := st.Keys()
+	if err != nil {
+		return nil, nil, err
+	}
+	cl := coordination.NewClient(st.ServerURL)
+	cl.Signer = &coordination.Signer{DeviceID: st.Device.ID, Key: keys.Identity}
+	return cl, &stateKeys{wireguard: keys.WireGuard}, nil
+}
+
+type stateKeys struct{ wireguard [32]byte }
+
+func (a *Agent) loop(c *connection, st *state.State) {
 	interval := a.SyncInterval
 	if interval == 0 {
 		interval = 10 * time.Second
 	}
-	keys, err := st.Keys()
+	cl, keys, err := client(st)
 	if err != nil {
-		a.setProblem("cannot read keys: " + err.Error())
+		a.setProblem(c, "cannot read keys: "+err.Error())
 		return
 	}
-	client := coordination.NewClient(st.ServerURL)
-	client.Signer = &coordination.Signer{DeviceID: st.Device.ID, Key: keys.Identity}
 
 	var exclude []netip.Prefix
 	for _, cidr := range []string{st.Network.IPv4CIDR, st.Network.IPv6CIDR} {
@@ -286,67 +256,52 @@ func (a *Agent) loop(ctx context.Context, st *state.State) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		a.syncOnce(ctx, client, exclude, keys.WireGuard)
+		a.syncOnce(c, cl, exclude, keys.wireguard)
 		select {
-		case <-ctx.Done():
+		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
 		}
 	}
 }
 
-func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclude []netip.Prefix, wgPrivate [32]byte) {
+// endpoints returns the addresses to advertise: local first, then the public
+// one STUN reported. Empty without WireGuard listening.
+func (a *Agent) endpoints(engine Engine, exclude []netip.Prefix) []string {
+	endpoints := []string{}
+	if engine == nil {
+		return endpoints
+	}
+	endpoints = append(endpoints, discovery.Endpoints(a.listenPort(), engine.Name(), exclude)...)
+	if public, ok := a.nat.publicEndpoint(); ok && !slices.Contains(endpoints, public.String()) {
+		endpoints = append(endpoints, public.String())
+	}
+	return endpoints
+}
+
+func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip.Prefix, wgPrivate [32]byte) {
 	a.mu.Lock()
-	engine := a.engine
+	engine := c.engine
+	d := c.disco
 	a.mu.Unlock()
 
-	var endpoints []string
-	if engine != nil {
-		// Only advertise endpoints when WireGuard is actually listening:
-		// local addresses first, then the public one STUN reported.
-		endpoints = discovery.Endpoints(a.listenPort(), engine.Name(), exclude)
-		if public, ok := a.nat.publicEndpoint(); ok && !slices.Contains(endpoints, public.String()) {
-			endpoints = append(endpoints, public.String())
-		}
-	}
-	if endpoints == nil {
-		endpoints = []string{}
-	}
-
-	syncCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	syncCtx, cancel := context.WithTimeout(c.ctx, 15*time.Second)
 	defer cancel()
-	nm, err := client.Sync(syncCtx, coordination.SyncRequest{Endpoints: endpoints})
+	nm, err := cl.Sync(syncCtx, coordination.SyncRequest{Endpoints: a.endpoints(engine, exclude)})
 	if err != nil {
-		if ctx.Err() == nil {
+		if c.ctx.Err() == nil {
 			slog.Warn("sync failed", "err", err)
-			a.setProblem("cannot reach the control plane: " + err.Error())
+			a.setProblem(c, "cannot reach the control plane: "+err.Error())
 		}
 		return
 	}
 
 	var applyErr error
 	if engine != nil {
-		relayOn := a.ensureRelay(ctx, nm.Relay, engine, wgPrivate)
+		relayOn := a.ensureRelay(c, nm.Relay, wgPrivate)
 		a.probeStun(engine, nm.Stun)
-		a.mu.Lock()
-		d := a.disco
-		a.mu.Unlock()
 		if d != nil {
-			candidates := map[disco.Key][]netip.AddrPort{}
-			for _, p := range nm.Peers {
-				key, err := peerKey(p.WireGuardPublicKey)
-				if err != nil {
-					continue
-				}
-				var eps []netip.AddrPort
-				for _, ep := range p.Endpoints {
-					if ap, err := netip.ParseAddrPort(ep); err == nil {
-						eps = append(eps, ap)
-					}
-				}
-				candidates[disco.Key(key)] = eps
-			}
-			d.SetPeers(candidates)
+			d.SetPeers(discoCandidates(nm.Peers))
 		}
 		local := discovery.LocalPrefixes(engine.Name())
 		peers := make([]wireguard.Peer, 0, len(nm.Peers))
@@ -369,14 +324,36 @@ func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclu
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.lastSync = time.Now()
-	a.peers = nm.Peers
+	if !a.current(c) {
+		return // disconnected while syncing
+	}
+	c.lastSync = time.Now()
+	c.peers = nm.Peers
+	c.stun = nm.Stun
 	switch {
 	case applyErr != nil:
-		a.problem = "cannot apply peers: " + applyErr.Error()
-	case a.engine != nil:
-		a.problem = ""
+		c.problem = "cannot apply peers: " + applyErr.Error()
+	case c.engine != nil:
+		c.problem = ""
 	}
+}
+
+func discoCandidates(peers []coordination.Peer) map[disco.Key][]netip.AddrPort {
+	candidates := map[disco.Key][]netip.AddrPort{}
+	for _, p := range peers {
+		key, err := peerKey(p.WireGuardPublicKey)
+		if err != nil {
+			continue
+		}
+		var eps []netip.AddrPort
+		for _, ep := range p.Endpoints {
+			if ap, err := netip.ParseAddrPort(ep); err == nil {
+				eps = append(eps, ap)
+			}
+		}
+		candidates[disco.Key(key)] = eps
+	}
+	return candidates
 }
 
 // punched returns the hole-punched direct path to p confirmed by disco, if any.
@@ -425,129 +402,52 @@ func peerKey(b64 string) (relay.Key, error) {
 
 // ensureRelay keeps a relay connection matching the network map and wires it
 // into WireGuard. Returns whether a relay is configured.
-func (a *Agent) ensureRelay(ctx context.Context, cfg *coordination.Relay, engine Engine, wgPrivate [32]byte) bool {
+func (a *Agent) ensureRelay(c *connection, cfg *coordination.Relay, wgPrivate [32]byte) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if !a.current(c) || c.engine == nil {
+		return false
+	}
 
 	url := ""
 	if cfg != nil {
 		url = cfg.URL
 	}
-	if url == a.relayURL {
+	if url == c.relayURL {
 		return url != ""
 	}
-	if a.stopRelay != nil {
-		a.stopRelay()
-		a.stopRelay, a.relayClient = nil, nil
-		engine.SetRelay(nil)
+	if c.stopRelay != nil {
+		c.stopRelay()
+		c.stopRelay, c.relayClient = nil, nil
+		c.engine.SetRelay(nil)
 	}
-	a.relayURL = url
+	c.relayURL = url
 	if url == "" {
 		return false
 	}
 
-	client, err := relay.NewClient(url, wgPrivate)
+	rc, err := relay.NewClient(url, wgPrivate)
 	if err != nil {
 		slog.Warn("relay client", "err", err)
 		return false
 	}
-	client.Deliver = engine.DeliverRelay
-	relayCtx, cancel := context.WithCancel(ctx)
-	engine.SetRelay(func(dst relay.Key, packet []byte) error {
-		return client.Send(relayCtx, dst, packet)
+	rc.Deliver = c.engine.DeliverRelay
+	relayCtx, cancel := context.WithCancel(c.ctx)
+	c.engine.SetRelay(func(dst relay.Key, packet []byte) error {
+		return rc.Send(relayCtx, dst, packet)
 	})
-	a.relayClient, a.stopRelay = client, cancel
-	go client.Run(relayCtx)
+	c.relayClient, c.stopRelay = rc, cancel
+	go rc.Run(relayCtx)
 	slog.Info("relay configured", "url", url)
 	return true
 }
 
-func (a *Agent) setProblem(p string) {
-	a.mu.Lock()
-	a.problem = p
-	a.mu.Unlock()
-}
-
-// Handler returns the local API routes.
-func (a *Agent) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/status", a.handleStatus)
-	mux.HandleFunc("POST /v1/up", a.handleUp)
-	return mux
-}
-
-func (a *Agent) handleStatus(w http.ResponseWriter, _ *http.Request) {
+func (a *Agent) setProblem(c *connection, p string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-
-	st, err := state.Load(a.StateDir)
-	if errors.Is(err, state.ErrNotEnrolled) {
-		writeJSON(w, http.StatusOK, ipc.Status{Version: a.Version, State: "not_enrolled"})
-		return
+	if a.current(c) {
+		c.problem = p
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "state_unreadable", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, a.statusLocked(st))
-}
-
-func (a *Agent) handleUp(w http.ResponseWriter, r *http.Request) {
-	var req ipc.UpRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" || req.Server == "" {
-		writeError(w, http.StatusBadRequest, "bad_request", "token and server are required")
-		return
-	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if st, err := state.Load(a.StateDir); err == nil {
-		writeError(w, http.StatusConflict, "already_enrolled",
-			"this machine is already in network "+st.Network.Name+" as "+st.Device.Name)
-		return
-	}
-
-	keys, err := identity.Generate()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "key_generation_failed", err.Error())
-		return
-	}
-	wgPublic, err := keys.WireGuardPublicKey()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "key_generation_failed", err.Error())
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	res, err := coordination.NewClient(req.Server).Enroll(ctx, coordination.EnrollRequest{
-		Token:              req.Token,
-		Hostname:           hostname(),
-		Platform:           runtime.GOOS,
-		IdentityPublicKey:  keys.IdentityPublicKey(),
-		WireGuardPublicKey: wgPublic,
-	})
-	var apiErr *coordination.Error
-	if errors.As(err, &apiErr) {
-		writeError(w, http.StatusBadGateway, apiErr.Code, apiErr.Message)
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "control_plane_unreachable", err.Error())
-		return
-	}
-
-	st := state.New(req.Server, keys, res.Device, res.Network)
-	if err := state.Save(a.StateDir, st); err != nil {
-		// Enrolled on the server but couldn't persist the keys: the device
-		// record is unusable; surface it rather than pretend success.
-		writeError(w, http.StatusInternalServerError, "state_unwritable", err.Error())
-		return
-	}
-	slog.Info("enrolled", "device", st.Device.Name, "network", st.Network.Name, "ipv4", st.Device.MeshIPv4)
-	a.startLocked(st)
-	writeJSON(w, http.StatusOK, a.statusLocked(st))
 }
 
 // statusLocked builds the status. Caller holds a.mu.
@@ -555,7 +455,6 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	s := ipc.Status{
 		Version: a.Version,
 		State:   "enrolled",
-		Problem: a.problem,
 		Server:  st.ServerURL,
 		Device: &ipc.Device{
 			ID: st.Device.ID, Name: st.Device.Name,
@@ -563,25 +462,33 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		},
 		Network: &ipc.Network{ID: st.Network.ID, Name: st.Network.Name},
 	}
-	if !a.lastSync.IsZero() {
-		at := a.lastSync
+	c := a.conn
+	if st.Disabled || c == nil {
+		if st.Disabled {
+			s.State = "down"
+		}
+		return s
+	}
+	s.Problem = c.problem
+	if !c.lastSync.IsZero() {
+		at := c.lastSync
 		s.LastSyncAt = &at
 	}
-	if a.relayClient != nil {
-		s.Relay = &ipc.RelayStatus{URL: a.relayURL, Connected: a.relayClient.Connected()}
+	if c.relayClient != nil {
+		s.Relay = &ipc.RelayStatus{URL: c.relayURL, Connected: c.relayClient.Connected()}
 	}
 	if public, ok := a.nat.publicEndpoint(); ok {
 		s.PublicEndpoint = public.String()
 	}
 	var stats map[string]wireguard.PeerStats
-	if a.engine != nil {
-		s.Interface = a.engine.Name()
-		stats, _ = a.engine.Stats()
-		if a.problem == "" && !a.lastSync.IsZero() {
+	if c.engine != nil {
+		s.Interface = c.engine.Name()
+		stats, _ = c.engine.Stats()
+		if c.problem == "" && !c.lastSync.IsZero() {
 			s.State = "connected"
 		}
 	}
-	for _, p := range a.peers {
+	for _, p := range c.peers {
 		peer := ipc.Peer{Name: p.Name, MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6}
 		if hexKey, err := wireguard.KeyToHex(p.WireGuardPublicKey); err == nil {
 			if ps, ok := stats[hexKey]; ok {
@@ -596,36 +503,4 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		s.Peers = append(s.Peers, peer)
 	}
 	return s
-}
-
-var invalidHostnameChars = regexp.MustCompile(`[^A-Za-z0-9.-]+`)
-
-// hostname returns the machine's short name (first label, so macOS's
-// "Jabeds-MacBook-Air.local" becomes "Jabeds-MacBook-Air") in the form the
-// control plane accepts.
-func hostname() string {
-	name, err := os.Hostname()
-	if err != nil {
-		name = "device"
-	}
-	return deviceName(name)
-}
-
-func deviceName(host string) string {
-	name, _, _ := strings.Cut(host, ".")
-	name = strings.Trim(invalidHostnameChars.ReplaceAllString(name, "-"), "-.")
-	if name == "" {
-		return "device"
-	}
-	return name
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, ipc.Error{Code: code, Message: message})
 }

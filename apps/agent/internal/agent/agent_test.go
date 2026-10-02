@@ -105,9 +105,10 @@ func TestUpWithInvalidToken(t *testing.T) {
 
 func TestUpValidatesRequest(t *testing.T) {
 	h := (&Agent{Version: "test", StateDir: t.TempDir()}).Handler()
+	// No token on a machine that isn't enrolled: nothing to reconnect.
 	rec, _, apiErr := call(t, h, http.MethodPost, "/v1/up", ipc.UpRequest{})
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	assert.Equal(t, "bad_request", apiErr.Code)
+	assert.Equal(t, "not_enrolled", apiErr.Code)
 }
 
 func TestHostnameIsSanitized(t *testing.T) {
