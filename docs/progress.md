@@ -37,7 +37,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ Networks: create (`POST /v1/networks`), default `10.77.0.0/16` (configurable, RFC 1918 only), random IPv6 ULA /48 per network
 - ✅ Organization switcher
 - ✅ Roles: owner / admin / member (`@mesh/auth/permissions`), enforced in the API with `requirePermission`
-- ⬜ Invitations, accept/decline, role assignment, member list
+- ✅ Invitations: invite by email (owner/admin), pending list, cancel; email via workers + react-email
+- ⬜ Accept/decline page, role assignment, member list
 - ⬜ Device address allocation (random free address, unique per network; enforced by DB constraints)
 - ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
 - ⬜ Enrollment: one-time token → device record → mesh IP assigned
@@ -115,4 +116,5 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-01 | `createLogger` (pino) in `@mesh/utils` replaces `console` everywhere |
 | 2026-10-01 | Organization id always comes from the session (`requireOrganization`), never from request params |
 | 2026-10-02 | Three roles (owner, admin, member) on Better Auth access control; definitions shared by API (enforcement) and web (hiding UI) via `@mesh/auth/permissions` |
+| 2026-10-02 | All email goes through BullMQ (`email` queue) to `apps/workers`; templates in `@mesh/emails` (react-email); Mailpit in dev |
 | 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |

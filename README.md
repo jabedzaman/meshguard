@@ -10,12 +10,14 @@ Private mesh networking and remote development environments.
 | `apps/web` | Dashboard (Next.js, `src/` layout) |
 | `apps/desktop` | Desktop app (Tauri 2 + React) |
 | `apps/mcp` | MCP server |
+| `apps/workers` | Background jobs (BullMQ): all email delivery |
 | `apps/agent` | Device daemon (Go) |
 | `apps/cli` | `mesh` CLI (Go) |
 | `apps/relay`, `apps/dns` | Relay and DNS services (Go) |
 | `internal/` | Shared Go packages |
 | `packages/server-core` | Business logic (services, domain errors) shared by API, MCP and workers |
 | `packages/utils` | Shared utilities (`createLogger`) |
+| `packages/emails` | Email templates (react-email) |
 | `packages/*` | Other shared TypeScript packages and protobuf contracts |
 
 ## Prerequisites
@@ -44,6 +46,7 @@ read `.env` themselves. Each app's dev image lives next to it
 | Web | http://localhost:3000 |
 | API | http://localhost:4000 |
 | NATS monitoring | http://localhost:8222 |
+| Mailpit (catches all dev email) | http://localhost:8025 |
 
 If a host port is taken by another project, override it in `.env` (see `*_HOST_PORT`).
 
@@ -52,6 +55,16 @@ If a host port is taken by another project, override it in `.env` (see `*_HOST_P
 ```sh
 MESH_SOCKET=/tmp/mesh.sock pnpm --filter @mesh/agent start
 MESH_SOCKET=/tmp/mesh.sock pnpm --filter @mesh/cli start status
+```
+
+### Email
+
+Every email goes through the `email` queue: the API enqueues a job
+(`enqueueEmail(template, { to, props })`), and `apps/workers` renders the
+react-email template and sends it with nodemailer. Preview templates with:
+
+```sh
+pnpm --filter @mesh/emails preview   # http://localhost:3030
 ```
 
 ### Protobuf
