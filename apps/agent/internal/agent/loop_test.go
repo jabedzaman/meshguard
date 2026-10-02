@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jabedzaman/meshguard/internal/acl"
 	"github.com/jabedzaman/meshguard/internal/coordination"
 	"github.com/jabedzaman/meshguard/internal/ipc"
 	"github.com/jabedzaman/meshguard/internal/relay"
@@ -30,6 +31,7 @@ type fakeEngine struct {
 	mu      sync.Mutex
 	peers   []wireguard.Peer
 	cfg     wireguard.Config
+	acl     *acl.Policy
 	rebinds atomic.Int32
 }
 
@@ -149,6 +151,10 @@ func TestUpStartsWireGuardAndSyncsPeers(t *testing.T) {
 	assert.Equal(t, "connected", status.State)
 	assert.Empty(t, status.Problem)
 	assert.Equal(t, "meshguard-test0", status.Interface)
+	// A control plane that sends no access rules lets everything in.
+	assert.Equal(t, &acl.AllowAllPolicy, engine.ACL())
+	require.NotNil(t, status.ACL)
+	assert.Equal(t, "allow", status.ACL.DefaultAction)
 	require.Len(t, status.Peers, 1)
 	assert.Equal(t, "server", status.Peers[0].Name)
 }
@@ -296,6 +302,17 @@ func TestChooseEndpoint(t *testing.T) {
 func (e *fakeEngine) SetInterceptor(wireguard.Interceptor) {}
 func (e *fakeEngine) SendTo(netip.AddrPort, []byte) error  { return nil }
 func (e *fakeEngine) Rebind() error                        { e.rebinds.Add(1); return nil }
+func (e *fakeEngine) SetACL(p acl.Policy) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.acl = &p
+}
+func (e *fakeEngine) ACLDropped() uint64 { return 0 }
+func (e *fakeEngine) ACL() *acl.Policy {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.acl
+}
 
 func runningAgent(t *testing.T, server string) (*Agent, http.Handler) {
 	t.Helper()

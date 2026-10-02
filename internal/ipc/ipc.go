@@ -38,7 +38,18 @@ type Status struct {
 	PublicEndpoint string     `json:"publicEndpoint,omitempty"`
 	LastSyncAt     *time.Time `json:"lastSyncAt,omitempty"`
 	DNS            *DNSStatus `json:"dns,omitempty"`
-	Peers          []Peer     `json:"peers,omitempty"`
+	// Access rules for traffic from peers, once synced.
+	ACL   *ACLStatus `json:"acl,omitempty"`
+	Peers []Peer     `json:"peers,omitempty"`
+}
+
+// ACLStatus summarizes the access rules this device enforces.
+type ACLStatus struct {
+	// "allow": every peer may reach this device; "deny": only Rules allow.
+	DefaultAction string `json:"defaultAction"`
+	Rules         int    `json:"rules"`
+	// Packets from peers refused since WireGuard started.
+	Dropped uint64 `json:"dropped"`
 }
 
 // DNSStatus describes private DNS: devices resolve as <name>.internal.

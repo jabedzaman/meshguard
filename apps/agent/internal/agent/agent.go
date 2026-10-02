@@ -8,12 +8,14 @@ import (
 	"errors"
 	"log/slog"
 	"net/netip"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/jabedzaman/meshguard/internal/acl"
 	"github.com/jabedzaman/meshguard/internal/coordination"
 	"github.com/jabedzaman/meshguard/internal/disco"
 	"github.com/jabedzaman/meshguard/internal/discovery"
@@ -35,6 +37,9 @@ type Engine interface {
 	SetInterceptor(wireguard.Interceptor)
 	SendTo(netip.AddrPort, []byte) error
 	Rebind() error
+	// SetACL replaces what peers may send in; until then only replies pass.
+	SetACL(acl.Policy)
+	ACLDropped() uint64
 	Close()
 }
 
@@ -85,6 +90,7 @@ type connection struct {
 	lastSync time.Time
 	peers    []coordination.Peer
 	stun     []string
+	acl      *coordination.ACL
 
 	relayClient *relay.Client
 	relayURL    string
@@ -347,6 +353,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 		if changed {
 			slog.Info("peers updated", "count", len(peers))
 		}
+		engine.SetACL(aclPolicy(nm.ACL))
 	}
 
 	a.mu.Lock()
@@ -357,6 +364,11 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	c.lastSync = time.Now()
 	c.peers = nm.Peers
 	c.stun = nm.Stun
+	if !reflect.DeepEqual(c.acl, nm.ACL) {
+		st := aclStatus(nm.ACL, true, 0)
+		slog.Info("access rules updated", "default", st.DefaultAction, "rules", st.Rules)
+	}
+	c.acl = nm.ACL
 	a.updateDNSLocked(c, nm)
 	a.saveNameLocked(nm.Self.Name)
 	switch {
@@ -545,6 +557,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		dnsStatus := c.dns.status
 		s.DNS = &dnsStatus
 		s.Interface = c.engine.Name()
+		s.ACL = aclStatus(c.acl, !c.lastSync.IsZero(), c.engine.ACLDropped())
 		stats, _ = c.engine.Stats()
 		if c.problem == "" && !c.lastSync.IsZero() {
 			s.State = "connected"

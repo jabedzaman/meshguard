@@ -76,12 +76,31 @@ type Relay struct {
 	URL string `json:"url"`
 }
 
+// ACL is what may reach this device from its peers.
+type ACL struct {
+	// "allow": everything; "deny": only what Inbound allows.
+	DefaultAction string    `json:"defaultAction"`
+	Inbound       []ACLRule `json:"inbound"`
+}
+
+// ACLRule lets matching traffic from peers in.
+type ACLRule struct {
+	// Mesh addresses of the devices it applies to; nil means any peer.
+	Sources  []string `json:"sources"`
+	Protocol string   `json:"protocol"` // any, tcp, udp, icmp
+	// TCP/UDP destination ports, inclusive; nil for every port.
+	PortFrom *int `json:"portFrom"`
+	PortTo   *int `json:"portTo"`
+}
+
 // NetworkMap is everything the agent needs to configure WireGuard.
 type NetworkMap struct {
 	Self    state.Device  `json:"self"`
 	Network state.Network `json:"network"`
 	Peers   []Peer        `json:"peers"`
 	Relay   *Relay        `json:"relay"`
+	// Nil from a control plane without access rules: everything is allowed.
+	ACL *ACL `json:"acl"`
 	// STUN servers ("host:port") for discovering our public address.
 	Stun []string `json:"stun"`
 }
