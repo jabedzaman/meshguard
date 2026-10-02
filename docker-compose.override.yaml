@@ -21,8 +21,9 @@ services:
       - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh
       - REDIS_URL=redis://redis:6379
       - NATS_URL=nats://nats:4222
-      # Agents on this machine reach the relay through the published port.
-      - RELAY_URL=ws://localhost:${RELAY_HOST_PORT:-3340}/relay
+      # The relay URL agents get. Set RELAY_PUBLIC_URL in .env when agents on
+      # other machines need it (e.g. ws://<this machine's LAN/tailnet IP>:3340/relay).
+      - RELAY_URL=${RELAY_PUBLIC_URL:-ws://localhost:3340/relay}
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
     ports:
