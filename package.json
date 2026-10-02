@@ -26,7 +26,8 @@
     "test:e2e:ui": "playwright test --ui",
     "typecheck:e2e": "tsc -p tests/tsconfig.json",
     "lab": "bash scripts/lab.sh",
-    "lab:down": "docker compose --profile lab rm -sf lab-a lab-b lab-e lab-f lab-g lab-h router-e router-g router-h"
+    "lab:down": "docker compose --profile lab rm -sf lab-a lab-b lab-e lab-f lab-g lab-h router-e router-g router-h",
+    "test:systemd": "bash scripts/test-systemd.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
