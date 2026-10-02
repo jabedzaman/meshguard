@@ -1,6 +1,7 @@
 // Command mesh-relay forwards WireGuard packets between agents that can't reach
-// each other directly. Agents connect out over WebSocket, so it works behind
-// any NAT; it only ever sees WireGuard ciphertext.
+// each other directly, and runs a STUN server so agents can learn their public
+// address for hole punching. Agents connect out over WebSocket, so relaying
+// works behind any NAT; it only ever sees WireGuard ciphertext.
 package main
 
 import (
@@ -9,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,21 +18,37 @@ import (
 	"time"
 
 	"github.com/twinlabshq/mesh/internal/relay"
+	"github.com/twinlabshq/mesh/internal/stun"
 )
 
 func main() {
-	addr := flag.String("addr", envOr("RELAY_ADDR", ":3340"), "listen address")
+	addr := flag.String("addr", envOr("RELAY_ADDR", ":3340"), "relay (WebSocket) listen address")
+	stunAddr := flag.String("stun-addr", envOr("STUN_ADDR", ":3478"), `STUN (UDP) listen address; "" to disable`)
 	flag.Parse()
 
-	if err := run(*addr); err != nil {
+	if err := run(*addr, *stunAddr); err != nil {
 		slog.Error("relay exited", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr string) error {
+func run(addr, stunAddr string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// STUN tells agents their public address, for hole punching.
+	if stunAddr != "" {
+		pc, err := net.ListenPacket("udp", stunAddr)
+		if err != nil {
+			return err
+		}
+		slog.Info("stun listening", "addr", stunAddr)
+		go func() {
+			if err := stun.Serve(ctx, pc); err != nil {
+				slog.Error("stun stopped", "err", err)
+			}
+		}()
+	}
 
 	srv, err := relay.NewServer()
 	if err != nil {
