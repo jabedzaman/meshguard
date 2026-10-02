@@ -9,9 +9,20 @@ import (
 	"strconv"
 )
 
+// usable reports whether an interface can carry or identify a direct path to a
+// peer. Point-to-point interfaces are VPN tunnels (Tailscale, other WireGuard,
+// OpenVPN, our own mesh interface): not shared networks, and routing our
+// WireGuard through them would nest tunnels.
+func usable(flags net.Flags, name, skipInterface string) bool {
+	return flags&net.FlagUp != 0 &&
+		flags&net.FlagLoopback == 0 &&
+		flags&net.FlagPointToPoint == 0 &&
+		name != skipInterface
+}
+
 // Endpoints returns "ip:port" candidates for the WireGuard listen port, IPv4
 // first. Addresses inside any of exclude (the mesh ranges) are skipped, as are
-// loopback, link-local and the interface named skipInterface (our TUN).
+// loopback, link-local, point-to-point (VPN) interfaces and skipInterface.
 func Endpoints(port int, skipInterface string, exclude []netip.Prefix) []string {
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -19,7 +30,7 @@ func Endpoints(port int, skipInterface string, exclude []netip.Prefix) []string 
 	}
 	var addrs []netip.Addr
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || iface.Name == skipInterface {
+		if !usable(iface.Flags, iface.Name, skipInterface) {
 			continue
 		}
 		ifAddrs, err := iface.Addrs()
@@ -73,7 +84,7 @@ func LocalPrefixes(skipInterface string) []netip.Prefix {
 	}
 	var prefixes []netip.Prefix
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || iface.Name == skipInterface {
+		if !usable(iface.Flags, iface.Name, skipInterface) {
 			continue
 		}
 		addrs, err := iface.Addrs()
