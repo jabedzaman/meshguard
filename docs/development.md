@@ -25,7 +25,7 @@ read `.env` themselves.
 | Service | URL |
 | --- | --- |
 | Web | http://localhost:3000 |
-| Website and docs | http://localhost:3001/docs |
+| Website and docs | http://localhost:3002/docs |
 | API | http://localhost:4000 |
 | Mailpit (catches all dev email) | http://localhost:8025 |
 | Relay | ws://localhost:3340/relay (health: http://localhost:3340/healthz) |
@@ -103,7 +103,7 @@ pnpm proto:gen   # writes packages/proto/gen (gitignored)
 ## Writing docs
 
 The public docs live in `apps/www` (`pnpm -F @meshguard/www watch`, then
-http://localhost:3001/docs). Each page is an MDX file under
+http://localhost:3002/docs). Each page is an MDX file under
 `apps/www/src/content/docs` with a `title` (and optional `description`) in its
 frontmatter; the URL follows the path, and `index.mdx` is its folder's page. A
 folder's `meta.json` sets its sidebar title and page order:

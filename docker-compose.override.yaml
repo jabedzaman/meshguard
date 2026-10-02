@@ -112,7 +112,7 @@ services:
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
     ports:
-      - "${WWW_HOST_PORT:-3001}:3001"
+      - "${WWW_HOST_PORT:-3002}:3002"
     volumes:
       - ./apps/www/src:/app/apps/www/src
       - ./apps/www/public:/app/apps/www/public
