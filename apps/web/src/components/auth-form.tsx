@@ -125,7 +125,14 @@ export function AuthForm({ mode }: { mode: Mode }) {
           </Button>
           <p className="text-muted-foreground text-sm">
             {t.switchText}{" "}
-            <Link href={t.switchHref} className="text-foreground underline underline-offset-4">
+            <Link
+              href={
+                searchParams.get("redirectTo")
+                  ? `${t.switchHref}?redirectTo=${encodeURIComponent(searchParams.get("redirectTo")!)}`
+                  : t.switchHref
+              }
+              className="text-foreground underline underline-offset-4"
+            >
               {t.switchLabel}
             </Link>
           </p>
