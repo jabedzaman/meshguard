@@ -13,12 +13,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/twinlabshq/mesh/internal/dns"
 	"github.com/twinlabshq/mesh/internal/ipc"
 )
 
-// findPeer resolves a peer by name (case-insensitive, unique prefix) or mesh IP.
+// findPeer resolves a peer by name (case-insensitive, unique prefix, with or
+// without ".internal") or mesh IP.
 func findPeer(peers []ipc.Peer, query string) (ipc.Peer, error) {
-	q := strings.ToLower(query)
+	q := strings.TrimSuffix(strings.TrimSuffix(strings.ToLower(query), "."), "."+dns.Domain)
 	var matches []ipc.Peer
 	for _, p := range peers {
 		name := strings.ToLower(p.Name)

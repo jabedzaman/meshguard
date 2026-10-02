@@ -25,6 +25,10 @@ func TestFindPeer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "thinkpad", p.Name, "exact match wins over prefix")
 
+	p, err = findPeer(peers, "ThinkPad.internal")
+	require.NoError(t, err)
+	assert.Equal(t, "thinkpad", p.Name, "by DNS name")
+
 	p, err = findPeer(peers, "10.77.1.1")
 	require.NoError(t, err)
 	assert.Equal(t, "thinkcentre", p.Name, "by mesh IP")

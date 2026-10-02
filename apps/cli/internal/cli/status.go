@@ -51,6 +51,9 @@ func printStatus(s ipc.Status) {
 	if s.PublicEndpoint != "" {
 		fmt.Printf("  public     %s\n", s.PublicEndpoint)
 	}
+	if s.DNS != nil {
+		printDNS(*s.DNS)
+	}
 	if s.Relay != nil {
 		state := "connecting"
 		if s.Relay.Connected {
@@ -64,6 +67,20 @@ func printStatus(s ipc.Status) {
 	if len(s.Peers) > 0 {
 		fmt.Println("\npeers:")
 		printPeers(s.Peers, "  ")
+	}
+}
+
+func printDNS(d ipc.DNSStatus) {
+	switch {
+	case d.Configured != "":
+		fmt.Printf("  dns        %s (resolver %s, via %s)\n", d.Name, d.Resolver, d.Configured)
+	case d.Resolver != "":
+		fmt.Printf("  dns        %s (resolver %s, not set up in the OS)\n", d.Name, d.Resolver)
+	default:
+		fmt.Printf("  dns        %s (off)\n", d.Name)
+	}
+	if d.Problem != "" {
+		fmt.Printf("             ! %s\n", d.Problem)
 	}
 }
 
@@ -97,9 +114,9 @@ func newPeers(o *options) *cobra.Command {
 
 func printPeers(peers []ipc.Peer, indent string) {
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "%sNAME\tIPv4\tPATH\tHANDSHAKE\n", indent)
+	fmt.Fprintf(tw, "%sNAME\tDNS\tIPv4\tPATH\tHANDSHAKE\n", indent)
 	for _, p := range peers {
-		fmt.Fprintf(tw, "%s%s\t%s\t%s\t%s\n", indent, p.Name, p.MeshIPv4, path(p), handshake(p))
+		fmt.Fprintf(tw, "%s%s\t%s\t%s\t%s\t%s\n", indent, p.Name, p.DNSName, p.MeshIPv4, path(p), handshake(p))
 	}
 	tw.Flush()
 }
