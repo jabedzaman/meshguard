@@ -58,6 +58,7 @@ export function loadAuthEnv(env: NodeJS.ProcessEnv = process.env): AuthEnv {
 export const workerEnvSchema = z.object({
   NODE_ENV: serverEnvSchema.shape.NODE_ENV,
   REDIS_URL: z.url(),
+  NATS_URL: serverEnvSchema.shape.NATS_URL,
   /** e.g. smtp://mailpit:1025 in development. */
   SMTP_URL: z.url(),
   MAIL_FROM: z.string().min(1),

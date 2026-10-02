@@ -1,13 +1,14 @@
 import http from "node:http";
 import { loadWorkerEnv } from "@mesh/config";
-import { createMailer, createRedis } from "@mesh/server-core";
+import { createMailer, createNats, createRedis, DeviceEvents } from "@mesh/server-core";
 import { logger } from "~/lib/logger";
 import { startWorkers } from "~/workers";
 
 const env = loadWorkerEnv();
 const redis = createRedis(env.REDIS_URL);
 const mailer = createMailer({ smtpUrl: env.SMTP_URL, from: env.MAIL_FROM });
-const workers = startWorkers({ redis, mailer });
+const nats = await createNats(env.NATS_URL, "mesh-workers");
+const workers = await startWorkers({ redis, mailer, deviceEvents: new DeviceEvents(nats) });
 
 const health = http.createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") {
@@ -31,6 +32,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     logger.info({ signal }, "shutting down");
     health.close();
     await workers.close();
+    await nats.drain();
     redis.disconnect();
     process.exit(0);
   });
