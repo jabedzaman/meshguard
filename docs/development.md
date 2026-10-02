@@ -103,15 +103,19 @@ macOS, `journalctl -u mesh-agent` on Linux.
 
 ## Mesh lab
 
-Four containerized agents on the e2e stack. `lab-a` and `lab-b` share a Docker
-network and must connect directly; `lab-c` and `lab-d` are on isolated
-networks (they can reach the API and relay, not each other) and must connect
-through the relay:
+Containerized agents on the e2e stack, around a fake internet (`lab_inet`,
+10.200.0.0/24: API .10, relay + STUN .11) and NAT routers:
+
+| Pair | Setup | Must connect |
+| --- | --- | --- |
+| lab-a ↔ lab-b | same LAN | direct |
+| lab-e ↔ lab-f | e behind a NAT router, f public | direct, through e's NAT |
+| lab-g ↔ lab-h | g behind a symmetric NAT, h behind a NAT | via relay |
 
 ```sh
 pnpm e2e:up
-pnpm lab        # enrolls both pairs, pings v4 both ways and v6, checks the path
-docker exec mesh-lab-c mesh status   # peers "via relay"
+pnpm lab        # enrolls each pair, pings v4 both ways and v6, checks the path
+docker exec mesh-lab-e mesh status   # public address, "direct" peer
 pnpm lab:down
 ```
 

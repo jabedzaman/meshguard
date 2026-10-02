@@ -51,7 +51,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ Enrollment: `mesh up --token` → agent generates keys → `POST /v1/devices/enroll` → device with random free mesh IPv4/IPv6; devices listed on the network page
 - ✅ Coordination: signed `POST /v1/devices/self/sync` every 10s returns the network map; agent applies peers
 - ✅ WireGuard: embedded wireguard-go on TUN (`mesh0` / utun), mesh addresses + network routes (Linux in the lab; macOS on a real MacBook Air ↔ WSL, 2026-10-02, 0% loss both ways)
-- 🚧 Endpoint discovery: local interface addresses done; STUN-observed endpoints next
+- ✅ Endpoint discovery: local interface addresses + STUN-observed public address
 - ⬜ NAT traversal: UDP hole punching between peers
 - ✅ Presence: sync updates lastSeenAt; web shows online/offline (Postgres for now, Redis later)
 - 🚧 Reconnect: agent restart reconnects from saved state (lab-tested); sleep/network change not yet handled
@@ -61,7 +61,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 ### M2 — Reachability and naming 🚧
 
 - ✅ Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks; real hardware: MacBook ↔ WSL via relay, 2026-10-02)
-- ⬜ NAT traversal: STUN-observed endpoints and hole punching, then switch from relay to direct
+- ✅ NAT traversal, first cut: STUN (self-hosted in mesh-relay), sealed disco pings, learned NAT mappings; direct through a NAT to a reachable peer (lab), relay for symmetric NAT
+- ⬜ NAT traversal when both peers are behind Linux-style NATs (conntrack port clash): coordinated punching / low-TTL trick / UPnP-NAT-PMP-PCP
 - ✅ Point-to-point (VPN) interfaces are never advertised or treated as shared networks
 - ✅ Device names use the short hostname (no `.local`)
 - ⬜ Rename devices from the web
@@ -135,4 +136,5 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Go tests use testify; Go apps `replace` the local `internal` module so they build without go.work |
 | 2026-10-02 | Devices authenticate with Ed25519-signed requests (2 min window); agents poll a sync endpoint every 10s rather than a stream for the MVP |
 | 2026-10-02 | Relay-first reachability: WebSocket relay (works behind any NAT) before hole punching; peers on a shared network go direct |
+| 2026-10-02 | Hole punching via STUN from WireGuard's socket + NaCl-sealed disco pings (Tailscale-style); relay stays the fallback |
 | 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |

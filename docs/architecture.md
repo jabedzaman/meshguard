@@ -106,8 +106,32 @@ The sync response includes `relay.url` (API env `RELAY_URL`). The agent's
 WireGuard transport (`wireguard.Bind`) wraps UDP and sends endpoints written
 as `relay/<hex key>` through the relay client. Per peer, the agent uses a
 direct endpoint if the peer advertises an address on a network it is attached
-to (same LAN), and the relay otherwise. STUN-based hole punching, to go direct
-across NATs, comes next. Without root the agent stays registered and syncing, and
+to (same LAN), a hole-punched path (below), and the relay otherwise.
+
+## Hole punching
+
+- **STUN.** The agent sends STUN binding requests from WireGuard's own UDP
+  socket to the servers in the sync response (`STUN_SERVERS`; `mesh-relay`
+  answers STUN on UDP 3478) and advertises the public address it learns.
+- **Disco.** While a peer is reachable only via the relay, both agents send
+  "disco" pings to each other's candidate endpoints every 2s, from WireGuard's
+  socket, which opens NAT mappings. Pings and pongs are NaCl boxes sealed with
+  the WireGuard keys, so they can't be forged to redirect traffic. A pong
+  confirms the address it came from; the agent points WireGuard at it and
+  re-checks every 5s, falling back to the relay after 20s without a pong.
+- **Learning from pings.** A valid ping's source address is the peer's real
+  NAT mapping toward us (it can differ from the STUN result after a port
+  clash), so it is pinged back too.
+- `wireguard.Bind` hands STUN and disco packets to the agent and everything
+  else to WireGuard; they're told apart by their first bytes.
+
+What this covers today: peers on the same LAN, and one side behind NAT with
+the other reachable (public IP, VPS, port forward). When both sides are behind
+Linux-style NATs, the first probe to arrive creates a conntrack entry that
+clashes with the other side's mapping, so punching fails and traffic stays on
+the relay; symmetric NATs also stay on the relay. Next options: coordinated
+simultaneous punching, the low-TTL trick, and UPnP / NAT-PMP / PCP port
+mappings. Without root the agent stays registered and syncing, and
 `mesh status` explains why WireGuard isn't running.
 
 ## Email

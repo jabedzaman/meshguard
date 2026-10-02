@@ -33,5 +33,6 @@ To use a local browser instead, set `E2E_LOCAL_BROWSER=1` (on Linux this needs
 
 `pnpm lab` (see [development.md](development.md#mesh-lab)) is the end-to-end
 check for the data plane: real agents with WireGuard in containers must ping
-each other's mesh IPv4 and IPv6 addresses, directly on a shared network and
-through the relay across isolated networks.
+each other's mesh IPv4 and IPv6 addresses: directly on a shared LAN, directly
+through a NAT router (STUN + hole punching), and through the relay behind a
+symmetric NAT.
