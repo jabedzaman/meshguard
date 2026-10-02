@@ -41,3 +41,20 @@ export type AuthEnv = z.infer<typeof authEnvSchema>;
 export function loadAuthEnv(env: NodeJS.ProcessEnv = process.env): AuthEnv {
   return authEnvSchema.parse(env);
 }
+
+/** Environment for the workers app. */
+export const workerEnvSchema = z.object({
+  NODE_ENV: serverEnvSchema.shape.NODE_ENV,
+  REDIS_URL: z.url(),
+  /** e.g. smtp://mailpit:1025 in development. */
+  SMTP_URL: z.url(),
+  MAIL_FROM: z.string().min(1),
+  /** Port for the /health endpoint. */
+  WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(9091),
+});
+
+export type WorkerEnv = z.infer<typeof workerEnvSchema>;
+
+export function loadWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
+  return workerEnvSchema.parse(env);
+}
