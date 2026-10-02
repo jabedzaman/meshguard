@@ -1,4 +1,14 @@
-import { index, inet, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  inet,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 import { organization } from "./auth";
 
@@ -24,11 +34,16 @@ export const networks = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    // Every network may use the same IPv4 range; addresses are only unique
+    // within a network. The IPv6 /48 is random per network.
     ipv4Cidr: text("ipv4_cidr").notNull(),
-    ipv6Cidr: text("ipv6_cidr").notNull(),
+    ipv6Cidr: text("ipv6_cidr").notNull().unique(),
     ...timestamps,
   },
-  (t) => [index("networks_organization_id_idx").on(t.organizationId)],
+  (t) => [
+    index("networks_organization_id_idx").on(t.organizationId),
+    unique("networks_organization_id_name_unique").on(t.organizationId, t.name),
+  ],
 );
 
 export const platform = pgEnum("platform", ["darwin", "linux", "windows"]);
@@ -52,5 +67,11 @@ export const devices = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [index("devices_network_id_idx").on(t.networkId)],
+  (t) => [
+    index("devices_network_id_idx").on(t.networkId),
+    // Lets concurrent enrollments pick random addresses and retry on conflict
+    // instead of coordinating through a central allocator.
+    unique("devices_network_id_mesh_ipv4_unique").on(t.networkId, t.meshIpv4),
+    unique("devices_network_id_mesh_ipv6_unique").on(t.networkId, t.meshIpv6),
+  ],
 );
