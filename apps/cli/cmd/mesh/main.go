@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/twinlabshq/mesh/internal/ipc"
 )
@@ -80,6 +81,26 @@ func status() error {
 	}
 	fmt.Printf("%s in %s (%s)\n", s.Device.Name, s.Network.Name, s.State)
 	fmt.Printf("  mesh IPv4  %s\n  mesh IPv6  %s\n  server     %s\n", s.Device.MeshIPv4, s.Device.MeshIPv6, s.Server)
+	if s.Interface != "" {
+		fmt.Printf("  interface  %s\n", s.Interface)
+	}
+	if s.Problem != "" {
+		fmt.Printf("\n  ! %s\n", s.Problem)
+	}
+	if len(s.Peers) > 0 {
+		fmt.Println("\npeers:")
+		for _, p := range s.Peers {
+			handshake := "no handshake yet"
+			if p.LastHandshake != nil {
+				handshake = "handshake " + time.Since(*p.LastHandshake).Round(time.Second).String() + " ago"
+			}
+			endpoint := p.Endpoint
+			if endpoint == "" {
+				endpoint = "-"
+			}
+			fmt.Printf("  %-20s %-15s %-22s %s\n", p.Name, p.MeshIPv4, endpoint, handshake)
+		}
+	}
 	return nil
 }
 

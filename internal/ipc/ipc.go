@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // DefaultSocketPath returns where the agent listens. MESH_SOCKET overrides it,
@@ -22,11 +23,26 @@ func DefaultSocketPath() string {
 // Status is returned by GET /v1/status.
 type Status struct {
 	Version string `json:"version"`
-	// "not_enrolled" or "enrolled" for now; "connected" once WireGuard is up.
+	// "not_enrolled", "enrolled" (registered but not connected; see Problem)
+	// or "connected" (WireGuard up and synced).
 	State   string   `json:"state"`
+	Problem string   `json:"problem,omitempty"`
 	Device  *Device  `json:"device,omitempty"`
 	Network *Network `json:"network,omitempty"`
 	Server  string   `json:"server,omitempty"`
+	// WireGuard interface name, once up.
+	Interface  string     `json:"interface,omitempty"`
+	LastSyncAt *time.Time `json:"lastSyncAt,omitempty"`
+	Peers      []Peer     `json:"peers,omitempty"`
+}
+
+// Peer is another device in the network, as this agent sees it.
+type Peer struct {
+	Name          string     `json:"name"`
+	MeshIPv4      string     `json:"meshIpv4"`
+	MeshIPv6      string     `json:"meshIpv6"`
+	Endpoint      string     `json:"endpoint,omitempty"`
+	LastHandshake *time.Time `json:"lastHandshake,omitempty"`
 }
 
 // Device is this machine's record in the mesh.

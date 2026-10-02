@@ -1,4 +1,5 @@
-// Package agent implements the local API the desktop app and CLI use.
+// Package agent implements the device daemon: the local API the desktop app
+// and CLI use, and the loop that keeps WireGuard in step with the control plane.
 package agent
 
 import (
@@ -7,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"regexp"
 	"runtime"
@@ -15,17 +17,222 @@ import (
 	"time"
 
 	"github.com/twinlabshq/mesh/internal/coordination"
+	"github.com/twinlabshq/mesh/internal/discovery"
 	"github.com/twinlabshq/mesh/internal/identity"
 	"github.com/twinlabshq/mesh/internal/ipc"
 	"github.com/twinlabshq/mesh/internal/state"
+	"github.com/twinlabshq/mesh/internal/wireguard"
 )
 
-// Agent serves the local API and owns the device's state.
+// Engine is the WireGuard device; an interface so tests can fake it.
+type Engine interface {
+	Name() string
+	SetPeers([]wireguard.Peer) (changed bool, err error)
+	Stats() (map[string]wireguard.PeerStats, error)
+	Close()
+}
+
+// Agent serves the local API and owns the device's state and WireGuard.
 type Agent struct {
 	Version  string
 	StateDir string
+	// WireGuard UDP port. Default 51820.
+	ListenPort int
+	// Requested interface name. Default "mesh0" ("utun" on macOS).
+	InterfaceName string
+	// How often to sync with the control plane. Default 10s.
+	SyncInterval time.Duration
+	// Creates the WireGuard engine. Default wireguard.Start.
+	StartEngine func(wireguard.Config) (Engine, error)
 
-	mu sync.Mutex // serializes enrollment and state access
+	mu       sync.Mutex // guards everything below and serializes enrollment
+	ctx      context.Context
+	running  bool
+	engine   Engine
+	problem  string
+	lastSync time.Time
+	peers    []coordination.Peer
+}
+
+// Run starts the background loop if the device is already enrolled, then
+// blocks until ctx is done and tears WireGuard down.
+func (a *Agent) Run(ctx context.Context) {
+	a.mu.Lock()
+	a.ctx = ctx
+	if st, err := state.Load(a.StateDir); err == nil {
+		a.startLocked(st)
+	}
+	a.mu.Unlock()
+
+	<-ctx.Done()
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.engine != nil {
+		a.engine.Close()
+		a.engine = nil
+	}
+}
+
+// startLocked brings up WireGuard (if possible) and starts syncing. Caller holds a.mu.
+func (a *Agent) startLocked(st *state.State) {
+	if a.running || a.ctx == nil {
+		return
+	}
+	a.running = true
+
+	cfg, err := a.engineConfig(st)
+	if err == nil {
+		a.engine, err = a.startEngine()(cfg)
+	}
+	if err != nil {
+		// Keep syncing so the device shows as online; explain in status.
+		a.problem = "WireGuard is not running: " + err.Error()
+		slog.Warn("wireguard unavailable", "err", err)
+	}
+	go a.loop(a.ctx, st)
+}
+
+func (a *Agent) startEngine() func(wireguard.Config) (Engine, error) {
+	if a.StartEngine != nil {
+		return a.StartEngine
+	}
+	return func(cfg wireguard.Config) (Engine, error) { return wireguard.Start(cfg) }
+}
+
+func (a *Agent) listenPort() int {
+	if a.ListenPort != 0 {
+		return a.ListenPort
+	}
+	return 51820
+}
+
+func (a *Agent) engineConfig(st *state.State) (wireguard.Config, error) {
+	keys, err := st.Keys()
+	if err != nil {
+		return wireguard.Config{}, err
+	}
+	name := a.InterfaceName
+	if name == "" {
+		name = "mesh0"
+		if runtime.GOOS == "darwin" {
+			name = "utun"
+		}
+	}
+	var addresses []netip.Prefix
+	for _, pair := range [][2]string{
+		{st.Device.MeshIPv4, st.Network.IPv4CIDR},
+		{st.Device.MeshIPv6, st.Network.IPv6CIDR},
+	} {
+		ip, err1 := netip.ParseAddr(pair[0])
+		network, err2 := netip.ParsePrefix(pair[1])
+		if err1 == nil && err2 == nil {
+			addresses = append(addresses, netip.PrefixFrom(ip, network.Bits()))
+		}
+	}
+	return wireguard.Config{
+		InterfaceName: name,
+		ListenPort:    a.listenPort(),
+		PrivateKey:    keys.WireGuard,
+		Addresses:     addresses,
+	}, nil
+}
+
+func (a *Agent) loop(ctx context.Context, st *state.State) {
+	interval := a.SyncInterval
+	if interval == 0 {
+		interval = 10 * time.Second
+	}
+	keys, err := st.Keys()
+	if err != nil {
+		a.setProblem("cannot read keys: " + err.Error())
+		return
+	}
+	client := coordination.NewClient(st.ServerURL)
+	client.Signer = &coordination.Signer{DeviceID: st.Device.ID, Key: keys.Identity}
+
+	var exclude []netip.Prefix
+	for _, cidr := range []string{st.Network.IPv4CIDR, st.Network.IPv6CIDR} {
+		if p, err := netip.ParsePrefix(cidr); err == nil {
+			exclude = append(exclude, p)
+		}
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		a.syncOnce(ctx, client, exclude)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclude []netip.Prefix) {
+	a.mu.Lock()
+	engine := a.engine
+	a.mu.Unlock()
+
+	var endpoints []string
+	if engine != nil {
+		// Only advertise endpoints when WireGuard is actually listening.
+		endpoints = discovery.Endpoints(a.listenPort(), engine.Name(), exclude)
+	}
+	if endpoints == nil {
+		endpoints = []string{}
+	}
+
+	syncCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	nm, err := client.Sync(syncCtx, coordination.SyncRequest{Endpoints: endpoints})
+	if err != nil {
+		if ctx.Err() == nil {
+			slog.Warn("sync failed", "err", err)
+			a.setProblem("cannot reach the control plane: " + err.Error())
+		}
+		return
+	}
+
+	var applyErr error
+	if engine != nil {
+		peers := make([]wireguard.Peer, 0, len(nm.Peers))
+		for _, p := range nm.Peers {
+			peer := wireguard.Peer{PublicKey: p.WireGuardPublicKey}
+			for _, addr := range []string{p.MeshIPv4, p.MeshIPv6} {
+				if prefix, err := wireguard.HostPrefix(addr); err == nil {
+					peer.AllowedIPs = append(peer.AllowedIPs, prefix)
+				}
+			}
+			if len(p.Endpoints) > 0 {
+				peer.Endpoint = p.Endpoints[0]
+			}
+			peers = append(peers, peer)
+		}
+		changed, err := engine.SetPeers(peers)
+		applyErr = err
+		if changed {
+			slog.Info("peers updated", "count", len(peers))
+		}
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastSync = time.Now()
+	a.peers = nm.Peers
+	switch {
+	case applyErr != nil:
+		a.problem = "cannot apply peers: " + applyErr.Error()
+	case a.engine != nil:
+		a.problem = ""
+	}
+}
+
+func (a *Agent) setProblem(p string) {
+	a.mu.Lock()
+	a.problem = p
+	a.mu.Unlock()
 }
 
 // Handler returns the local API routes.
@@ -49,7 +256,7 @@ func (a *Agent) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusInternalServerError, "state_unreadable", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, statusFromState(a.Version, st))
+	writeJSON(w, http.StatusOK, a.statusLocked(st))
 }
 
 func (a *Agent) handleUp(w http.ResponseWriter, r *http.Request) {
@@ -106,13 +313,16 @@ func (a *Agent) handleUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("enrolled", "device", st.Device.Name, "network", st.Network.Name, "ipv4", st.Device.MeshIPv4)
-	writeJSON(w, http.StatusOK, statusFromState(a.Version, st))
+	a.startLocked(st)
+	writeJSON(w, http.StatusOK, a.statusLocked(st))
 }
 
-func statusFromState(version string, st *state.State) ipc.Status {
-	return ipc.Status{
-		Version: version,
+// statusLocked builds the status. Caller holds a.mu.
+func (a *Agent) statusLocked(st *state.State) ipc.Status {
+	s := ipc.Status{
+		Version: a.Version,
 		State:   "enrolled",
+		Problem: a.problem,
 		Server:  st.ServerURL,
 		Device: &ipc.Device{
 			ID: st.Device.ID, Name: st.Device.Name,
@@ -120,6 +330,32 @@ func statusFromState(version string, st *state.State) ipc.Status {
 		},
 		Network: &ipc.Network{ID: st.Network.ID, Name: st.Network.Name},
 	}
+	if !a.lastSync.IsZero() {
+		at := a.lastSync
+		s.LastSyncAt = &at
+	}
+	var stats map[string]wireguard.PeerStats
+	if a.engine != nil {
+		s.Interface = a.engine.Name()
+		stats, _ = a.engine.Stats()
+		if a.problem == "" && !a.lastSync.IsZero() {
+			s.State = "connected"
+		}
+	}
+	for _, p := range a.peers {
+		peer := ipc.Peer{Name: p.Name, MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6}
+		if hexKey, err := wireguard.KeyToHex(p.WireGuardPublicKey); err == nil {
+			if ps, ok := stats[hexKey]; ok {
+				peer.Endpoint = ps.Endpoint
+				if !ps.LastHandshake.IsZero() {
+					hs := ps.LastHandshake
+					peer.LastHandshake = &hs
+				}
+			}
+		}
+		s.Peers = append(s.Peers, peer)
+	}
+	return s
 }
 
 var invalidHostnameChars = regexp.MustCompile(`[^A-Za-z0-9.-]+`)
