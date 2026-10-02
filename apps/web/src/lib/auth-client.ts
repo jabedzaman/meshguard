@@ -15,8 +15,9 @@ export const authClient = createAuthClient({
  */
 export async function unwrap<T>(
   call: Promise<{ data: T; error: null } | { data: null; error: { message?: string } }>,
-): Promise<T> {
+): Promise<NonNullable<T>> {
   const { data, error } = await call;
   if (error) throw new Error(error.message ?? "Something went wrong.");
-  return data as T;
+  if (data == null) throw new Error("Empty response from the auth server.");
+  return data;
 }
