@@ -14,10 +14,12 @@ import (
 	"github.com/twinlabshq/mesh/internal/state"
 )
 
-// Client calls the control plane API at ServerURL.
+// Client calls the control plane API at ServerURL. Requests that act as an
+// enrolled device need Signer.
 type Client struct {
 	ServerURL string
 	HTTP      *http.Client
+	Signer    *Signer
 }
 
 // NewClient returns a client with sensible timeouts.
@@ -58,6 +60,42 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
+// Peer is another device in the network.
+type Peer struct {
+	ID                 string     `json:"id"`
+	Name               string     `json:"name"`
+	WireGuardPublicKey string     `json:"wireguardPublicKey"`
+	MeshIPv4           string     `json:"meshIpv4"`
+	MeshIPv6           string     `json:"meshIpv6"`
+	Endpoints          []string   `json:"endpoints"`
+	LastSeenAt         *time.Time `json:"lastSeenAt"`
+}
+
+// NetworkMap is everything the agent needs to configure WireGuard.
+type NetworkMap struct {
+	Self    state.Device  `json:"self"`
+	Network state.Network `json:"network"`
+	Peers   []Peer        `json:"peers"`
+}
+
+// SyncRequest reports where this device can be reached.
+type SyncRequest struct {
+	Endpoints []string `json:"endpoints"`
+}
+
+// Sync reports this device's endpoints and returns its network map.
+// Requires Signer.
+func (c *Client) Sync(ctx context.Context, req SyncRequest) (*NetworkMap, error) {
+	if c.Signer == nil {
+		return nil, fmt.Errorf("sync requires a device signer")
+	}
+	var res NetworkMap
+	if err := c.post(ctx, "/v1/devices/self/sync", req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 // Enroll redeems an enrollment token for this device.
 func (c *Client) Enroll(ctx context.Context, req EnrollRequest) (*EnrollResponse, error) {
 	var res EnrollResponse
@@ -77,6 +115,9 @@ func (c *Client) post(ctx context.Context, path string, body, out any) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.Signer != nil {
+		c.Signer.Sign(req, data)
+	}
 
 	res, err := c.HTTP.Do(req)
 	if err != nil {
