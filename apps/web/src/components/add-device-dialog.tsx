@@ -72,10 +72,11 @@ export function AddDeviceDialog({ networkId }: { networkId: string }) {
 
         {create.data ? (
           <div className="flex flex-col gap-3">
-            <pre className="bg-muted overflow-x-auto rounded-md p-3 font-mono text-xs">
+            {/* The token has no spaces, so it needs break-all to wrap. */}
+            <pre className="bg-muted rounded-md p-3 font-mono text-xs break-all whitespace-pre-wrap">
               {command}
             </pre>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-muted-foreground text-xs">
                 This token won&apos;t be shown again. It works once and expires{" "}
                 {new Date(create.data.expiresAt).toLocaleString()}.

@@ -32,12 +32,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       user={{ id: session.user.id, email: session.user.email }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-6">
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between gap-3">
           <OrganizationSwitcher
             organizations={organizations.map(({ id, name, slug }) => ({ id, name, slug }))}
           />
           <div className="flex items-center gap-3">
-            <span className="text-muted-foreground text-sm">
+            <span className="text-muted-foreground hidden text-sm sm:inline">
               {session.user.email} · {role}
             </span>
             <SignOutButton />
