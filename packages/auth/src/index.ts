@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
+import { ac, roles } from "./permissions";
 import type { AuthEnv } from "@mesh/config";
 import { and, asc, eq, schema, type Db } from "@mesh/db";
 
@@ -38,6 +39,8 @@ export function createAuth(db: Db, options: AuthOptions) {
     socialProviders: options.github ? { github: options.github } : {},
     plugins: [
       organization({
+        ac,
+        roles,
         // Sessions keep activeOrganizationId after the org is deleted or the
         // user is removed from it. Clear it so it can be trusted as-is (the web
         // proxy routes on it without loading the organization).
@@ -85,5 +88,6 @@ export function createAuth(db: Db, options: AuthOptions) {
 }
 
 export type Auth = ReturnType<typeof createAuth>;
+export * from "./permissions";
 export type Session = Auth["$Infer"]["Session"]["session"];
 export type User = Auth["$Infer"]["Session"]["user"];
