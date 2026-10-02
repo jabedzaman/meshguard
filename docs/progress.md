@@ -27,7 +27,7 @@ Networking should disappear into the workflow.
 
 ### M1 — Working private mesh (the real MVP) 🚧
 
-Devices ping each other over WireGuard: directly on a shared network, through the relay otherwise (`pnpm lab`). Remaining for production use: a public relay/API deployment, then direct connections across NATs.
+Devices ping each other over WireGuard: directly on a shared network, through the relay otherwise (`pnpm lab`). First real-hardware run: MacBook Air (macOS, utun) ↔ ThinkPad (WSL) in network `home`. Remaining for production use: a public relay/API deployment, then direct connections across NATs.
 
 Goal: Mac A and Mac B on different networks can ping each other's mesh IP, directly over WireGuard, and recover from disconnects automatically.
 
@@ -50,7 +50,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ Enrollment tokens: create (shown once, hashed), list active, revoke; network page with Add device
 - ✅ Enrollment: `mesh up --token` → agent generates keys → `POST /v1/devices/enroll` → device with random free mesh IPv4/IPv6; devices listed on the network page
 - ✅ Coordination: signed `POST /v1/devices/self/sync` every 10s returns the network map; agent applies peers
-- ✅ WireGuard: embedded wireguard-go on TUN (`mesh0` / utun), mesh addresses + network routes (Linux tested in lab; macOS implemented, untested on hardware)
+- ✅ WireGuard: embedded wireguard-go on TUN (`mesh0` / utun), mesh addresses + network routes (Linux in the lab; macOS on a real MacBook Air ↔ WSL, 2026-10-02, 0% loss both ways)
 - 🚧 Endpoint discovery: local interface addresses done; STUN-observed endpoints next
 - ⬜ NAT traversal: UDP hole punching between peers
 - ✅ Presence: sync updates lastSeenAt; web shows online/offline (Postgres for now, Redis later)
@@ -62,6 +62,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 
 - ✅ Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks connect via relay)
 - ⬜ NAT traversal: STUN-observed endpoints and hole punching, then switch from relay to direct
+- ⬜ Don't treat other VPNs' ranges (Tailscale 100.64.0.0/10, other WireGuard) as "same network" when choosing direct endpoints
+- ⬜ Device names: drop the macOS `.local` suffix; allow renaming
 - ⬜ Private DNS (`<device>.<tld>`), answered locally by the agent
 - ⬜ ACLs (device → service → port)
 - ⬜ Key rotation
