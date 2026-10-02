@@ -28,6 +28,13 @@ type Client struct {
 	public  Key
 	// Deliver is called for every received packet. Set before Run.
 	Deliver func(Packet)
+	// PingEvery is how often the connection is checked with a WebSocket
+	// ping; a connection that doesn't answer is dropped and redialed, so a
+	// half-open TCP connection (after sleep or a network change) doesn't
+	// linger. Default 15s.
+	PingEvery time.Duration
+
+	kick chan struct{} // Reconnect: redial now, skipping the backoff
 
 	mu   sync.Mutex
 	conn *websocket.Conn
@@ -39,7 +46,7 @@ func NewClient(url string, private [32]byte) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{URL: url, private: private, public: pub}, nil
+	return &Client{URL: url, private: private, public: pub, kick: make(chan struct{}, 1)}, nil
 }
 
 // Connected reports whether the client currently has a relay connection.
@@ -62,36 +69,57 @@ func (c *Client) Send(ctx context.Context, dst Key, packet []byte) error {
 	return conn.Write(ctx, websocket.MessageBinary, EncodeFrame(dst, packet))
 }
 
+// Reconnect drops the current connection and redials right away. Call it
+// when the network changed: the old connection may be dead without an error.
+func (c *Client) Reconnect() {
+	select {
+	case c.kick <- struct{}{}:
+	default:
+	}
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn != nil {
+		conn.CloseNow()
+	}
+}
+
 // Run connects and reads until ctx is done, reconnecting after failures.
 func (c *Client) Run(ctx context.Context) {
 	backoff := time.Second
 	for ctx.Err() == nil {
-		err := c.session(ctx)
+		connected, err := c.session(ctx)
 		if ctx.Err() != nil {
 			return
+		}
+		if connected {
+			backoff = time.Second // only consecutive failures back off
 		}
 		slog.Warn("relay disconnected", "url", c.URL, "err", err, "retry_in", backoff)
 		select {
 		case <-ctx.Done():
 			return
+		case <-c.kick:
 		case <-time.After(backoff):
 		}
 		backoff = min(backoff*2, 30*time.Second)
 	}
 }
 
-func (c *Client) session(ctx context.Context) error {
+// session runs one connection. connected reports whether the handshake
+// succeeded before it ended.
+func (c *Client) session(ctx context.Context) (connected bool, err error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	conn, _, err := websocket.Dial(dialCtx, c.URL, nil)
 	cancel()
 	if err != nil {
-		return err
+		return false, err
 	}
 	conn.SetReadLimit(KeyLen + MaxPacket + 1024)
 	defer conn.CloseNow()
 
 	if err := c.handshake(ctx, conn); err != nil {
-		return err
+		return false, err
 	}
 	c.mu.Lock()
 	c.conn = conn
@@ -103,10 +131,14 @@ func (c *Client) session(ctx context.Context) error {
 	}()
 	slog.Info("relay connected", "url", c.URL)
 
+	sessionCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	go c.keepalive(sessionCtx, conn)
+
 	for {
 		typ, data, err := conn.Read(ctx)
 		if err != nil {
-			return err
+			return true, err
 		}
 		if typ != websocket.MessageBinary {
 			continue
@@ -117,6 +149,32 @@ func (c *Client) session(ctx context.Context) error {
 		}
 		if c.Deliver != nil {
 			c.Deliver(Packet{From: from, Data: packet})
+		}
+	}
+}
+
+// keepalive pings until ctx is done and drops the connection if a ping goes
+// unanswered. Pongs are read by the session's read loop.
+func (c *Client) keepalive(ctx context.Context, conn *websocket.Conn) {
+	every := c.PingEvery
+	if every == 0 {
+		every = 15 * time.Second
+	}
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		pingCtx, cancel := context.WithTimeout(ctx, min(every, 5*time.Second))
+		err := conn.Ping(pingCtx)
+		cancel()
+		if err != nil && ctx.Err() == nil {
+			slog.Warn("relay ping failed", "url", c.URL, "err", err)
+			conn.CloseNow()
+			return
 		}
 	}
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -98,6 +100,28 @@ func TestNewestConnectionWins(t *testing.T) {
 	defer stopFirst()
 	connect(t, firstCtx, url, priv)
 	connect(t, ctx, url, priv)
+	assert.Eventually(t, func() bool { return srv.Clients() == 1 }, time.Second, 10*time.Millisecond)
+}
+
+func TestReconnectRedialsRightAway(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	srv, err := NewServer()
+	require.NoError(t, err)
+	var dials atomic.Int32
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dials.Add(1)
+		srv.ServeHTTP(w, r)
+	}))
+	t.Cleanup(hs.Close)
+	url := "ws" + strings.TrimPrefix(hs.URL, "http")
+
+	c, _ := connect(t, ctx, url, newKey(t))
+	require.Equal(t, int32(1), dials.Load())
+
+	c.Reconnect()
+	// Well under the 1s backoff: the redial skipped it.
+	require.Eventually(t, func() bool { return dials.Load() == 2 && c.Connected() }, 700*time.Millisecond, 10*time.Millisecond)
 	assert.Eventually(t, func() bool { return srv.Clients() == 1 }, time.Second, 10*time.Millisecond)
 }
 
