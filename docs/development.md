@@ -75,6 +75,25 @@ pnpm --filter @mesh/cli start status
 
 Unix socket paths are limited to ~100 characters; keep `MESH_SOCKET` short.
 
+Creating the WireGuard interface needs root. Without it the agent still
+enrolls and syncs, and `mesh status` says WireGuard isn't running. To connect
+for real, run the agent with `sudo -E mesh-agent` (keeping the env vars).
+
+## Two-device lab
+
+Two containerized agents on one Docker network, enrolled into a fresh network
+on the e2e stack, pinging each other over the mesh:
+
+```sh
+pnpm e2e:up
+pnpm lab        # builds lab-a/lab-b, enrolls both, pings v4 both ways and v6
+docker exec mesh-lab-a mesh status
+pnpm lab:down
+```
+
+`pnpm test:e2e` resets `mesh_test`, which removes the lab's devices; run
+`pnpm lab` again afterwards.
+
 ## Protobuf
 
 ```sh

@@ -75,6 +75,27 @@ the public keys to `POST /v1/devices/enroll`, and saves its state (0600) in
 creates the device in one transaction, picking random free addresses and
 retrying on the per-network unique constraints.
 
+## Coordination and WireGuard
+
+Once enrolled, the agent signs every control plane request with its identity
+key: `X-Mesh-Device`, `X-Mesh-Timestamp` (unix ms, ±2 min) and
+`X-Mesh-Signature` = Ed25519 over `METHOD\npath\ntimestamp\nsha256(body)`
+(`packages/server-core/src/lib/device-auth.ts`, `internal/coordination/sign.go`;
+both test the same vector).
+
+Every 10s the agent calls `POST /v1/devices/self/sync` with its endpoints
+(local interface addresses on the WireGuard port) and gets back the network
+map: every peer's WireGuard key, mesh addresses and endpoints. It runs an
+embedded wireguard-go on a TUN interface (`mesh0`, `utunN` on macOS), assigns
+its mesh addresses with the network prefix (so the whole range routes through
+the interface) and replaces the peer list when the map changes. Each peer gets
+its first endpoint, host routes for its mesh addresses and a 25s keepalive.
+
+Devices are shown online if they synced in the last 30s. For now peers must
+reach each other directly (same LAN or a public IP); NAT traversal and relays
+come next. Without root the agent stays registered and syncing, and
+`mesh status` explains why WireGuard isn't running.
+
 ## Email
 
 Every email goes through the `email` queue: the API enqueues a job

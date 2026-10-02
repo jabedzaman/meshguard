@@ -28,3 +28,9 @@ the fixtures in `tests/e2e/support/fixtures.ts`: `createUser`,
 
 To use a local browser instead, set `E2E_LOCAL_BROWSER=1` (on Linux this needs
 `npx playwright install --with-deps chromium`).
+
+## Mesh lab
+
+`pnpm lab` (see [development.md](development.md#two-device-lab)) is the
+end-to-end check for the data plane: two real agents with WireGuard in
+containers must ping each other's mesh IPv4 and IPv6 addresses.
