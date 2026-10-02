@@ -113,3 +113,12 @@ func TestUpValidatesRequest(t *testing.T) {
 func TestHostnameIsSanitized(t *testing.T) {
 	assert.Regexp(t, `^[A-Za-z0-9][A-Za-z0-9.-]*$`, hostname())
 }
+
+func TestDeviceName(t *testing.T) {
+	assert.Equal(t, "Jabeds-MacBook-Air", deviceName("Jabeds-MacBook-Air.local"))
+	assert.Equal(t, "web-1", deviceName("web-1.prod.example.com"))
+	assert.Equal(t, "thinkpad", deviceName("thinkpad"))
+	assert.Equal(t, "my-laptop", deviceName("my laptop"))
+	assert.Equal(t, "device", deviceName(""))
+	assert.Equal(t, "device", deviceName(".local"))
+}

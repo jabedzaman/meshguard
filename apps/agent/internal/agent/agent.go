@@ -446,12 +446,19 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 
 var invalidHostnameChars = regexp.MustCompile(`[^A-Za-z0-9.-]+`)
 
-// hostname returns the machine name in the form the control plane accepts.
+// hostname returns the machine's short name (first label, so macOS's
+// "Jabeds-MacBook-Air.local" becomes "Jabeds-MacBook-Air") in the form the
+// control plane accepts.
 func hostname() string {
 	name, err := os.Hostname()
 	if err != nil {
 		name = "device"
 	}
+	return deviceName(name)
+}
+
+func deviceName(host string) string {
+	name, _, _ := strings.Cut(host, ".")
 	name = strings.Trim(invalidHostnameChars.ReplaceAllString(name, "-"), "-.")
 	if name == "" {
 		return "device"

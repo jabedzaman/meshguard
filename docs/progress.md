@@ -62,8 +62,9 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 
 - ✅ Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks connect via relay)
 - ⬜ NAT traversal: STUN-observed endpoints and hole punching, then switch from relay to direct
-- ⬜ Don't treat other VPNs' ranges (Tailscale 100.64.0.0/10, other WireGuard) as "same network" when choosing direct endpoints
-- ⬜ Device names: drop the macOS `.local` suffix; allow renaming
+- ✅ Point-to-point (VPN) interfaces are never advertised or treated as shared networks
+- ✅ Device names use the short hostname (no `.local`)
+- ⬜ Rename devices from the web
 - ⬜ Private DNS (`<device>.<tld>`), answered locally by the agent
 - ⬜ ACLs (device → service → port)
 - ⬜ Key rotation
