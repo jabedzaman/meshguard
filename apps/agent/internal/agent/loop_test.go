@@ -159,8 +159,7 @@ func TestServesPeersOverDNS(t *testing.T) {
 		StateDir:     t.TempDir(),
 		SyncInterval: 50 * time.Millisecond,
 		StartEngine:  func(wireguard.Config) (Engine, error) { return &fakeEngine{}, nil },
-		DNSPort:      uint16(port),
-		dnsHost:      netip.MustParseAddr("127.0.0.1"),
+		dnsListen:    netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), uint16(port)),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -188,7 +187,7 @@ func TestServesPeersOverDNS(t *testing.T) {
 	require.NotNil(t, status.DNS)
 	assert.Equal(t, "laptop.internal", status.DNS.Name)
 	assert.Equal(t, "127.0.0.1:"+strconv.Itoa(port), status.DNS.Resolver)
-	assert.Empty(t, status.DNS.Configured, "not on port 53, so the OS isn't touched")
+	assert.Empty(t, status.DNS.Configured, "tests leave the OS resolver alone")
 	assert.Equal(t, "server.internal", status.Peers[0].DNSName)
 }
 

@@ -52,8 +52,6 @@ type Agent struct {
 	StartEngine func(wireguard.Config) (Engine, error)
 	// How often to check for network changes and wake from sleep. Default 2s.
 	NetCheckInterval time.Duration
-	// Port for private DNS on the mesh address. Default 53.
-	DNSPort uint16
 	// UIDs allowed to use the local API besides root and the agent's own
 	// user (the -socket-owner).
 	Operators []uint32
@@ -61,8 +59,8 @@ type Agent struct {
 	// linkState summarizes the network attachment; a change means the
 	// network changed. Default: the advertisable local addresses.
 	linkState func(engine Engine, exclude []netip.Prefix) string
-	// dnsHost replaces the mesh IPv4 as the DNS listen address (tests).
-	dnsHost netip.Addr
+	// dnsListen replaces dns.ListenAddr and skips OS resolver setup (tests).
+	dnsListen netip.AddrPort
 
 	mu   sync.Mutex // guards ctx and conn, and serializes up/down/logout
 	ctx  context.Context

@@ -165,8 +165,9 @@ Devices resolve as `<name>.internal` (`.internal` is reserved by ICANN for
 private use, so it never collides with a public name). Names are DNS labels,
 unique per network; the API picks `laptop`, `laptop-2`, … at enrollment.
 
-- The agent serves DNS (`internal/dns`) on its mesh IPv4, port 53, UDP and
-  TCP, with A/AAAA records for itself and every peer from the latest network
+- The agent serves DNS (`internal/dns`) over UDP and TCP on its mesh IPv4,
+  port 53 (Linux), or on `127.0.0.1:53053` (macOS, which routes a utun's own
+  address into the tunnel, so local queries to it never arrive), with A/AAAA records for itself and every peer from the latest network
   map. Unknown names under `.internal` get NXDOMAIN; anything else is refused,
   since the OS only sends `.internal` here.
 - Split DNS: macOS reads `/etc/resolver/internal`; on Linux the agent sets

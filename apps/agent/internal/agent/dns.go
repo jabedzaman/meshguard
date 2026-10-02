@@ -18,15 +18,8 @@ type dnsState struct {
 	configuredIface string
 }
 
-func (a *Agent) dnsPort() uint16 {
-	if a.DNSPort != 0 {
-		return a.DNSPort
-	}
-	return 53
-}
-
-// startDNSLocked answers <name>.internal on the device's mesh IPv4 and points
-// the OS resolver at it for .internal only. Failures are reported in status;
+// startDNSLocked answers <name>.internal where this OS can reach it locally
+// (dns.ListenAddr) and points the OS resolver at it for .internal only. Failures are reported in status;
 // the mesh works without DNS. Caller holds a.mu and WireGuard is up.
 func (a *Agent) startDNSLocked(c *connection, st *state.State) {
 	c.dns.status = ipc.DNSStatus{Name: dns.Name(st.Device.Name)}
@@ -37,11 +30,10 @@ func (a *Agent) startDNSLocked(c *connection, st *state.State) {
 	}
 	server := &dns.Server{}
 	server.SetRecords(dnsRecords(st.Device, nil))
-	listen := ip
-	if a.dnsHost.IsValid() {
-		listen = a.dnsHost
+	addr := dns.ListenAddr(ip)
+	if a.dnsListen.IsValid() {
+		addr = a.dnsListen
 	}
-	addr := netip.AddrPortFrom(listen, a.dnsPort())
 	if err := server.Start(c.ctx, addr); err != nil {
 		c.dns.status.Problem = "cannot serve DNS: " + err.Error()
 		slog.Warn("dns unavailable", "addr", addr, "err", err)
@@ -50,14 +42,13 @@ func (a *Agent) startDNSLocked(c *connection, st *state.State) {
 	c.dns.server = server
 	c.dns.status.Resolver = addr.String()
 
-	if addr.Port() != 53 {
-		c.dns.status.Problem = "not on port 53, so the OS resolver isn't pointed at it"
-		return
+	if a.dnsListen.IsValid() {
+		return // tests: leave the OS alone
 	}
 	iface := c.engine.Name()
-	how, err := dns.ConfigureOS(iface, ip)
+	how, err := dns.ConfigureOS(iface, addr)
 	if err != nil {
-		c.dns.status.Problem = err.Error() + "; query " + ip.String() + " directly"
+		c.dns.status.Problem = err.Error() + "; query " + addr.String() + " directly"
 		slog.Warn("split dns not configured", "err", err)
 		return
 	}

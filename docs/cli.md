@@ -143,13 +143,14 @@ Every device resolves as `<name>.internal`, e.g. `ssh jabeds-macbook-air.interna
 Device names come from the hostname (lowercased, first label) and are unique
 in the network: a second `laptop` becomes `laptop-2`.
 
-The agent answers on its own mesh IPv4, port 53, and sends only `.internal`
-queries there; other lookups never touch it:
+The agent answers DNS locally and sends only `.internal` queries there; other
+lookups never touch it:
 
 | | |
 | --- | --- |
-| macOS | writes `/etc/resolver/internal` (removed on `mesh down`) |
+| macOS | serves on `127.0.0.1:53053` and writes `/etc/resolver/internal` (removed on `mesh down`). Test with `dig -p 53053 @127.0.0.1 <name>.internal` |
 | Linux with systemd-resolved | `resolvectl dns/domain` on `mesh0` (`~internal`) |
+| Linux | serves on the mesh IPv4, port 53 |
 | Other Linux | not configured; `mesh status` says so. Query the resolver directly: `dig @$(mesh ip) laptop.internal` |
 
 ### `mesh peers`
@@ -217,7 +218,7 @@ mesh completion bash > /etc/bash_completion.d/mesh
 | Peer stays `relay` | Expected behind symmetric NATs, or when both peers are behind home routers (see [architecture.md](architecture.md#hole-punching)). `mesh netcheck` on both ends shows the NAT types. |
 | Peers drop after sleep or a Wi-Fi change | They should come back within ~15s (relay first, then direct). The agent log shows `rebinding reason=wake` or `reason="network change"`; if it doesn't, report it with the log. |
 | `dns … not set up in the OS` | No systemd-resolved (common in containers and WSL), or `/etc/resolver/internal` exists and isn't mesh's. Use `dig @<mesh ip>`, or install systemd-resolved. |
-| `.internal` names don't resolve but `dig @<mesh ip>` works | macOS: `scutil --dns` should list a resolver for `internal`. Linux: `resolvectl status mesh0` should show the mesh IP and `~internal`. |
+| `.internal` names don't resolve but the resolver answers (`mesh status` shows where) | macOS: `scutil --dns` should list a resolver for `internal`. Linux: `resolvectl status mesh0` should show the mesh IP and `~internal`. |
 | Peer handshake `never` | The peer is offline or down (`mesh status` on it), or the relay is unreachable from one side. |
 
 ## Testing the service
