@@ -36,3 +36,9 @@ export const sync = factory.createHandlers(
     return c.json(map, 200);
   },
 );
+
+/** `mesh logout`: the device removes itself (signed with its identity key). */
+export const deleteSelf = factory.createHandlers(requireDevice, async (c) => {
+  await c.var.services.devices.deleteSelf(c.var.device.id);
+  return c.body(null, 204);
+});
