@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getErrorMessage } from "@mesh/api-client";
 import { AddDeviceDialog } from "~/components/add-device-dialog";
+import { DevicesList } from "~/components/devices-list";
 import { EnrollmentTokensList } from "~/components/enrollment-tokens-list";
 import { networkQueries } from "~/lib/queries";
 
@@ -29,9 +30,7 @@ export function NetworkDetail({ networkId }: { networkId: string }) {
       </div>
       <section className="flex flex-col gap-3">
         <h3 className="font-medium">Devices</h3>
-        <p className="text-muted-foreground text-sm">
-          No devices yet. Use Add device to get a command for each machine.
-        </p>
+        <DevicesList networkId={network.id} />
       </section>
       <section className="flex flex-col gap-3">
         <h3 className="font-medium">Active enrollment tokens</h3>

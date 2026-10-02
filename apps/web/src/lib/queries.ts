@@ -74,3 +74,13 @@ export const enrollmentTokenMutations = {
   revoke: (id: string) =>
     parseResponse(api.v1["enrollment-tokens"][":id"].$delete({ param: { id } })),
 };
+
+export const deviceQueries = {
+  all: () => ["devices"] as const,
+  list: (networkId: string) =>
+    queryOptions({
+      queryKey: [...deviceQueries.all(), networkId],
+      queryFn: () =>
+        parseResponse(api.v1.networks[":networkId"].devices.$get({ param: { networkId } })),
+    }),
+};
