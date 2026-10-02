@@ -1,8 +1,8 @@
 import { serve } from "@hono/node-server";
-import { authOptionsFromEnv, createAuth } from "@mesh/auth";
-import { loadServerEnv } from "@mesh/config";
-import { createDb } from "@mesh/db";
-import { createEmailQueue, createNats, createRedis, DeviceEvents } from "@mesh/server-core";
+import { authOptionsFromEnv, createAuth } from "@meshguard/auth";
+import { loadServerEnv } from "@meshguard/config";
+import { createDb } from "@meshguard/db";
+import { createEmailQueue, createNats, createRedis, DeviceEvents } from "@meshguard/server-core";
 import { createApp } from "~/app";
 import { logger } from "~/lib/logger";
 
@@ -10,7 +10,7 @@ const env = loadServerEnv();
 const db = createDb(env.DATABASE_URL);
 const redis = createRedis(env.REDIS_URL);
 const emailQueue = createEmailQueue(redis);
-const nats = await createNats(env.NATS_URL, "mesh-api");
+const nats = await createNats(env.NATS_URL, "meshguard-api");
 const auth = createAuth(db, {
   ...authOptionsFromEnv(env),
   // Queued, not sent: the workers app renders and delivers every email.

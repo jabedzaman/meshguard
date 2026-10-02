@@ -1,7 +1,7 @@
 import { sql } from "./support/db";
 import { api, expect, test } from "./support/fixtures";
 
-const TOKEN = /mesh_enr_[A-Za-z0-9_-]{43}/;
+const TOKEN = /meshguard_enr_[A-Za-z0-9_-]{43}/;
 
 test.describe("enrollment tokens", () => {
   test("create from the network page, shown once, stored hashed, revoke", async ({
@@ -22,12 +22,12 @@ test.describe("enrollment tokens", () => {
     await page.getByRole("option", { name: "24 hours" }).click();
     await page.getByRole("button", { name: "Create token" }).click();
     const command = (await page.locator("[role=dialog] pre").textContent())!;
-    expect(command).toMatch(new RegExp(`^mesh up --token ${TOKEN.source}$`));
-    const token = command.replace("mesh up --token ", "");
+    expect(command).toMatch(new RegExp(`^meshguard up --token ${TOKEN.source}$`));
+    const token = command.replace("meshguard up --token ", "");
     await page.getByRole("button", { name: "Done" }).click();
 
     // Listed by prefix only.
-    const row = page.locator("li", { hasText: token.slice(0, 15) });
+    const row = page.locator("li", { hasText: token.slice(0, 20) });
     await expect(row).toContainText("you");
     await expect(page.getByText(token)).toHaveCount(0);
 
@@ -39,7 +39,7 @@ test.describe("enrollment tokens", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.token_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(rows[0]!.token_hash).not.toContain(token);
-    expect(rows[0]!.token_prefix).toBe(token.slice(0, 15));
+    expect(rows[0]!.token_prefix).toBe(token.slice(0, 20));
 
     await row.getByRole("button", { name: /Revoke/ }).click();
     await page.getByRole("button", { name: "Revoke token" }).click();

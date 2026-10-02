@@ -15,7 +15,7 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 
-	"github.com/twinlabshq/mesh/internal/relay"
+	"github.com/jabedzaman/meshguard/internal/relay"
 )
 
 // MTU leaves room for WireGuard's overhead on a 1500-byte path, plus IPv6.
@@ -23,7 +23,7 @@ const MTU = 1280
 
 // Config describes the local interface.
 type Config struct {
-	// Requested TUN name ("mesh0" on Linux; macOS always assigns "utunN").
+	// Requested TUN name ("meshguard0" on Linux; macOS always assigns "utunN").
 	InterfaceName string
 	ListenPort    int
 	PrivateKey    [32]byte

@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import type { Redis } from "ioredis";
-import type { EmailTemplate, EmailTemplateProps } from "@mesh/emails";
+import type { EmailTemplate, EmailTemplateProps } from "@meshguard/emails";
 import { QUEUES } from "~/queues";
 
 /** One job per email; the job name is the template. */

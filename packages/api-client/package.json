@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/api-client",
+  "name": "@meshguard/api-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -24,6 +24,6 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "devDependencies": {
-    "@mesh/api": "workspace:^"
+    "@meshguard/api": "workspace:^"
   }
 }

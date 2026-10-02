@@ -1,1 +1,1 @@
-export { default } from "@mesh/ui/postcss.config";
+export { default } from "@meshguard/ui/postcss.config";

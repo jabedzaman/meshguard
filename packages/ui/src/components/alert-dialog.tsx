@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@mesh/ui/lib/utils"
+import { cn } from "@meshguard/ui/lib/utils"
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
-import { Button } from "@mesh/ui/components/button"
+import { Button } from "@meshguard/ui/components/button"
 
 function AlertDialog({
   ...props

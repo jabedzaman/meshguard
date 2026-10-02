@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-const server = new McpServer({ name: "mesh", version: "0.0.0" });
+const server = new McpServer({ name: "meshguard", version: "0.0.0" });
 
 server.registerTool(
   "list_devices",

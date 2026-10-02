@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button } from "@mesh/ui/components/button";
+import { Button } from "@meshguard/ui/components/button";
 import {
   Card,
   CardContent,
@@ -12,7 +12,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@mesh/ui/components/card";
+} from "@meshguard/ui/components/card";
 import {
   Form,
   FormControl,
@@ -20,8 +20,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@mesh/ui/components/form";
-import { Input } from "@mesh/ui/components/input";
+} from "@meshguard/ui/components/form";
+import { Input } from "@meshguard/ui/components/input";
 import { authClient, unwrap } from "~/lib/auth-client";
 import { useHydrated } from "~/hooks/use-hydrated";
 

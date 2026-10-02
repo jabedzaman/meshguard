@@ -1,4 +1,4 @@
-import type { Db } from "@mesh/db";
+import type { Db } from "@meshguard/db";
 import type { Redis } from "ioredis";
 import type { DeviceEvents } from "~/events/device-events";
 import { PresenceStore } from "~/lib/presence";

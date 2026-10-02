@@ -16,7 +16,7 @@ async function waitFor(url: string, name: string) {
   throw new Error(`${name} isn't reachable at ${url}. Start the e2e stack with \`pnpm e2e:up\`.`);
 }
 
-/** Fresh mesh_test database, then wait for the e2e stack. */
+/** Fresh meshguard_test database, then wait for the e2e stack. */
 export default async function globalSetup() {
   const testDb = new URL(E2E.databaseUrl);
   const dbName = testDb.pathname.slice(1);
@@ -30,7 +30,7 @@ export default async function globalSetup() {
   if (exists.rowCount === 0) await admin.query(`create database "${dbName}"`);
   await admin.end();
 
-  execSync("pnpm --filter @mesh/db db:migrate", {
+  execSync("pnpm --filter @meshguard/db db:migrate", {
     stdio: "ignore",
     env: { ...process.env, DATABASE_URL: E2E.databaseUrl },
   });

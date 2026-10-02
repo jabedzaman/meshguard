@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Button } from "@mesh/ui/components/button";
+import { Button } from "@meshguard/ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@mesh/ui/components/card";
+} from "@meshguard/ui/components/card";
 import { InvitationResponse } from "~/components/invitation-response";
 import { SignOutButton } from "~/components/sign-out-button";
 import { loadInvitation } from "~/lib/invitations";
@@ -92,7 +92,7 @@ export default async function InvitationPage({ params }: PageProps<"/invitations
       </CardHeader>
       <CardContent>
         <Button asChild variant="outline">
-          <Link href="/">Go to Mesh</Link>
+          <Link href="/">Go to MeshGuard</Link>
         </Button>
       </CardContent>
     </Card>

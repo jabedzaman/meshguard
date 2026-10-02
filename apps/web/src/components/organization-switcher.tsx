@@ -3,7 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@mesh/ui/components/button";
+import { Button } from "@meshguard/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +11,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@mesh/ui/components/dropdown-menu";
+} from "@meshguard/ui/components/dropdown-menu";
 import {
   type ActiveOrganization,
   useOrganization,

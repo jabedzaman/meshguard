@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/mcp",
+  "name": "@meshguard/mcp",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "tsx": "^4.23.15"
   },
   "dependencies": {
-    "@mesh/mcp-sdk": "workspace:^",
+    "@meshguard/mcp-sdk": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.31.0",
     "zod": "^4.6.5"
   }

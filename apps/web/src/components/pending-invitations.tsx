@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@mesh/ui/components/button";
+import { Button } from "@meshguard/ui/components/button";
 import { useOrganization, usePermission } from "~/components/providers/organization-provider";
 import { authClient, unwrap } from "~/lib/auth-client";
 import { invitationQueries } from "~/lib/queries";

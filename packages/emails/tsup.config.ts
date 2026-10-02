@@ -6,5 +6,5 @@ export default defineConfig({
   entry: ["src/index.tsx"],
   format: ["esm"],
   sourcemap: true,
-  external: [/^@mesh\//],
+  external: [/^@meshguard\//],
 });

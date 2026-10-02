@@ -21,9 +21,9 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch
 COPY . .
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile \
-    --filter @mesh/workers... \
-    --filter mesh
+    --filter @meshguard/workers... \
+    --filter meshguard
 
-RUN pnpm turbo run build --filter=@mesh/workers^...
+RUN pnpm turbo run build --filter=@meshguard/workers^...
 
-CMD ["pnpm", "-F", "@mesh/workers", "watch"]
+CMD ["pnpm", "-F", "@meshguard/workers", "watch"]

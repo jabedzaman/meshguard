@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mesh",
+  title: "MeshGuard",
   description: "Private networking and remote dev environments",
 };
 

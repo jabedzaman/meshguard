@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/twinlabshq/mesh/internal/stun"
+	"github.com/jabedzaman/meshguard/internal/stun"
 )
 
 // stunFreshFor is how long a STUN result is advertised without a new answer.

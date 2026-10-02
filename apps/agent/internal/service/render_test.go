@@ -7,15 +7,15 @@ import (
 )
 
 var cfg = Config{
-	Binary: "/usr/local/bin/mesh-agent",
-	Args:   []string{"-socket-owner", "501:20", "-state-dir", "/Library/Application Support/Mesh"},
+	Binary: "/usr/local/bin/meshguard-agent",
+	Args:   []string{"-socket-owner", "501:20", "-state-dir", "/Library/Application Support/MeshGuard"},
 }
 
 func TestLaunchdPlist(t *testing.T) {
 	plist := LaunchdPlist(cfg)
-	assert.Contains(t, plist, "<string>dev.twinlabs.mesh.agent</string>")
-	assert.Contains(t, plist, "\t\t<string>/usr/local/bin/mesh-agent</string>\n\t\t<string>-socket-owner</string>\n\t\t<string>501:20</string>")
-	assert.Contains(t, plist, "<string>/Library/Application Support/Mesh</string>", "spaces need no quoting in plist")
+	assert.Contains(t, plist, "<string>dev.jabed.meshguard.agent</string>")
+	assert.Contains(t, plist, "\t\t<string>/usr/local/bin/meshguard-agent</string>\n\t\t<string>-socket-owner</string>\n\t\t<string>501:20</string>")
+	assert.Contains(t, plist, "<string>/Library/Application Support/MeshGuard</string>", "spaces need no quoting in plist")
 	assert.Contains(t, plist, "<key>KeepAlive</key>\n\t<true/>")
 	assert.Contains(t, plist, "<key>RunAtLoad</key>\n\t<true/>")
 }
@@ -26,7 +26,7 @@ func TestLaunchdPlistEscapesXML(t *testing.T) {
 
 func TestSystemdUnit(t *testing.T) {
 	unit := SystemdUnit(cfg)
-	assert.Contains(t, unit, `ExecStart=/usr/local/bin/mesh-agent -socket-owner 501:20 -state-dir "/Library/Application Support/Mesh"`)
+	assert.Contains(t, unit, `ExecStart=/usr/local/bin/meshguard-agent -socket-owner 501:20 -state-dir "/Library/Application Support/MeshGuard"`)
 	assert.Contains(t, unit, "Restart=always")
 	assert.Contains(t, unit, "WantedBy=multi-user.target")
 	assert.Contains(t, unit, "After=network-online.target")

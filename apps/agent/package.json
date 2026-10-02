@@ -1,10 +1,10 @@
 {
-  "name": "@mesh/agent",
+  "name": "@meshguard/agent",
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "go build -o bin/mesh-agent ./cmd/mesh-agent",
-    "start": "go run ./cmd/mesh-agent",
+    "build": "go build -o bin/meshguard-agent ./cmd/meshguard-agent",
+    "start": "go run ./cmd/meshguard-agent",
     "lint": "go vet ./...",
     "test": "go test ./..."
   }

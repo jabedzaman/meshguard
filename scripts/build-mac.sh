@@ -6,5 +6,5 @@ cd "$(dirname "$0")/.."
 
 out=$(scripts/build-agent.sh darwin "${1:-arm64}" | tail -1 | cut -d' ' -f1)
 rm -rf dist/mac && mkdir -p dist/mac
-cp "$out/mesh" "$out/mesh-agent" scripts/mac/update.sh scripts/mac/uninstall.sh dist/mac/
-echo "Built dist/mac. On the Mac: ~/Downloads/mesh/update.sh"
+cp "$out/meshguard" "$out/meshguard-agent" scripts/mac/update.sh scripts/mac/uninstall.sh dist/mac/
+echo "Built dist/mac. On the Mac: ~/Downloads/meshguard/update.sh"

@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, schema, type Db } from "@mesh/db";
+import { and, desc, eq, gt, isNull, schema, type Db } from "@meshguard/db";
 import { ForbiddenError, NotFoundError } from "~/errors";
 import { generateEnrollmentToken, hashToken, tokenDisplayPrefix } from "~/lib/tokens";
 

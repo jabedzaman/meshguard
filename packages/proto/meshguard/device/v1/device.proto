@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package mesh.device.v1;
+package meshguard.device.v1;
 
 import "google/protobuf/timestamp.proto";
 

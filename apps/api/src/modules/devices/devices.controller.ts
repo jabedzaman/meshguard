@@ -7,7 +7,7 @@ import { requireDevice } from "~/middlewares/device.middleware";
 import { enrollDeviceBody, syncDeviceBody } from "~/modules/devices/devices.schema";
 import { networkIdParams } from "~/schemas/params.schema";
 
-/** Called by the agent (`mesh up --token ...`); authenticated by the enrollment token. */
+/** Called by the agent (`meshguard up --token ...`); authenticated by the enrollment token. */
 export const enroll = factory.createHandlers(validate("json", enrollDeviceBody), async (c) => {
   const result = await c.var.services.devices.enroll(c.req.valid("json"));
   return c.json(result, 201);
@@ -78,7 +78,7 @@ export const sync = factory.createHandlers(
   },
 );
 
-/** `mesh logout`: the device removes itself (signed with its identity key). */
+/** `meshguard logout`: the device removes itself (signed with its identity key). */
 export const deleteSelf = factory.createHandlers(requireDevice, async (c) => {
   await c.var.services.devices.deleteSelf(c.var.device.id);
   return c.body(null, 204);

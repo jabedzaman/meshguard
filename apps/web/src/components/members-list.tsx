@@ -1,15 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ROLES, type Role } from "@mesh/auth/permissions";
-import { Button } from "@mesh/ui/components/button";
+import { ROLES, type Role } from "@meshguard/auth/permissions";
+import { Button } from "@meshguard/ui/components/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@mesh/ui/components/select";
+} from "@meshguard/ui/components/select";
 import { ConfirmDialog } from "~/components/confirm-dialog";
 import {
   useCurrentUser,

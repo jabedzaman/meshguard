@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/desktop",
+  "name": "@meshguard/desktop",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mesh/ui": "workspace:^",
+    "@meshguard/ui": "workspace:^",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "react": "catalog:",

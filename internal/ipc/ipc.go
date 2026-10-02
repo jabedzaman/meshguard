@@ -11,19 +11,19 @@ import (
 	"time"
 )
 
-// DefaultSocketPath returns where the agent listens. MESH_SOCKET overrides it,
+// DefaultSocketPath returns where the agent listens. MESHGUARD_SOCKET overrides it,
 // which is useful when running an unprivileged dev agent.
 func DefaultSocketPath() string {
-	if p := os.Getenv("MESH_SOCKET"); p != "" {
+	if p := os.Getenv("MESHGUARD_SOCKET"); p != "" {
 		return p
 	}
-	return "/var/run/mesh/agent.sock"
+	return "/var/run/meshguard/agent.sock"
 }
 
 // Status is returned by GET /v1/status.
 type Status struct {
 	Version string `json:"version"`
-	// "not_enrolled", "down" (enrolled, disconnected by `mesh down`),
+	// "not_enrolled", "down" (enrolled, disconnected by `meshguard down`),
 	// "enrolled" (registered but not connected; see Problem) or "connected"
 	// (WireGuard up and synced).
 	State   string   `json:"state"`
@@ -87,7 +87,7 @@ type Network struct {
 }
 
 // UpRequest is the body of POST /v1/up: enroll this machine with a token, or
-// (no token) reconnect after `mesh down`.
+// (no token) reconnect after `meshguard down`.
 type UpRequest struct {
 	Token  string `json:"token,omitempty"`
 	Server string `json:"server,omitempty"`

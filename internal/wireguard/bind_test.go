@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.zx2c4.com/wireguard/conn"
 
-	"github.com/twinlabshq/mesh/internal/relay"
+	"github.com/jabedzaman/meshguard/internal/relay"
 )
 
 func TestBindRoutesRelayEndpointsThroughRelay(t *testing.T) {

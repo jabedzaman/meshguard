@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/web",
+  "name": "@meshguard/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,11 +11,11 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
-    "@mesh/api-client": "workspace:^",
-    "@mesh/auth": "workspace:^",
-    "@mesh/config": "workspace:^",
-    "@mesh/db": "workspace:^",
-    "@mesh/ui": "workspace:^",
+    "@meshguard/api-client": "workspace:^",
+    "@meshguard/auth": "workspace:^",
+    "@meshguard/config": "workspace:^",
+    "@meshguard/db": "workspace:^",
+    "@meshguard/ui": "workspace:^",
     "@tanstack/react-query": "^5.104.0",
     "better-auth": "1.7.7",
     "lucide-react": "catalog:",

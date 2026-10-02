@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { InferRequestType } from "@mesh/api-client";
-import { parseResponse } from "@mesh/api-client";
+import type { InferRequestType } from "@meshguard/api-client";
+import { parseResponse } from "@meshguard/api-client";
 import { api } from "~/lib/api";
 import { authClient, unwrap } from "~/lib/auth-client";
 

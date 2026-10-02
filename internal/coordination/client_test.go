@@ -35,7 +35,7 @@ func newFakeControlPlane(t *testing.T) *httptest.Server {
 func TestEnroll(t *testing.T) {
 	c := NewClient(newFakeControlPlane(t).URL + "/") // trailing slash is trimmed
 
-	res, err := c.Enroll(context.Background(), EnrollRequest{Token: "mesh_enr_ok", Hostname: "laptop"})
+	res, err := c.Enroll(context.Background(), EnrollRequest{Token: "meshguard_enr_ok", Hostname: "laptop"})
 	require.NoError(t, err)
 	assert.Equal(t, "10.77.3.4", res.Device.MeshIPv4)
 	assert.Equal(t, "home", res.Network.Name)

@@ -1,4 +1,4 @@
-import { createLogger } from "@mesh/utils";
+import { createLogger } from "@meshguard/utils";
 import nodemailer from "nodemailer";
 
 const logger = createLogger("mailer");
@@ -13,7 +13,7 @@ export interface Email {
 export interface MailerOptions {
   /** e.g. smtp://mailpit:1025 in development, smtps://user:pass@host:465 in production. */
   smtpUrl: string;
-  /** e.g. "Mesh <no-reply@example.com>" */
+  /** e.g. "MeshGuard <no-reply@example.com>" */
   from: string;
 }
 

@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
-import { Button } from "@mesh/ui/components/button";
+import { Button } from "@meshguard/ui/components/button";
 import { useHydrated } from "~/hooks/use-hydrated";
 import { authClient, unwrap } from "~/lib/auth-client";
 

@@ -12,12 +12,12 @@ preconditions, `assert` for checks) and `httptest` for fake servers.
 ## End-to-end tests
 
 Playwright specs live in `tests/e2e`. They run against a separate stack (web
-:3200, API :4200, database `mesh_test`, Redis db 1), so they never touch dev
+:3200, API :4200, database `meshguard_test`, Redis db 1), so they never touch dev
 data. The browser runs in Docker, so no system packages are needed.
 
 ```sh
 pnpm e2e:up        # start api-e2e, web-e2e, workers-e2e and the browser
-pnpm test:e2e      # resets mesh_test, then runs every spec
+pnpm test:e2e      # resets meshguard_test, then runs every spec
 pnpm test:e2e:ui   # Playwright UI mode
 pnpm e2e:down
 ```
@@ -29,9 +29,9 @@ the fixtures in `tests/e2e/support/fixtures.ts`: `createUser`,
 To use a local browser instead, set `E2E_LOCAL_BROWSER=1` (on Linux this needs
 `npx playwright install --with-deps chromium`).
 
-## Mesh lab
+## MeshGuard lab
 
-`pnpm lab` (see [development.md](development.md#mesh-lab)) is the end-to-end
+`pnpm lab` (see [development.md](development.md#meshguard-lab)) is the end-to-end
 check for the data plane: real agents with WireGuard in containers must ping
 each other's mesh IPv4 and IPv6 addresses: directly on a shared LAN, directly
 through a NAT router (STUN + hole punching), and through the relay behind a
@@ -39,7 +39,7 @@ symmetric NAT.
 
 ## Agent service
 
-`pnpm test:systemd` installs the agent with `mesh-agent install` in a Debian
+`pnpm test:systemd` installs the agent with `meshguard-agent install` in a Debian
 container running systemd as PID 1 and checks the unit, socket ownership,
 restart on crash and uninstall. See [cli.md](cli.md#testing-the-service) for
 testing on your own Linux or macOS machine.

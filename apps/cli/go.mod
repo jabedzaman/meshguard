@@ -1,11 +1,11 @@
-module github.com/twinlabshq/mesh/apps/cli
+module github.com/jabedzaman/meshguard/apps/cli
 
 go 1.27.1
 
 require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
-	github.com/twinlabshq/mesh/internal v0.0.0
+	github.com/jabedzaman/meshguard/internal v0.0.0
 )
 
 require (
@@ -16,4 +16,4 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 )
 
-replace github.com/twinlabshq/mesh/internal => ../../internal
+replace github.com/jabedzaman/meshguard/internal => ../../internal

@@ -1,7 +1,7 @@
 import "server-only";
-import { type Auth, authOptionsFromEnv, createAuth } from "@mesh/auth";
-import { loadAuthEnv } from "@mesh/config";
-import { createDb, type Db } from "@mesh/db";
+import { type Auth, authOptionsFromEnv, createAuth } from "@meshguard/auth";
+import { loadAuthEnv } from "@meshguard/config";
+import { createDb, type Db } from "@meshguard/db";
 
 // Server-side Better Auth instance and database, shared with the API, so the
 // proxy, layouts and server components can read sessions directly.

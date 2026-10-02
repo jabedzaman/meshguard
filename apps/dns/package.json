@@ -1,10 +1,10 @@
 {
-  "name": "@mesh/dns",
+  "name": "@meshguard/dns",
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "go build -o bin/mesh-dns ./cmd/mesh-dns",
-    "start": "go run ./cmd/mesh-dns",
+    "build": "go build -o bin/meshguard-dns ./cmd/meshguard-dns",
+    "start": "go run ./cmd/meshguard-dns",
     "lint": "go vet ./...",
     "test": "go test ./..."
   }

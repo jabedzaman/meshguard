@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { getErrorMessage } from "@mesh/api-client";
+import { getErrorMessage } from "@meshguard/api-client";
 import { useOrganization } from "~/components/providers/organization-provider";
 import { networkQueries } from "~/lib/queries";
 

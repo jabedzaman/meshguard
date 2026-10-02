@@ -1,5 +1,5 @@
 import { createMiddleware } from "hono/factory";
-import { AppError, DEVICE_HEADERS, verifyDeviceSignature } from "@mesh/server-core";
+import { AppError, DEVICE_HEADERS, verifyDeviceSignature } from "@meshguard/server-core";
 import type { AppEnv } from "~/types";
 
 export interface AuthenticatedDevice {
@@ -13,7 +13,7 @@ function rejected(message: string) {
 
 /**
  * Authenticates an agent request signed with the device's identity key (see
- * @mesh/server-core device-auth). Exposes the device as c.var.device.
+ * @meshguard/server-core device-auth). Exposes the device as c.var.device.
  */
 export const requireDevice = createMiddleware<
   AppEnv & { Variables: { device: AuthenticatedDevice } }

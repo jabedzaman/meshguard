@@ -23,6 +23,6 @@ describe("enrollment tokens", () => {
   });
 
   it("display prefix keeps 6 characters after the prefix", () => {
-    expect(tokenDisplayPrefix("mesh_enr_abcdefghijk")).toBe("mesh_enr_abcdef");
+    expect(tokenDisplayPrefix("meshguard_enr_abcdefghijk")).toBe("meshguard_enr_abcdef");
   });
 });

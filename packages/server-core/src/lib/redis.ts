@@ -1,4 +1,4 @@
-import { createLogger } from "@mesh/utils";
+import { createLogger } from "@meshguard/utils";
 import { Redis } from "ioredis";
 
 export type { Redis };

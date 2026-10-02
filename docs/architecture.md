@@ -10,11 +10,11 @@
 | `apps/desktop` | Desktop app (Tauri 2 + React) |
 | `apps/mcp` | MCP server |
 | `apps/agent` | Device daemon (Go) |
-| `apps/cli` | `mesh` CLI (Go) |
+| `apps/cli` | `meshguard` CLI (Go) |
 | `apps/relay`, `apps/dns` | Relay and DNS services (Go) |
 | `internal/` | Shared Go packages |
 | `packages/server-core` | Business logic: services, domain errors, queues |
-| `packages/auth` | Better Auth setup; `@mesh/auth/permissions` holds the roles |
+| `packages/auth` | Better Auth setup; `@meshguard/auth/permissions` holds the roles |
 | `packages/db` | Drizzle schema and migrations |
 | `packages/emails` | Email templates (react-email) |
 | `packages/api-client` | Typed API client (Hono RPC) |
@@ -48,12 +48,12 @@ packages/server-core/src/
 - Errors are returned as `{ "error": { "code", "message", "details?", "requestId" } }`.
 - The organization id always comes from the session (`requireOrganization`),
   never from request params.
-- Log with `createLogger` from `@mesh/utils`, never `console`.
+- Log with `createLogger` from `@meshguard/utils`, never `console`.
 
 ## Auth and roles
 
 Better Auth handles users, sessions, organizations, members and invitations.
-Roles (owner, admin, member) are defined once in `@mesh/auth/permissions`; the
+Roles (owner, admin, member) are defined once in `@meshguard/auth/permissions`; the
 API enforces them with `requirePermission(...)` and the web app uses the same
 definitions to hide actions (`usePermission(...)`).
 
@@ -63,30 +63,30 @@ organization); layouts and pages only load data.
 ## Device enrollment
 
 A device joins a network with a one-time enrollment token
-(`mesh up --token mesh_enr_...`). Tokens are created from the network page,
+(`meshguard up --token meshguard_enr_...`). Tokens are created from the network page,
 shown once, and stored only as a SHA-256 hash with a short display prefix.
 They expire (1h / 24h / 7d), can be revoked, and are single-use. Members can
 create tokens; revoking someone else's needs `device: delete`.
 
-`mesh up --token` asks the local agent (Unix socket) to enroll. The agent
+`meshguard up --token` asks the local agent (Unix socket) to enroll. The agent
 generates an Ed25519 identity key and a Curve25519 WireGuard key, sends only
 the public keys to `POST /v1/devices/enroll`, and saves its state (0600) in
-`/var/lib/mesh` (`MESH_STATE_DIR` overrides). The API consumes the token and
+`/var/lib/meshguard` (`MESHGUARD_STATE_DIR` overrides). The API consumes the token and
 creates the device in one transaction, picking random free addresses and
 retrying on the per-network unique constraints.
 
 ## Coordination and WireGuard
 
 Once enrolled, the agent signs every control plane request with its identity
-key: `X-Mesh-Device`, `X-Mesh-Timestamp` (unix ms, ±2 min) and
-`X-Mesh-Signature` = Ed25519 over `METHOD\npath\ntimestamp\nsha256(body)`
+key: `X-MeshGuard-Device`, `X-MeshGuard-Timestamp` (unix ms, ±2 min) and
+`X-MeshGuard-Signature` = Ed25519 over `METHOD\npath\ntimestamp\nsha256(body)`
 (`packages/server-core/src/lib/device-auth.ts`, `internal/coordination/sign.go`;
 both test the same vector).
 
 Every 10s the agent calls `POST /v1/devices/self/sync` with its endpoints
 (local interface addresses on the WireGuard port) and gets back the network
 map: every peer's WireGuard key, mesh addresses and endpoints. It runs an
-embedded wireguard-go on a TUN interface (`mesh0`, `utunN` on macOS), assigns
+embedded wireguard-go on a TUN interface (`meshguard0`, `utunN` on macOS), assigns
 its mesh addresses with the network prefix (so the whole range routes through
 the interface) and replaces the peer list when the map changes. Each peer gets
 its first endpoint, host routes for its mesh addresses and a 25s keepalive.
@@ -125,7 +125,7 @@ to (same LAN), a hole-punched path (below), and the relay otherwise.
 ## Hole punching
 
 - **STUN.** The agent sends STUN binding requests from WireGuard's own UDP
-  socket to the servers in the sync response (`STUN_SERVERS`; `mesh-relay`
+  socket to the servers in the sync response (`STUN_SERVERS`; `meshguard-relay`
   answers STUN on UDP 3478) and advertises the public address it learns.
 - **Disco.** While a peer is reachable only via the relay, both agents send
   "disco" pings to each other's candidate endpoints every 2s, from WireGuard's
@@ -157,7 +157,7 @@ clashes with the other side's mapping, so punching fails and traffic stays on
 the relay; symmetric NATs also stay on the relay. Next options: coordinated
 simultaneous punching, the low-TTL trick, and UPnP / NAT-PMP / PCP port
 mappings. Without root the agent stays registered and syncing, and
-`mesh status` explains why WireGuard isn't running.
+`meshguard status` explains why WireGuard isn't running.
 
 ## Private DNS
 
@@ -171,12 +171,12 @@ unique per network; the API picks `laptop`, `laptop-2`, … at enrollment.
   map. Unknown names under `.internal` get NXDOMAIN; anything else is refused,
   since the OS only sends `.internal` here.
 - Split DNS: macOS reads `/etc/resolver/internal`; on Linux the agent sets
-  the resolver and `~internal` routing domain on `mesh0` through
+  the resolver and `~internal` routing domain on `meshguard0` through
   systemd-resolved. Nothing else on the machine changes, and without
   systemd-resolved the agent leaves resolv.conf alone and says so in
-  `mesh status`.
+  `meshguard status`.
 - Names are answered locally, so lookups work offline and never reach the
-  control plane. No `mesh-dns` service is involved yet.
+  control plane. No `meshguard-dns` service is involved yet.
 
 ## Email
 

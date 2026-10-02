@@ -10,7 +10,7 @@ import (
 
 	"golang.zx2c4.com/wireguard/conn"
 
-	"github.com/twinlabshq/mesh/internal/relay"
+	"github.com/jabedzaman/meshguard/internal/relay"
 )
 
 // RelayEndpointPrefix marks a peer endpoint that goes through the relay:

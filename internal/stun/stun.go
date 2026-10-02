@@ -120,7 +120,7 @@ func parseAddress(v []byte, tx TxID, xor bool) (netip.AddrPort, bool) {
 }
 
 // Response builds a binding success response telling the requester its
-// address, for the STUN server built into mesh-relay.
+// address, for the STUN server built into meshguard-relay.
 func Response(request []byte, from netip.AddrPort) ([]byte, bool) {
 	if !IsRequest(request) {
 		return nil, false

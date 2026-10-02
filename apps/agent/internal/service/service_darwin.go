@@ -29,5 +29,5 @@ func uninstall() error {
 
 // Describe says where the service lives, for the CLI output.
 func Describe() string {
-	return "launchd daemon " + Label + " (" + plistPath + "), logs in /var/log/mesh-agent.log"
+	return "launchd daemon " + Label + " (" + plistPath + "), logs in /var/log/meshguard-agent.log"
 }

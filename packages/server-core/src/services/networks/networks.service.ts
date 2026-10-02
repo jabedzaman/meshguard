@@ -1,4 +1,4 @@
-import { and, eq, schema, type Db } from "@mesh/db";
+import { and, eq, schema, type Db } from "@meshguard/db";
 import { ConflictError, NotFoundError } from "~/errors";
 import { isUniqueViolation } from "~/lib/db-errors";
 import { DEFAULT_IPV4_CIDR, randomUlaPrefix } from "~/lib/ip";

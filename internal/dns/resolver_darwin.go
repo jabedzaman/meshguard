@@ -13,7 +13,7 @@ import (
 // agent; see man 5 resolver.
 const resolverFile = "/etc/resolver/" + Domain
 
-const managedMarker = "# Managed by mesh-agent"
+const managedMarker = "# Managed by meshguard-agent"
 
 // ListenAddr is where the agent serves DNS. Not the mesh address: macOS
 // routes the utun's own address into the tunnel, so local queries to it would
@@ -26,7 +26,7 @@ func ListenAddr(netip.Addr) netip.AddrPort {
 // short description of how, for status.
 func ConfigureOS(_ string, server netip.AddrPort) (string, error) {
 	if b, err := os.ReadFile(resolverFile); err == nil && !strings.HasPrefix(string(b), managedMarker) {
-		return "", fmt.Errorf("%s exists and isn't managed by mesh", resolverFile)
+		return "", fmt.Errorf("%s exists and isn't managed by meshguard", resolverFile)
 	}
 	if err := os.MkdirAll("/etc/resolver", 0o755); err != nil {
 		return "", err

@@ -1,6 +1,6 @@
 import type { ErrorHandler, NotFoundHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { AppError } from "@mesh/server-core";
+import { AppError } from "@meshguard/server-core";
 import { logger } from "~/lib/logger";
 import type { AppEnv } from "~/types";
 

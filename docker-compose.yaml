@@ -1,26 +1,26 @@
-name: "mesh"
+name: "meshguard"
 
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: mesh-postgres
+    container_name: meshguard-postgres
     environment:
-      POSTGRES_USER: mesh
-      POSTGRES_PASSWORD: mesh
-      POSTGRES_DB: mesh
+      POSTGRES_USER: meshguard
+      POSTGRES_PASSWORD: meshguard
+      POSTGRES_DB: meshguard
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mesh -d mesh"]
+      test: ["CMD-SHELL", "pg_isready -U meshguard -d meshguard"]
       interval: 5s
       timeout: 5s
       retries: 12
 
   redis:
     image: redis:7.4-alpine
-    container_name: mesh-redis
+    container_name: meshguard-redis
     ports:
       - "${REDIS_HOST_PORT:-6379}:6379"
     volumes:
@@ -28,7 +28,7 @@ services:
 
   nats:
     image: nats:2.11-alpine
-    container_name: mesh-nats
+    container_name: meshguard-nats
     command: ["--jetstream", "--store_dir", "/data", "--http_port", "8222"]
     ports:
       - "${NATS_HOST_PORT:-4222}:4222"
@@ -38,7 +38,7 @@ services:
 
   mailpit:
     image: axllent/mailpit:latest
-    container_name: mesh-mailpit
+    container_name: meshguard-mailpit
     ports:
       - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
       - "${MAILPIT_UI_HOST_PORT:-8025}:8025"

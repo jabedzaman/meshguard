@@ -1,4 +1,4 @@
-module github.com/twinlabshq/mesh/internal
+module github.com/jabedzaman/meshguard/internal
 
 go 1.27.1
 

@@ -1,10 +1,10 @@
 {
-  "name": "@mesh/relay",
+  "name": "@meshguard/relay",
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "go build -o bin/mesh-relay ./cmd/mesh-relay",
-    "start": "go run ./cmd/mesh-relay",
+    "build": "go build -o bin/meshguard-relay ./cmd/meshguard-relay",
+    "start": "go run ./cmd/meshguard-relay",
     "lint": "go vet ./...",
     "test": "go test ./..."
   }

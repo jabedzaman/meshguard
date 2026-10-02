@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds mesh-agent and mesh into dist/<os>-<arch>/, stamped with the git version.
+# Builds meshguard-agent and meshguard into dist/<os>-<arch>/, stamped with the git version.
 # Usage: scripts/build-agent.sh [goos] [goarch]   (default: this machine)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -12,6 +12,6 @@ version=$(git describe --always --dirty)
 mkdir -p "$out"
 
 export GOOS=$goos GOARCH=$goarch CGO_ENABLED=0
-(cd apps/agent && go build -ldflags "-X main.version=$version" -o "$out/mesh-agent" ./cmd/mesh-agent)
-(cd apps/cli && go build -ldflags "-X github.com/twinlabshq/mesh/apps/cli/internal/cli.Version=$version" -o "$out/mesh" ./cmd/mesh)
+(cd apps/agent && go build -ldflags "-X main.version=$version" -o "$out/meshguard-agent" ./cmd/meshguard-agent)
+(cd apps/cli && go build -ldflags "-X github.com/jabedzaman/meshguard/apps/cli/internal/cli.Version=$version" -o "$out/meshguard" ./cmd/meshguard)
 echo "$out ($version)"

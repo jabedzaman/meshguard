@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { Permissions, Role } from "@mesh/auth/permissions";
+import type { Permissions, Role } from "@meshguard/auth/permissions";
 import { authClient } from "~/lib/auth-client";
 
 export interface ActiveOrganization {

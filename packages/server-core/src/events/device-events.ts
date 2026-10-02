@@ -1,5 +1,5 @@
 import type { NatsConnection } from "@nats-io/transport-node";
-import { createLogger } from "@mesh/utils";
+import { createLogger } from "@meshguard/utils";
 
 const logger = createLogger("device-events");
 

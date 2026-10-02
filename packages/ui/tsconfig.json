@@ -11,7 +11,7 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "paths": {
-      "@mesh/ui/*": ["./src/*"]
+      "@meshguard/ui/*": ["./src/*"]
     }
   },
   "include": ["src"]

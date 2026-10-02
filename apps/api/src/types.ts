@@ -1,5 +1,5 @@
-import type { Auth, Session, User } from "@mesh/auth";
-import type { Services } from "@mesh/server-core";
+import type { Auth, Session, User } from "@meshguard/auth";
+import type { Services } from "@meshguard/server-core";
 
 export interface AppEnv {
   Variables: {

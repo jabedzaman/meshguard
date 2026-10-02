@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
-import type { Auth } from "@mesh/auth";
-import type { Db } from "@mesh/db";
-import { createServices, type DeviceEvents, type Redis } from "@mesh/server-core";
+import type { Auth } from "@meshguard/auth";
+import type { Db } from "@meshguard/db";
+import { createServices, type DeviceEvents, type Redis } from "@meshguard/server-core";
 import { sessionMiddleware } from "~/middlewares/auth.middleware";
 import { errorHandler, notFoundHandler } from "~/middlewares/error.middleware";
 import { loggingMiddleware } from "~/middlewares/logging.middleware";
@@ -26,7 +26,7 @@ export interface AppDeps {
 }
 
 // Routes must be chained so their types accumulate into AppType, which
-// @mesh/api-client uses to type every request and response.
+// @meshguard/api-client uses to type every request and response.
 export function createApp({
   db,
   redis,

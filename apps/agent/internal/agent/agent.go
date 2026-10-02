@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/twinlabshq/mesh/internal/coordination"
-	"github.com/twinlabshq/mesh/internal/disco"
-	"github.com/twinlabshq/mesh/internal/discovery"
-	"github.com/twinlabshq/mesh/internal/dns"
-	"github.com/twinlabshq/mesh/internal/ipc"
-	"github.com/twinlabshq/mesh/internal/relay"
-	"github.com/twinlabshq/mesh/internal/state"
-	"github.com/twinlabshq/mesh/internal/stun"
-	"github.com/twinlabshq/mesh/internal/wireguard"
+	"github.com/jabedzaman/meshguard/internal/coordination"
+	"github.com/jabedzaman/meshguard/internal/disco"
+	"github.com/jabedzaman/meshguard/internal/discovery"
+	"github.com/jabedzaman/meshguard/internal/dns"
+	"github.com/jabedzaman/meshguard/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/relay"
+	"github.com/jabedzaman/meshguard/internal/state"
+	"github.com/jabedzaman/meshguard/internal/stun"
+	"github.com/jabedzaman/meshguard/internal/wireguard"
 )
 
 // Engine is the WireGuard device; an interface so tests can fake it.
@@ -44,7 +44,7 @@ type Agent struct {
 	StateDir string
 	// WireGuard UDP port. Default 51820.
 	ListenPort int
-	// Requested interface name. Default "mesh0" ("utun" on macOS).
+	// Requested interface name. Default "meshguard0" ("utun" on macOS).
 	InterfaceName string
 	// How often to sync with the control plane. Default 10s.
 	SyncInterval time.Duration
@@ -218,7 +218,7 @@ func (a *Agent) engineConfig(st *state.State) (wireguard.Config, error) {
 	}
 	name := a.InterfaceName
 	if name == "" {
-		name = "mesh0"
+		name = "meshguard0"
 		if runtime.GOOS == "darwin" {
 			name = "utun"
 		}

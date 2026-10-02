@@ -1,5 +1,5 @@
-// Package cli implements the mesh command-line interface. Every command talks
-// to the local agent (mesh-agent) over its Unix socket.
+// Package cli implements the meshguard command-line interface. Every command talks
+// to the local agent (meshguard-agent) over its Unix socket.
 package cli
 
 import (
@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/ipc"
 )
 
 // Version is set at build time (-ldflags "-X .../internal/cli.Version=...").
@@ -28,17 +28,17 @@ func Execute() {
 func newRoot() *cobra.Command {
 	o := &options{}
 	root := &cobra.Command{
-		Use:   "mesh",
+		Use:   "meshguard",
 		Short: "Connect this machine to your private mesh network",
-		Long: `mesh controls the local mesh agent: join a network, see peers and how
+		Long: `meshguard controls the local MeshGuard agent: join a network, see peers and how
 they're reached, diagnose connectivity.
 
-The agent must be running: sudo mesh-agent install (or sudo mesh-agent).`,
+The agent must be running: sudo meshguard-agent install (or sudo meshguard-agent).`,
 		SilenceUsage:  true,
 		SilenceErrors: false,
 	}
 	root.PersistentFlags().StringVar(&o.socket, "socket", ipc.DefaultSocketPath(),
-		"agent socket ($MESH_SOCKET)")
+		"agent socket ($MESHGUARD_SOCKET)")
 
 	root.AddCommand(
 		newUp(o), newDown(o), newLogout(o),

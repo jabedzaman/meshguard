@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ENROLLMENT_TOKEN_PREFIX } from "@mesh/server-core";
+import { ENROLLMENT_TOKEN_PREFIX } from "@meshguard/server-core";
 
 /** Base64 (standard) encoding of exactly 32 bytes: Ed25519 and Curve25519 public keys. */
 const publicKey32 = z

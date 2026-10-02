@@ -1,3 +1,3 @@
-import { createLogger } from "@mesh/utils";
+import { createLogger } from "@meshguard/utils";
 
 export const logger = createLogger("workers");

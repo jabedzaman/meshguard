@@ -8,8 +8,8 @@ RUN go install github.com/air-verse/air@latest
 WORKDIR /app/apps/relay
 
 CMD ["air", \
-     "--build.cmd", "go build -o /tmp/mesh-relay ./cmd/mesh-relay", \
-     "--build.entrypoint", "/tmp/mesh-relay", \
+     "--build.cmd", "go build -o /tmp/meshguard-relay ./cmd/meshguard-relay", \
+     "--build.entrypoint", "/tmp/meshguard-relay", \
      "--build.include_ext", "go", \
      "--build.exclude_dir", "bin", \
      "--build.poll", "true", \

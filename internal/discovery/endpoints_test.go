@@ -44,10 +44,10 @@ func TestDirectEndpoint(t *testing.T) {
 func TestUsable(t *testing.T) {
 	up := net.FlagUp | net.FlagBroadcast | net.FlagMulticast
 	assert.True(t, usable(up, "en0", "utun7"), "ethernet/wifi")
-	assert.True(t, usable(up, "docker0", "mesh0"), "bridges are shared networks")
-	assert.False(t, usable(net.FlagUp|net.FlagPointToPoint, "tailscale0", "mesh0"), "VPN tunnels are point-to-point")
+	assert.True(t, usable(up, "docker0", "meshguard0"), "bridges are shared networks")
+	assert.False(t, usable(net.FlagUp|net.FlagPointToPoint, "tailscale0", "meshguard0"), "VPN tunnels are point-to-point")
 	assert.False(t, usable(net.FlagUp|net.FlagPointToPoint, "utun3", "utun7"), "macOS VPN utun")
-	assert.False(t, usable(up, "mesh0", "mesh0"), "our own interface")
+	assert.False(t, usable(up, "meshguard0", "meshguard0"), "our own interface")
 	assert.False(t, usable(net.FlagUp|net.FlagLoopback, "lo", ""), "loopback")
 	assert.False(t, usable(net.FlagBroadcast, "en1", ""), "down")
 }

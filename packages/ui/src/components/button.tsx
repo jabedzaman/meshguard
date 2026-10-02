@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@mesh/ui/lib/utils"
+import { cn } from "@meshguard/ui/lib/utils"
 import { Slot } from "radix-ui"
 
 const buttonVariants = cva(

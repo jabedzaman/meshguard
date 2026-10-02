@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/ipc"
 )
 
 var peers = []ipc.Peer{

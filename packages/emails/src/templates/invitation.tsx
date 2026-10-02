@@ -20,7 +20,7 @@ export interface InvitationEmailProps {
 }
 
 export function invitationSubject({ inviterName, organizationName }: InvitationEmailProps) {
-  return `${inviterName} invited you to ${organizationName} on Mesh`;
+  return `${inviterName} invited you to ${organizationName} on MeshGuard`;
 }
 
 export default function InvitationEmail({
@@ -32,10 +32,10 @@ export default function InvitationEmail({
   return (
     <Html lang="en">
       <Head />
-      <Preview>{`Join ${organizationName} on Mesh`}</Preview>
+      <Preview>{`Join ${organizationName} on MeshGuard`}</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
-          <Heading style={styles.heading}>Join {organizationName} on Mesh</Heading>
+          <Heading style={styles.heading}>Join {organizationName} on MeshGuard</Heading>
           <Text style={styles.text}>
             {inviterName} invited you to join <strong>{organizationName}</strong> as{" "}
             <strong>{role}</strong>.

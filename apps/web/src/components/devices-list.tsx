@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getErrorMessage } from "@mesh/api-client";
+import { getErrorMessage } from "@meshguard/api-client";
 import { useDeviceEvents } from "~/hooks/use-device-events";
 import { deviceQueries } from "~/lib/queries";
 

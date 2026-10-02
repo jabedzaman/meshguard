@@ -25,7 +25,7 @@ Networking should disappear into the workflow.
 - ✅ M0.7 Docker dev env: Postgres, Redis, NATS + api/web/relay/dns with hot reload (`apps/<app>/Dockerfile.dev`, env injected by Compose)
 - ✅ M0.8 Typed API client via Hono RPC (`hc<AppType>`), sample `/v1/networks` route
 - ✅ M0.9 First Drizzle migration (organizations, networks, devices)
-- ✅ M0.10 Playwright e2e suite (`pnpm e2e:up && pnpm test:e2e`) on an isolated stack and `mesh_test` database
+- ✅ M0.10 Playwright e2e suite (`pnpm e2e:up && pnpm test:e2e`) on an isolated stack and `meshguard_test` database
 
 ### M1 — Working private mesh (the real MVP) 🚧
 
@@ -41,7 +41,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.6 All auth routing in `web/proxy.ts` (session, active org); layouts only load data; onboarding at `/organizations/create`; `/api/organizations/[organizationId]/activate` restores a missing active org
 - ✅ M1.7 Networks: create (`POST /v1/networks`), default `10.77.0.0/16` (configurable, RFC 1918 only), random IPv6 ULA /48 per network
 - ✅ M1.8 Organization switcher
-- ✅ M1.9 Roles: owner / admin / member (`@mesh/auth/permissions`), enforced in the API with `requirePermission`
+- ✅ M1.9 Roles: owner / admin / member (`@meshguard/auth/permissions`), enforced in the API with `requirePermission`
 - ✅ M1.10 Invitations: invite by email (owner/admin), pending list, cancel; email via workers + react-email
 - ✅ M1.11 Invitation page `/invitations/[invitationId]`: accept / decline, sign-up from the link, wrong-account, expired / cancelled / used states
 - ✅ M1.12 Role assignment on the members list (owners: any role; admins: admin/member, not owners; own row read-only)
@@ -49,21 +49,21 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M1.14 Member search (when orgs grow); stale active org on a leaver's other devices (layout fallback)
 - ✅ M1.15 Device identity: Ed25519 identity + Curve25519 WireGuard keys, state file 0600 in a 0700 dir
 - ✅ M1.16 Enrollment tokens: create (shown once, hashed), list active, revoke; network page with Add device
-- ✅ M1.17 Enrollment: `mesh up --token` → agent generates keys → `POST /v1/devices/enroll` → device with random free mesh IPv4/IPv6; devices listed on the network page
+- ✅ M1.17 Enrollment: `meshguard up --token` → agent generates keys → `POST /v1/devices/enroll` → device with random free mesh IPv4/IPv6; devices listed on the network page
 - ✅ M1.18 Coordination: signed `POST /v1/devices/self/sync` every 10s returns the network map; agent applies peers
-- ✅ M1.19 WireGuard: embedded wireguard-go on TUN (`mesh0` / utun), mesh addresses + network routes (Linux in the lab; macOS on a real MacBook Air ↔ WSL, 2026-10-02, 0% loss both ways)
+- ✅ M1.19 WireGuard: embedded wireguard-go on TUN (`meshguard0` / utun), mesh addresses + network routes (Linux in the lab; macOS on a real MacBook Air ↔ WSL, 2026-10-02, 0% loss both ways)
 - ✅ M1.20 Endpoint discovery: local interface addresses + STUN-observed public address
 - ✅ M1.21 Presence: sync updates lastSeenAt; the API decides online (30s window); web polls every 5s
 - ✅ M1.22 Presence in Redis with TTL keys instead of a Postgres write per sync; Postgres gets endpoint changes and lastSeenAt every 5 min
 - ✅ M1.23 Push device events to the web instead of polling: NATS `network.<id>.device.<type>` (enrolled, connected, updated, disconnected via Redis key expiry, removed) → SSE → the device list refetches
 - ✅ M1.24 Reconnect: agent restart reconnects from saved state; network changes and wake from sleep rebind sockets, reset NAT/disco state, redial the relay and resync (lab: peer changes address → direct again in ~13s; verified on the MacBook, 2026-10-02)
-- ✅ M1.25 CLI (cobra): `mesh up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
+- ✅ M1.25 CLI (cobra): `meshguard up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
 - ✅ M1.26 Agent local API auth: peer credentials on the Unix socket (`SO_PEERCRED` / `LOCAL_PEERCRED`); only root, the agent's user and the socket owner are answered, unknown callers refused
 
 ### M2 — Reachability and naming 🚧
 
 - ✅ M2.1 Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks; real hardware: MacBook ↔ WSL via relay, 2026-10-02)
-- ✅ M2.2 NAT traversal, first cut: STUN (self-hosted in mesh-relay), sealed disco pings, learned NAT mappings; direct through a NAT to a reachable peer (lab), relay for symmetric NAT
+- ✅ M2.2 NAT traversal, first cut: STUN (self-hosted in meshguard-relay), sealed disco pings, learned NAT mappings; direct through a NAT to a reachable peer (lab), relay for symmetric NAT
 - ⬜ M2.3 NAT traversal when both peers are behind Linux-style NATs (conntrack port clash): coordinated punching / low-TTL trick / UPnP-NAT-PMP-PCP
 - ✅ M2.4 Point-to-point (VPN) interfaces are never advertised or treated as shared networks
 - ✅ M2.5 Device names use the short hostname (no `.local`)
@@ -74,7 +74,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 
 ### M3 — Desktop app ⬜
 
-- ✅ M3.1 Agent runs as a system service: `sudo mesh-agent install` (launchd / systemd; systemd tested by `pnpm test:systemd`; verified on a MacBook and WSL, 2026-10-02)
+- ✅ M3.1 Agent runs as a system service: `sudo meshguard-agent install` (launchd / systemd; systemd tested by `pnpm test:systemd`; verified on a MacBook and WSL, 2026-10-02)
 - ⬜ M3.2 Sign in, device enrollment, network selection
 - ⬜ M3.3 Device list, peer health, connection status
 - ⬜ M3.4 Agent ↔ desktop over Unix socket
@@ -87,14 +87,14 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M4.3 Port conflict detection and resolution
 - ⬜ M4.4 Service discovery, open URLs
 - ⬜ M4.5 Git status / diff
-- ⬜ M4.6 `mesh workspace list|activate|stop`
+- ⬜ M4.6 `meshguard workspace list|activate|stop`
 
 ### M5 — AI and diagnostics ⬜
 
-- ⬜ M5.1 `mesh doctor`: peer, handshake, route, ACL, DNS, port, Docker checks
+- ⬜ M5.1 `meshguard doctor`: peer, handshake, route, ACL, DNS, port, Docker checks
 - ⬜ M5.2 MCP read-only tools (devices, topology, workspace, git, logs)
 - ⬜ M5.3 MCP mutating tools behind explicit approval
-- ⬜ M5.4 AI network doctor built on `mesh doctor`
+- ⬜ M5.4 AI network doctor built on `meshguard doctor`
 
 ### Later ⬜
 
@@ -122,15 +122,15 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-01 | TypeScript pinned to 5.9 (tsup's dts build doesn't support TS 7 yet) |
 | 2026-10-01 | Better Auth organization plugin owns organizations/members/invitations; replaced our own `organizations` table |
 | 2026-10-01 | Web and API on separate origins; session cookie works across them because they share a site (`SameSite=Lax`) |
-| 2026-10-01 | No hand-written API types: responses are inferred from the Drizzle schema via explicit column selects and Hono RPC. Removed `@mesh/types` |
+| 2026-10-01 | No hand-written API types: responses are inferred from the Drizzle schema via explicit column selects and Hono RPC. Removed `@meshguard/types` |
 | 2026-10-01 | TanStack Query for data fetching and mutations in `web`; shadcn `form` (react-hook-form + zod) for forms |
 | 2026-10-01 | Next.js `proxy.ts` guards routes with a server-side Better Auth instance in `web` (`auth.api.getSession`) that reads the shared Postgres, mirroring erp |
-| 2026-10-01 | React version pinned workspace-wide with a pnpm catalog; `@mesh/ui` takes React as a peer dependency |
-| 2026-10-01 | API split into routes → controllers (Hono `createHandlers`) → services in `@mesh/server-core`; one error format with request ids |
-| 2026-10-01 | `createLogger` (pino) in `@mesh/utils` replaces `console` everywhere |
+| 2026-10-01 | React version pinned workspace-wide with a pnpm catalog; `@meshguard/ui` takes React as a peer dependency |
+| 2026-10-01 | API split into routes → controllers (Hono `createHandlers`) → services in `@meshguard/server-core`; one error format with request ids |
+| 2026-10-01 | `createLogger` (pino) in `@meshguard/utils` replaces `console` everywhere |
 | 2026-10-01 | Organization id always comes from the session (`requireOrganization`), never from request params |
-| 2026-10-02 | Three roles (owner, admin, member) on Better Auth access control; definitions shared by API (enforcement) and web (hiding UI) via `@mesh/auth/permissions` |
-| 2026-10-02 | All email goes through BullMQ (`email` queue) to `apps/workers`; templates in `@mesh/emails` (react-email); Mailpit in dev |
+| 2026-10-02 | Three roles (owner, admin, member) on Better Auth access control; definitions shared by API (enforcement) and web (hiding UI) via `@meshguard/auth/permissions` |
+| 2026-10-02 | All email goes through BullMQ (`email` queue) to `apps/workers`; templates in `@meshguard/emails` (react-email); Mailpit in dev |
 | 2026-10-02 | E2E tests run on a separate Compose profile (`e2e`) with its own database; browser in the official Playwright image so WSL needs no system packages |
 | 2026-10-02 | Agent ↔ API uses HTTP/JSON (Hono routes) for the MVP instead of protobuf/gRPC; revisit for the coordination stream |
 | 2026-10-02 | Go tests use testify; Go apps `replace` the local `internal` module so they build without go.work |

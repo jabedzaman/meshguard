@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package mesh.agent.v1;
+package meshguard.agent.v1;
 
-import "mesh/device/v1/device.proto";
+import "meshguard/device/v1/device.proto";
 
 // Local API served by the agent over a Unix domain socket to the desktop app
 // and CLI.
@@ -22,6 +22,6 @@ enum ConnectionState {
 message GetStatusResponse {
   string version = 1;
   ConnectionState state = 2;
-  mesh.device.v1.Device self = 3;
-  repeated mesh.device.v1.Device peers = 4;
+  meshguard.device.v1.Device self = 3;
+  repeated meshguard.device.v1.Device peers = 4;
 }

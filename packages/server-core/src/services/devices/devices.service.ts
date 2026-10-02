@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, ne, schema, type Db } from "@mesh/db";
+import { and, desc, eq, gt, isNull, ne, schema, type Db } from "@meshguard/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import type { DeviceEvents } from "~/events/device-events";
 import { isUniqueViolation } from "~/lib/db-errors";
@@ -237,7 +237,7 @@ export class DevicesService {
     };
   }
 
-  /** A device leaving its network (`mesh logout`). */
+  /** A device leaving its network (`meshguard logout`). */
   async deleteSelf(deviceId: string) {
     const [deleted] = await this.db
       .delete(devices)

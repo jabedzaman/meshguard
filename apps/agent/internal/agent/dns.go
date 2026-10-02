@@ -4,10 +4,10 @@ import (
 	"log/slog"
 	"net/netip"
 
-	"github.com/twinlabshq/mesh/internal/coordination"
-	"github.com/twinlabshq/mesh/internal/dns"
-	"github.com/twinlabshq/mesh/internal/ipc"
-	"github.com/twinlabshq/mesh/internal/state"
+	"github.com/jabedzaman/meshguard/internal/coordination"
+	"github.com/jabedzaman/meshguard/internal/dns"
+	"github.com/jabedzaman/meshguard/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/state"
 )
 
 // dnsState is private DNS for one connection. Guarded by Agent.mu.

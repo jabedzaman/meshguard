@@ -2,8 +2,8 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 import { ac, roles } from "./permissions";
-import type { AuthEnv } from "@mesh/config";
-import { and, asc, eq, schema, type Db } from "@mesh/db";
+import type { AuthEnv } from "@meshguard/config";
+import { and, asc, eq, schema, type Db } from "@meshguard/db";
 
 export interface AuthOptions {
   secret: string;
@@ -42,7 +42,7 @@ export function authOptionsFromEnv(env: AuthEnv): AuthOptions {
 // Human identity only. Devices authenticate with their own key pairs.
 export function createAuth(db: Db, options: AuthOptions) {
   return betterAuth({
-    appName: "Mesh",
+    appName: "MeshGuard",
     secret: options.secret,
     baseURL: options.baseURL,
     basePath: "/api/auth",

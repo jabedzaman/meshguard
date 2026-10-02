@@ -2,7 +2,7 @@ import { AppNav } from "~/components/app-nav";
 import { OrganizationSwitcher } from "~/components/organization-switcher";
 import { OrganizationProvider } from "~/components/providers/organization-provider";
 import { SignOutButton } from "~/components/sign-out-button";
-import { ROLES, type Role } from "@mesh/auth/permissions";
+import { ROLES, type Role } from "@meshguard/auth/permissions";
 import {
   getActiveMember,
   getActiveOrganization,

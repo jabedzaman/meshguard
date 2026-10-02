@@ -11,14 +11,14 @@ x-go-volumes: &go-volumes
 
 services:
   api:
-    container_name: mesh-api
+    container_name: meshguard-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile.dev
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh
+      - DATABASE_URL=postgres://meshguard:meshguard@postgres:5432/meshguard
       - REDIS_URL=redis://redis:6379
       - NATS_URL=nats://nats:4222
       # The relay URL agents get. Set RELAY_PUBLIC_URL in .env when agents on
@@ -47,7 +47,7 @@ services:
       - ./packages/utils/dist:/app/packages/utils/dist
 
   workers:
-    container_name: mesh-workers
+    container_name: meshguard-workers
     build:
       context: .
       dockerfile: apps/workers/Dockerfile.dev
@@ -75,14 +75,14 @@ services:
       - ./packages/utils/dist:/app/packages/utils/dist
 
   web:
-    container_name: mesh-web
+    container_name: meshguard-web
     build:
       context: .
       dockerfile: apps/web/Dockerfile.dev
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh
+      - DATABASE_URL=postgres://meshguard:meshguard@postgres:5432/meshguard
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
@@ -104,7 +104,7 @@ services:
 
   relay:
     <<: *go-volumes
-    container_name: mesh-relay
+    container_name: meshguard-relay
     build:
       context: .
       dockerfile: apps/relay/Dockerfile.dev
@@ -120,25 +120,25 @@ services:
 
   dns:
     <<: *go-volumes
-    container_name: mesh-dns
+    container_name: meshguard-dns
     build:
       context: .
       dockerfile: apps/dns/Dockerfile.dev
 
   # ---------------------------------------------------------------------------
-  # E2E stack (`pnpm e2e:up`): same images, separate mesh_test database and
+  # E2E stack (`pnpm e2e:up`): same images, separate meshguard_test database and
   # Redis db 1, so tests never touch dev data. Not started by `docker:up`.
   # ---------------------------------------------------------------------------
   api-e2e:
     profiles: [e2e]
-    container_name: mesh-api-e2e
+    container_name: meshguard-api-e2e
     build:
       context: .
       dockerfile: apps/api/Dockerfile.dev
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh_test
+      - DATABASE_URL=postgres://meshguard:meshguard@postgres:5432/meshguard_test
       - REDIS_URL=redis://redis:6379/1
       - NATS_URL=nats://nats:4222
       - BETTER_AUTH_URL=http://localhost:4200
@@ -170,14 +170,14 @@ services:
 
   web-e2e:
     profiles: [e2e]
-    container_name: mesh-web-e2e
+    container_name: meshguard-web-e2e
     build:
       context: .
       dockerfile: apps/web/Dockerfile.dev
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh_test
+      - DATABASE_URL=postgres://meshguard:meshguard@postgres:5432/meshguard_test
       - BETTER_AUTH_URL=http://localhost:4200
       - WEB_URL=http://localhost:3200
       - NEXT_PUBLIC_API_URL=http://localhost:4200
@@ -202,7 +202,7 @@ services:
 
   workers-e2e:
     profiles: [e2e]
-    container_name: mesh-workers-e2e
+    container_name: meshguard-workers-e2e
     build:
       context: .
       dockerfile: apps/workers/Dockerfile.dev
@@ -235,7 +235,7 @@ services:
   # Keep the version in step with @playwright/test.
   playwright:
     profiles: [e2e]
-    container_name: mesh-playwright
+    container_name: meshguard-playwright
     image: mcr.microsoft.com/playwright:v1.63.0-noble
     network_mode: host
     init: true
@@ -243,7 +243,7 @@ services:
     command: ["npx", "-y", "playwright@1.63.0", "run-server", "--port", "3300", "--host", "127.0.0.1"]
 
   # ---------------------------------------------------------------------------
-  # Mesh lab (`pnpm lab`), on the e2e stack. lab_inet plays the internet (API
+  # MeshGuard lab (`pnpm lab`), on the e2e stack. lab_inet plays the internet (API
   # .10, relay + STUN .11). lab-a/lab-b share it like a LAN. lab-e sits behind
   # a cone NAT and lab-f is directly on the internet (must go direct through
   # e's NAT). lab-g sits behind a symmetric NAT and lab-h behind a cone NAT
@@ -251,7 +251,7 @@ services:
   # ---------------------------------------------------------------------------
   lab-a: &lab-device
     profiles: [lab]
-    container_name: mesh-lab-a
+    container_name: meshguard-lab-a
     hostname: lab-a
     build:
       context: .
@@ -263,15 +263,15 @@ services:
 
   lab-b:
     <<: *lab-device
-    container_name: mesh-lab-b
+    container_name: meshguard-lab-b
     hostname: lab-b
 
   lab-e: &lab-natted
     <<: *lab-device
-    container_name: mesh-lab-e
+    container_name: meshguard-lab-e
     hostname: lab-e
     # Route everything through this device's NAT router.
-    command: ["sh", "-c", "ip route replace default via $$GATEWAY && exec mesh-agent"]
+    command: ["sh", "-c", "ip route replace default via $$GATEWAY && exec meshguard-agent"]
     environment: [GATEWAY=10.201.0.2]
     networks:
       lab_lan_e: { ipv4_address: 10.201.0.10 }
@@ -279,14 +279,14 @@ services:
   # Reachable on the "internet" with no NAT, like a VPS.
   lab-f:
     <<: *lab-device
-    container_name: mesh-lab-f
+    container_name: meshguard-lab-f
     hostname: lab-f
     networks:
       lab_inet: { ipv4_address: 10.200.0.30 }
 
   lab-g:
     <<: *lab-natted
-    container_name: mesh-lab-g
+    container_name: meshguard-lab-g
     hostname: lab-g
     environment: [GATEWAY=10.203.0.2]
     networks:
@@ -294,7 +294,7 @@ services:
 
   lab-h:
     <<: *lab-natted
-    container_name: mesh-lab-h
+    container_name: meshguard-lab-h
     hostname: lab-h
     environment: [GATEWAY=10.204.0.2]
     networks:
@@ -302,7 +302,7 @@ services:
 
   router-e: &lab-router
     profiles: [lab]
-    container_name: mesh-router-e
+    container_name: meshguard-router-e
     build:
       context: .
       dockerfile_inline: |
@@ -327,7 +327,7 @@ services:
 
   router-g:
     <<: *lab-router
-    container_name: mesh-router-g
+    container_name: meshguard-router-g
     environment: [NAT_FLAGS=--random-fully]
     networks:
       lab_inet: { ipv4_address: 10.200.0.22 }
@@ -335,7 +335,7 @@ services:
 
   router-h:
     <<: *lab-router
-    container_name: mesh-router-h
+    container_name: meshguard-router-h
     networks:
       lab_inet: { ipv4_address: 10.200.0.23 }
       lab_lan_h: { ipv4_address: 10.204.0.2 }

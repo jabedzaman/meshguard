@@ -4,8 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { getApiError, getErrorMessage } from "@mesh/api-client";
-import { Button } from "@mesh/ui/components/button";
+import { getApiError, getErrorMessage } from "@meshguard/api-client";
+import { Button } from "@meshguard/ui/components/button";
 import {
   Form,
   FormControl,
@@ -14,8 +14,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@mesh/ui/components/form";
-import { Input } from "@mesh/ui/components/input";
+} from "@meshguard/ui/components/form";
+import { Input } from "@meshguard/ui/components/input";
 import { usePermission } from "~/components/providers/organization-provider";
 import { networkMutations, networkQueries } from "~/lib/queries";
 import { useHydrated } from "~/hooks/use-hydrated";

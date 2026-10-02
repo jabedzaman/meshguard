@@ -1,13 +1,13 @@
 import http from "node:http";
-import { loadWorkerEnv } from "@mesh/config";
-import { createMailer, createNats, createRedis, DeviceEvents } from "@mesh/server-core";
+import { loadWorkerEnv } from "@meshguard/config";
+import { createMailer, createNats, createRedis, DeviceEvents } from "@meshguard/server-core";
 import { logger } from "~/lib/logger";
 import { startWorkers } from "~/workers";
 
 const env = loadWorkerEnv();
 const redis = createRedis(env.REDIS_URL);
 const mailer = createMailer({ smtpUrl: env.SMTP_URL, from: env.MAIL_FROM });
-const nats = await createNats(env.NATS_URL, "mesh-workers");
+const nats = await createNats(env.NATS_URL, "meshguard-workers");
 const workers = await startWorkers({ redis, mailer, deviceEvents: new DeviceEvents(nats) });
 
 const health = http.createServer((req, res) => {

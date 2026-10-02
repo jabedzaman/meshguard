@@ -7,5 +7,5 @@ export default defineConfig({
   entry: ["src/index.ts", "src/permissions.ts"],
   format: ["esm"],
   sourcemap: true,
-  external: [/^@mesh\//],
+  external: [/^@meshguard\//],
 });

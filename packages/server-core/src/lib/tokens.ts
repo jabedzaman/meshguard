@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-export const ENROLLMENT_TOKEN_PREFIX = "mesh_enr_";
+export const ENROLLMENT_TOKEN_PREFIX = "meshguard_enr_";
 
 /** A new enrollment token: 32 random bytes, base64url, with a recognizable prefix. */
 export function generateEnrollmentToken(): string {

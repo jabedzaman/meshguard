@@ -1,5 +1,5 @@
 import type { Redis } from "ioredis";
-import { type DeviceEvents, parsePresenceKey } from "@mesh/server-core";
+import { type DeviceEvents, parsePresenceKey } from "@meshguard/server-core";
 import { logger } from "~/lib/logger";
 
 const log = logger.child({ listener: "presence-expiry" });

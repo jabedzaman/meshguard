@@ -11,10 +11,10 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@mesh/ui/components",
-    "utils": "@mesh/ui/lib/utils",
-    "hooks": "@mesh/ui/hooks",
-    "lib": "@mesh/ui/lib",
-    "ui": "@mesh/ui/components"
+    "components": "@meshguard/ui/components",
+    "utils": "@meshguard/ui/lib/utils",
+    "hooks": "@meshguard/ui/hooks",
+    "lib": "@meshguard/ui/lib",
+    "ui": "@meshguard/ui/components"
   }
 }

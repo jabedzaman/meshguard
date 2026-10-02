@@ -1,5 +1,5 @@
 {
-  "name": "mesh",
+  "name": "meshguard",
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -13,7 +13,7 @@
     "test": "turbo run test",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "proto:gen": "pnpm --filter @mesh/proto gen",
+    "proto:gen": "pnpm --filter @meshguard/proto gen",
     "build:packages": "turbo run build --filter=./packages/*",
     "docker:build": "docker compose build",
     "docker:up": "pnpm build:packages && docker compose up -d",

@@ -25,9 +25,9 @@ func LaunchdPlist(cfg Config) string {
 	<key>KeepAlive</key>
 	<true/>
 	<key>StandardOutPath</key>
-	<string>/var/log/mesh-agent.log</string>
+	<string>/var/log/meshguard-agent.log</string>
 	<key>StandardErrorPath</key>
-	<string>/var/log/mesh-agent.log</string>
+	<string>/var/log/meshguard-agent.log</string>
 </dict>
 </plist>
 `, Label, args.String())
@@ -40,8 +40,8 @@ func SystemdUnit(cfg Config) string {
 		parts = append(parts, shellQuote(a))
 	}
 	return fmt.Sprintf(`[Unit]
-Description=Mesh agent
-Documentation=https://github.com/twinlabshq/mesh
+Description=MeshGuard agent
+Documentation=https://github.com/jabedzaman/meshguard
 Wants=network-online.target
 After=network-online.target
 

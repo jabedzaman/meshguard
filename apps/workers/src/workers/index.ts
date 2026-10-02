@@ -1,5 +1,5 @@
 import type { Redis } from "ioredis";
-import type { DeviceEvents, Mailer } from "@mesh/server-core";
+import type { DeviceEvents, Mailer } from "@meshguard/server-core";
 import { createEmailWorker } from "~/workers/email.worker";
 import { startPresenceExpiryListener } from "~/workers/presence-expiry";
 

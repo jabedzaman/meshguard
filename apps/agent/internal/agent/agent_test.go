@@ -8,10 +8,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/jabedzaman/meshguard/internal/coordination"
+	"github.com/jabedzaman/meshguard/internal/ipc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/twinlabshq/mesh/internal/coordination"
-	"github.com/twinlabshq/mesh/internal/ipc"
 )
 
 // fakeControlPlane accepts token "good" once, like the real API.

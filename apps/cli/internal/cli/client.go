@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/ipc"
 )
 
 // call sends a request to the local agent and decodes the response or its error.
@@ -50,12 +50,12 @@ func (o *options) call(method, path string, body, out any) error {
 }
 
 func agentUnreachable(socket string, err error) error {
-	hint := "is mesh-agent running? start it with: sudo mesh-agent install"
+	hint := "is meshguard-agent running? start it with: sudo meshguard-agent install"
 	switch {
 	case errors.Is(err, syscall.EACCES) || strings.Contains(err.Error(), "permission denied"):
-		hint = "permission denied: run with sudo, or reinstall the agent with sudo mesh-agent install so you own the socket"
+		hint = "permission denied: run with sudo, or reinstall the agent with sudo meshguard-agent install so you own the socket"
 	case errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "no such file"):
-		hint = "no agent socket here: start it with sudo mesh-agent install, or set --socket / MESH_SOCKET"
+		hint = "no agent socket here: start it with sudo meshguard-agent install, or set --socket / MESHGUARD_SOCKET"
 	}
 	return fmt.Errorf("agent not reachable at %s: %s", socket, hint)
 }

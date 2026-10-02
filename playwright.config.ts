@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { E2E } from "./tests/e2e/support/env";
 
 // Runs against the isolated e2e stack (`pnpm e2e:up`): web on :3200, API on
-// :4200, database mesh_test. The browser runs in the mesh-playwright container
+// :4200, database meshguard_test. The browser runs in the meshguard-playwright container
 // unless E2E_LOCAL_BROWSER=1 (needs `npx playwright install --with-deps chromium`).
 const useDockerBrowser = process.env.E2E_LOCAL_BROWSER !== "1";
 

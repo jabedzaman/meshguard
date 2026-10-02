@@ -17,12 +17,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jabedzaman/meshguard/internal/coordination"
+	"github.com/jabedzaman/meshguard/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/relay"
+	"github.com/jabedzaman/meshguard/internal/wireguard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/twinlabshq/mesh/internal/coordination"
-	"github.com/twinlabshq/mesh/internal/ipc"
-	"github.com/twinlabshq/mesh/internal/relay"
-	"github.com/twinlabshq/mesh/internal/wireguard"
 )
 
 type fakeEngine struct {
@@ -32,7 +32,7 @@ type fakeEngine struct {
 	rebinds atomic.Int32
 }
 
-func (e *fakeEngine) Name() string { return "mesh-test0" }
+func (e *fakeEngine) Name() string { return "meshguard-test0" }
 func (e *fakeEngine) Close()       {}
 func (e *fakeEngine) SetPeers(p []wireguard.Peer) (bool, error) {
 	e.mu.Lock()
@@ -142,7 +142,7 @@ func TestUpStartsWireGuardAndSyncsPeers(t *testing.T) {
 	_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
 	assert.Equal(t, "connected", status.State)
 	assert.Empty(t, status.Problem)
-	assert.Equal(t, "mesh-test0", status.Interface)
+	assert.Equal(t, "meshguard-test0", status.Interface)
 	require.Len(t, status.Peers, 1)
 	assert.Equal(t, "server", status.Peers[0].Name)
 }

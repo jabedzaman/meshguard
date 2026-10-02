@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ipv4CidrSchema } from "@mesh/server-core";
+import { ipv4CidrSchema } from "@meshguard/server-core";
 
 export const createNetworkBody = z.object({
   name: z.string().trim().min(1, "Required").max(64, "At most 64 characters"),

@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	unitName = "mesh-agent.service"
+	unitName = "meshguard-agent.service"
 	unitPath = "/etc/systemd/system/" + unitName
 )
 
 func install(cfg Config) error {
 	if _, err := os.Stat("/run/systemd/system"); err != nil {
-		return errors.New("systemd is not running; start mesh-agent another way (e.g. sudo mesh-agent &)")
+		return errors.New("systemd is not running; start meshguard-agent another way (e.g. sudo meshguard-agent &)")
 	}
 	if err := os.WriteFile(unitPath, []byte(SystemdUnit(cfg)), 0o644); err != nil {
 		return err
@@ -38,5 +38,5 @@ func uninstall() error {
 
 // Describe says where the service lives, for the CLI output.
 func Describe() string {
-	return "systemd unit " + unitName + " (" + unitPath + "), logs: journalctl -u mesh-agent"
+	return "systemd unit " + unitName + " (" + unitPath + "), logs: journalctl -u meshguard-agent"
 }

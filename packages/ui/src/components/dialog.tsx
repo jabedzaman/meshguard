@@ -1,11 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@mesh/ui/lib/utils"
+import { cn } from "@meshguard/ui/lib/utils"
 import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
-import { Button } from "@mesh/ui/components/button"
+import { Button } from "@meshguard/ui/components/button"
 
 function Dialog({
   ...props

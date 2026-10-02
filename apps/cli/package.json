@@ -1,10 +1,10 @@
 {
-  "name": "@mesh/cli",
+  "name": "@meshguard/cli",
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "go build -o bin/mesh ./cmd/mesh",
-    "start": "go run ./cmd/mesh",
+    "build": "go build -o bin/meshguard ./cmd/meshguard",
+    "start": "go run ./cmd/meshguard",
     "lint": "go vet ./...",
     "test": "go test ./..."
   }

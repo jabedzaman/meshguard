@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jabedzaman/meshguard/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/wireguard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/twinlabshq/mesh/internal/ipc"
-	"github.com/twinlabshq/mesh/internal/wireguard"
 )
 
 func TestNetworkChangeRebindsAndSyncs(t *testing.T) {

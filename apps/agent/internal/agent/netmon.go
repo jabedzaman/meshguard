@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/twinlabshq/mesh/internal/discovery"
-	"github.com/twinlabshq/mesh/internal/state"
+	"github.com/jabedzaman/meshguard/internal/discovery"
+	"github.com/jabedzaman/meshguard/internal/state"
 )
 
 const (

@@ -13,7 +13,7 @@ import {
 import { organization, user } from "./auth";
 
 // Human auth tables (users, sessions, organizations, members) are owned by
-// Better Auth and generated into ./auth.ts by `pnpm --filter @mesh/auth
+// Better Auth and generated into ./auth.ts by `pnpm --filter @meshguard/auth
 // auth:generate`. Don't edit that file by hand. Device identity lives here and
 // never touches them.
 export * from "./auth";
@@ -82,7 +82,7 @@ export const devices = pgTable(
 );
 
 /**
- * One-time tokens a device uses to join a network (`mesh up --token ...`).
+ * One-time tokens a device uses to join a network (`meshguard up --token ...`).
  * Only a hash is stored; the token is shown once when created.
  */
 export const enrollmentTokens = pgTable(

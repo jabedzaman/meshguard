@@ -2,8 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { getErrorMessage } from "@mesh/api-client";
-import { Button } from "@mesh/ui/components/button";
+import { getErrorMessage } from "@meshguard/api-client";
+import { Button } from "@meshguard/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -12,15 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@mesh/ui/components/dialog";
-import { Label } from "@mesh/ui/components/label";
+} from "@meshguard/ui/components/dialog";
+import { Label } from "@meshguard/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@mesh/ui/components/select";
+} from "@meshguard/ui/components/select";
 import { CopyButton } from "~/components/copy-button";
 import { usePermission } from "~/components/providers/organization-provider";
 import {
@@ -48,7 +48,7 @@ export function AddDeviceDialog({ networkId }: { networkId: string }) {
 
   if (!canEnroll) return null;
 
-  const command = create.data ? `mesh up --token ${create.data.token}` : "";
+  const command = create.data ? `meshguard up --token ${create.data.token}` : "";
 
   return (
     <Dialog

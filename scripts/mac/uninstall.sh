@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
-# Run on the Mac. Stops and removes the mesh-agent launchd service.
+# Run on the Mac. Stops and removes the meshguard-agent launchd service.
 #
 #   (no flags)  remove the service; keep binaries, keys and enrollment
-#   --purge     also leave the network (mesh logout), and delete the binaries,
+#   --purge     also leave the network (meshguard logout), and delete the binaries,
 #               state, log and /etc/resolver/internal
 set -euo pipefail
 
 purge=""
 [ "${1:-}" = --purge ] && purge=1
 
-if [ -n "$purge" ] && command -v mesh >/dev/null; then
-  echo "==> mesh logout"
-  mesh logout || echo "   couldn't leave the network; remove this device from the web if needed"
+if [ -n "$purge" ] && command -v meshguard >/dev/null; then
+  echo "==> meshguard logout"
+  meshguard logout || echo "   couldn't leave the network; remove this device from the web if needed"
 fi
 
 echo "==> removing the service"
-if [ -x /usr/local/bin/mesh-agent ]; then
-  sudo /usr/local/bin/mesh-agent uninstall
+if [ -x /usr/local/bin/meshguard-agent ]; then
+  sudo /usr/local/bin/meshguard-agent uninstall
 else
-  sudo launchctl bootout system/dev.twinlabs.mesh.agent 2>/dev/null || true
-  sudo rm -f /Library/LaunchDaemons/dev.twinlabs.mesh.agent.plist
+  sudo launchctl bootout system/dev.jabed.meshguard.agent 2>/dev/null || true
+  sudo rm -f /Library/LaunchDaemons/dev.jabed.meshguard.agent.plist
 fi
 
 if [ -n "$purge" ]; then
   echo "==> deleting binaries, state and logs"
-  sudo rm -f /usr/local/bin/mesh /usr/local/bin/mesh-agent /var/log/mesh-agent.log
-  sudo rm -rf "/Library/Application Support/Mesh" /var/run/mesh
-  if head -1 /etc/resolver/internal 2>/dev/null | grep -q "Managed by mesh-agent"; then
+  sudo rm -f /usr/local/bin/meshguard /usr/local/bin/meshguard-agent /var/log/meshguard-agent.log
+  sudo rm -rf "/Library/Application Support/MeshGuard" /var/run/meshguard
+  if head -1 /etc/resolver/internal 2>/dev/null | grep -q "Managed by meshguard-agent"; then
     sudo rm -f /etc/resolver/internal
   fi
-  echo "Done. A state dir passed with -state-dir (e.g. ~/.mesh) was left alone."
+  echo "Done. A state dir passed with -state-dir (e.g. ~/.meshguard) was left alone."
 else
-  echo "Done. Binaries and state kept; reinstall with ~/Downloads/mesh/update.sh --no-fetch"
+  echo "Done. Binaries and state kept; reinstall with ~/Downloads/meshguard/update.sh --no-fetch"
 fi

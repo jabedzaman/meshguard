@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@mesh/ui/lib/utils";
+import { cn } from "@meshguard/ui/lib/utils";
 
 const LINKS = [
   { href: "/", label: "Networks" },

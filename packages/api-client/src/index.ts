@@ -1,5 +1,5 @@
 import { DetailedError, hc } from "hono/client";
-import type { AppType, ErrorBody } from "@mesh/api";
+import type { AppType, ErrorBody } from "@meshguard/api";
 
 export { DetailedError, parseResponse } from "hono/client";
 export type { ErrorBody };

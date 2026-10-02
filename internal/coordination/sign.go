@@ -14,9 +14,9 @@ import (
 // Device request signing headers. Keep in sync with
 // packages/server-core/src/lib/device-auth.ts.
 const (
-	HeaderDevice    = "X-Mesh-Device"
-	HeaderTimestamp = "X-Mesh-Timestamp"
-	HeaderSignature = "X-Mesh-Signature"
+	HeaderDevice    = "X-MeshGuard-Device"
+	HeaderTimestamp = "X-MeshGuard-Timestamp"
+	HeaderSignature = "X-MeshGuard-Signature"
 )
 
 // SigningString is what the device signs for a request.

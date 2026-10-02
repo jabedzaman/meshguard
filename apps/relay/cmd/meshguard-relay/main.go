@@ -1,4 +1,4 @@
-// Command mesh-relay forwards WireGuard packets between agents that can't reach
+// Command meshguard-relay forwards WireGuard packets between agents that can't reach
 // each other directly, and runs a STUN server so agents can learn their public
 // address for hole punching. Agents connect out over WebSocket, so relaying
 // works behind any NAT; it only ever sees WireGuard ciphertext.
@@ -18,8 +18,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/twinlabshq/mesh/internal/relay"
-	"github.com/twinlabshq/mesh/internal/stun"
+	"github.com/jabedzaman/meshguard/internal/relay"
+	"github.com/jabedzaman/meshguard/internal/stun"
 )
 
 func main() {
@@ -38,7 +38,7 @@ func run(addr, stunAddr string) error {
 	defer stop()
 
 	// STUN tells agents their public address, for hole punching. Two ports
-	// let agents tell symmetric NATs apart (mesh netcheck).
+	// let agents tell symmetric NATs apart (meshguard netcheck).
 	for _, a := range strings.Split(stunAddr, ",") {
 		if a = strings.TrimSpace(a); a == "" {
 			continue

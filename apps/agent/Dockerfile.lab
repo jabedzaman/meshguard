@@ -8,12 +8,12 @@ COPY apps/agent apps/agent
 COPY apps/cli apps/cli
 ENV GOWORK=off CGO_ENABLED=0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    cd apps/agent && go build -o /out/mesh-agent ./cmd/mesh-agent && \
-    cd ../cli && go build -o /out/mesh ./cmd/mesh
+    cd apps/agent && go build -o /out/meshguard-agent ./cmd/meshguard-agent && \
+    cd ../cli && go build -o /out/meshguard ./cmd/meshguard
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends iproute2 iputils-ping dnsutils ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/ /usr/local/bin/
-ENV MESH_SOCKET=/run/mesh/agent.sock MESH_STATE_DIR=/var/lib/mesh
-CMD ["mesh-agent"]
+ENV MESHGUARD_SOCKET=/run/meshguard/agent.sock MESHGUARD_STATE_DIR=/var/lib/meshguard
+CMD ["meshguard-agent"]

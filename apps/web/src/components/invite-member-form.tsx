@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button } from "@mesh/ui/components/button";
+import { Button } from "@meshguard/ui/components/button";
 import {
   Form,
   FormControl,
@@ -12,15 +12,15 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@mesh/ui/components/form";
-import { Input } from "@mesh/ui/components/input";
+} from "@meshguard/ui/components/form";
+import { Input } from "@meshguard/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@mesh/ui/components/select";
+} from "@meshguard/ui/components/select";
 import { usePermission } from "~/components/providers/organization-provider";
 import { authClient, unwrap } from "~/lib/auth-client";
 import { invitationQueries } from "~/lib/queries";

@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/internal",
+  "name": "@meshguard/internal",
   "version": "0.0.0",
   "private": true,
   "scripts": {

@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/twinlabshq/mesh/internal/coordination"
-	"github.com/twinlabshq/mesh/internal/identity"
-	"github.com/twinlabshq/mesh/internal/ipc"
-	"github.com/twinlabshq/mesh/internal/state"
+	"github.com/jabedzaman/meshguard/internal/coordination"
+	"github.com/jabedzaman/meshguard/internal/identity"
+	"github.com/jabedzaman/meshguard/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/state"
 )
 
 // Handler returns the local API routes. Serve it with ipc.ConnContext so each
@@ -46,7 +46,7 @@ func (a *Agent) authorize(next http.Handler) http.Handler {
 		if !a.allowed(caller.UID) {
 			slog.Warn("refused local API caller", "uid", caller.UID, "path", r.URL.Path)
 			writeError(w, http.StatusForbidden, "forbidden",
-				"this user may not control the mesh agent: run with sudo, or reinstall it with sudo mesh-agent install as this user")
+				"this user may not control the meshguard agent: run with sudo, or reinstall it with sudo meshguard-agent install as this user")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -92,7 +92,7 @@ func (a *Agent) handleUp(w http.ResponseWriter, r *http.Request) {
 	case err == nil && req.Token != "":
 		writeError(w, http.StatusConflict, "already_enrolled",
 			"this machine is already in network "+st.Network.Name+" as "+st.Device.Name+
-				" (run mesh logout first to join another)")
+				" (run meshguard logout first to join another)")
 	case err == nil:
 		// Reconnect.
 		if st.Disabled {
@@ -108,7 +108,7 @@ func (a *Agent) handleUp(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "state_unreadable", err.Error())
 	case req.Token == "" || req.Server == "":
 		writeError(w, http.StatusBadRequest, "not_enrolled",
-			"this machine isn't in a network yet: run mesh up --token <token>")
+			"this machine isn't in a network yet: run meshguard up --token <token>")
 	default:
 		a.enrollLocked(w, r, req)
 	}
@@ -234,7 +234,7 @@ func (a *Agent) handleNetcheck(w http.ResponseWriter, r *http.Request) {
 
 	if engine == nil {
 		writeError(w, http.StatusConflict, "not_connected",
-			"WireGuard isn't running (run mesh up, or check mesh status)")
+			"WireGuard isn't running (run meshguard up, or check meshguard status)")
 		return
 	}
 

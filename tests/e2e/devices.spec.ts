@@ -43,16 +43,16 @@ async function sync(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Mesh-Device": device.id,
-      "X-Mesh-Timestamp": String(timestamp),
-      "X-Mesh-Signature": signature,
+      "X-MeshGuard-Device": device.id,
+      "X-MeshGuard-Timestamp": String(timestamp),
+      "X-MeshGuard-Signature": signature,
     },
     body: tamper ? JSON.stringify({ endpoints: ["6.6.6.6:51820"] }) : json,
   });
   return { status: res.status, body: (await res.json()) as any };
 }
 
-/** What `mesh up` sends. No session: the token is the credential. */
+/** What `meshguard up` sends. No session: the token is the credential. */
 async function enroll(body: Record<string, unknown>) {
   const res = await fetch(`${E2E.apiUrl}/v1/devices/enroll`, {
     method: "POST",

@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import { type EmailTemplate, renderEmail } from "@mesh/emails";
+import { type EmailTemplate, renderEmail } from "@meshguard/emails";
 import type { Mailer } from "~/lib/mailer";
 import type { EmailJobData } from "~/queues/email.queue";
 

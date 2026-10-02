@@ -10,8 +10,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@mesh/ui/components/alert-dialog";
-import { Button } from "@mesh/ui/components/button";
+} from "@meshguard/ui/components/alert-dialog";
+import { Button } from "@meshguard/ui/components/button";
 
 /**
  * Confirmation for destructive actions. Stays open while `onConfirm` runs and

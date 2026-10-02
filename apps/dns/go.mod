@@ -1,3 +1,3 @@
-module github.com/twinlabshq/mesh/apps/dns
+module github.com/jabedzaman/meshguard/apps/dns
 
 go 1.27.1

@@ -9,13 +9,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/ipc"
 )
 
 func newStatus(o *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Show this machine's mesh status and peers",
+		Short: "Show this machine's meshguard status and peers",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := o.status()
@@ -36,11 +36,11 @@ func newStatus(o *options) *cobra.Command {
 func printStatus(s ipc.Status) {
 	switch s.State {
 	case "not_enrolled":
-		fmt.Println("Not in a network. Run: mesh up --token <token>")
+		fmt.Println("Not in a network. Run: meshguard up --token <token>")
 		return
 	case "down":
 		fmt.Printf("%s in %s (down)\n", s.Device.Name, s.Network.Name)
-		fmt.Printf("  mesh IPv4  %s\n  mesh IPv6  %s\n\nRun mesh up to reconnect.\n", s.Device.MeshIPv4, s.Device.MeshIPv6)
+		fmt.Printf("  mesh IPv4  %s\n  mesh IPv6  %s\n\nRun meshguard up to reconnect.\n", s.Device.MeshIPv4, s.Device.MeshIPv6)
 		return
 	}
 	fmt.Printf("%s in %s (%s)\n", s.Device.Name, s.Network.Name, s.State)

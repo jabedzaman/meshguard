@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "@mesh/ui/lib/utils"
+import { cn } from "@meshguard/ui/lib/utils"
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (

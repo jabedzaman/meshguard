@@ -14,21 +14,21 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/twinlabshq/mesh/internal/identity"
+	"github.com/jabedzaman/meshguard/internal/identity"
 )
 
 const fileName = "state.json"
 
-// DefaultDir is where the agent keeps its state. MESH_STATE_DIR overrides it,
+// DefaultDir is where the agent keeps its state. MESHGUARD_STATE_DIR overrides it,
 // which is useful for an unprivileged dev agent.
 func DefaultDir() string {
-	if dir := os.Getenv("MESH_STATE_DIR"); dir != "" {
+	if dir := os.Getenv("MESHGUARD_STATE_DIR"); dir != "" {
 		return dir
 	}
 	if runtime.GOOS == "darwin" {
-		return "/Library/Application Support/Mesh"
+		return "/Library/Application Support/MeshGuard"
 	}
-	return "/var/lib/mesh"
+	return "/var/lib/meshguard"
 }
 
 // Device is the device record returned by enrollment.
@@ -55,7 +55,7 @@ type State struct {
 	Device              Device    `json:"device"`
 	Network             Network   `json:"network"`
 	EnrolledAt          time.Time `json:"enrolledAt"`
-	// Disabled is set by `mesh down`: stay enrolled but don't connect,
+	// Disabled is set by `meshguard down`: stay enrolled but don't connect,
 	// including after the agent restarts.
 	Disabled bool `json:"disabled,omitempty"`
 }
@@ -134,7 +134,7 @@ func Save(dir string, s *State) error {
 	return os.Rename(tmp.Name(), filepath.Join(dir, fileName))
 }
 
-// Remove deletes the saved state (`mesh logout`).
+// Remove deletes the saved state (`meshguard logout`).
 func Remove(dir string) error {
 	err := os.Remove(filepath.Join(dir, fileName))
 	if errors.Is(err, os.ErrNotExist) {

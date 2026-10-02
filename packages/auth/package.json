@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/auth",
+  "name": "@meshguard/auth",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -22,8 +22,8 @@
     "auth:generate": "auth generate --config auth.cli.ts --output ../db/src/schema/auth.ts --yes"
   },
   "dependencies": {
-    "@mesh/config": "workspace:^",
-    "@mesh/db": "workspace:^",
+    "@meshguard/config": "workspace:^",
+    "@meshguard/db": "workspace:^",
     "better-auth": "^1.7.7"
   },
   "files": [

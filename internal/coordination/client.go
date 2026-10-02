@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/twinlabshq/mesh/internal/state"
+	"github.com/jabedzaman/meshguard/internal/state"
 )
 
 // Client calls the control plane API at ServerURL. Requests that act as an
@@ -113,7 +113,7 @@ func (c *Client) Enroll(ctx context.Context, req EnrollRequest) (*EnrollResponse
 	return &res, nil
 }
 
-// DeleteSelf removes this device from its network (`mesh logout`).
+// DeleteSelf removes this device from its network (`meshguard logout`).
 // Requires Signer.
 func (c *Client) DeleteSelf(ctx context.Context) error {
 	if c.Signer == nil {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getErrorMessage } from "@mesh/api-client";
-import { Button } from "@mesh/ui/components/button";
+import { getErrorMessage } from "@meshguard/api-client";
+import { Button } from "@meshguard/ui/components/button";
 import { ConfirmDialog } from "~/components/confirm-dialog";
 import { useCurrentUser, usePermission } from "~/components/providers/organization-provider";
 import { enrollmentTokenMutations, enrollmentTokenQueries } from "~/lib/queries";

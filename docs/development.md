@@ -41,38 +41,38 @@ docker compose up -d --build --no-deps <service>
 ## Database
 
 ```sh
-pnpm --filter @mesh/db db:generate   # migration from schema changes
-pnpm --filter @mesh/db db:migrate    # apply to DATABASE_URL
-pnpm --filter @mesh/auth auth:generate   # regenerate Better Auth tables (packages/db/src/schema/auth.ts)
+pnpm --filter @meshguard/db db:generate   # migration from schema changes
+pnpm --filter @meshguard/db db:migrate    # apply to DATABASE_URL
+pnpm --filter @meshguard/auth auth:generate   # regenerate Better Auth tables (packages/db/src/schema/auth.ts)
 ```
 
 ## Email templates
 
 ```sh
-pnpm --filter @mesh/emails preview   # http://localhost:3030
+pnpm --filter @meshguard/emails preview   # http://localhost:3030
 ```
 
 ## UI components
 
 shadcn components live in `packages/ui` and are imported as
-`@mesh/ui/components/<component>`:
+`@meshguard/ui/components/<component>`:
 
 ```sh
-pnpm --filter @mesh/ui ui:add <component>
-pnpm --filter @mesh/ui ui:add --overwrite <component>   # if it depends on existing components
+pnpm --filter @meshguard/ui ui:add <component>
+pnpm --filter @meshguard/ui ui:add --overwrite <component>   # if it depends on existing components
 ```
 
 ## Agent and CLI
 
-See [cli.md](cli.md) for installing the agent and every `mesh` command. For a
+See [cli.md](cli.md) for installing the agent and every `meshguard` command. For a
 quick dev run without installing the service:
 
 ```sh
-sudo ~/.local/bin/mesh-agent -socket /tmp/mesh.sock -state-dir $HOME/.mesh
-MESH_SOCKET=/tmp/mesh.sock mesh up --token mesh_enr_...
+sudo ~/.local/bin/meshguard-agent -socket /tmp/meshguard.sock -state-dir $HOME/.meshguard
+MESHGUARD_SOCKET=/tmp/meshguard.sock meshguard up --token meshguard_enr_...
 ```
 
-## Mesh lab
+## MeshGuard lab
 
 Containerized agents on the e2e stack, around a fake internet (`lab_inet`,
 10.200.0.0/24: API .10, relay + STUN .11) and NAT routers:
@@ -86,11 +86,11 @@ Containerized agents on the e2e stack, around a fake internet (`lab_inet`,
 ```sh
 pnpm e2e:up
 pnpm lab        # enrolls each pair, pings v4 both ways and v6, checks the path
-docker exec mesh-lab-e mesh status   # public address, "direct" peer
+docker exec meshguard-lab-e meshguard status   # public address, "direct" peer
 pnpm lab:down
 ```
 
-`pnpm test:e2e` resets `mesh_test`, which removes the lab's devices; run
+`pnpm test:e2e` resets `meshguard_test`, which removes the lab's devices; run
 `pnpm lab` again afterwards.
 
 ## Protobuf

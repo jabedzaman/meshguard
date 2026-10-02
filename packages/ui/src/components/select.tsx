@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@mesh/ui/lib/utils"
+import { cn } from "@meshguard/ui/lib/utils"
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { Select as SelectPrimitive } from "radix-ui"
 

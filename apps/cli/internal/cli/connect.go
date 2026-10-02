@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/ipc"
 )
 
 func defaultServer() string {
-	if s := os.Getenv("MESH_SERVER"); s != "" {
+	if s := os.Getenv("MESHGUARD_SERVER"); s != "" {
 		return s
 	}
 	return "http://localhost:4000"
@@ -21,10 +21,10 @@ func newUp(o *options) *cobra.Command {
 	var token, server string
 	cmd := &cobra.Command{
 		Use:   "up",
-		Short: "Join a network with a token, or reconnect after mesh down",
-		Example: `  mesh up --token mesh_enr_...                   # join (token from the network's Add device)
-  mesh up --token mesh_enr_... --server https://api.example.com
-  mesh up                                        # reconnect after mesh down`,
+		Short: "Join a network with a token, or reconnect after meshguard down",
+		Example: `  meshguard up --token meshguard_enr_...                   # join (token from the network's Add device)
+  meshguard up --token meshguard_enr_... --server https://api.example.com
+  meshguard up                                        # reconnect after meshguard down`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			req := ipc.UpRequest{Token: token}
@@ -44,25 +44,25 @@ func newUp(o *options) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&token, "token", "", "enrollment token (mesh_enr_...)")
-	cmd.Flags().StringVar(&server, "server", defaultServer(), "control plane URL ($MESH_SERVER)")
+	cmd.Flags().StringVar(&token, "token", "", "enrollment token (meshguard_enr_...)")
+	cmd.Flags().StringVar(&server, "server", defaultServer(), "control plane URL ($MESHGUARD_SERVER)")
 	return cmd
 }
 
 func newDown(o *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "down",
-		Short: "Disconnect from the mesh but stay in the network (mesh up reconnects)",
+		Short: "Disconnect from the mesh but stay in the network (meshguard up reconnects)",
 		Long: `Tears down the WireGuard interface and stops syncing. The device stays in
 its network and keeps its keys and addresses; it stays down after the agent
-restarts until you run mesh up.`,
+restarts until you run meshguard up.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			var s ipc.Status
 			if err := o.call(http.MethodPost, "/v1/down", nil, &s); err != nil {
 				return err
 			}
-			fmt.Printf("Disconnected %s from %s. Run mesh up to reconnect.\n", s.Device.Name, s.Network.Name)
+			fmt.Printf("Disconnected %s from %s. Run meshguard up to reconnect.\n", s.Device.Name, s.Network.Name)
 			return nil
 		},
 	}

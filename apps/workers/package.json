@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/workers",
+  "name": "@meshguard/workers",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,10 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mesh/config": "workspace:^",
-    "@mesh/emails": "workspace:^",
-    "@mesh/server-core": "workspace:^",
-    "@mesh/utils": "workspace:^",
+    "@meshguard/config": "workspace:^",
+    "@meshguard/emails": "workspace:^",
+    "@meshguard/server-core": "workspace:^",
+    "@meshguard/utils": "workspace:^",
     "bullmq": "^6.3.11",
     "ioredis": "^6.0.0"
   },

@@ -8,8 +8,8 @@ RUN go install github.com/air-verse/air@latest
 WORKDIR /app/apps/dns
 
 CMD ["air", \
-     "--build.cmd", "go build -o /tmp/mesh-dns ./cmd/mesh-dns", \
-     "--build.entrypoint", "/tmp/mesh-dns", \
+     "--build.cmd", "go build -o /tmp/meshguard-dns ./cmd/meshguard-dns", \
+     "--build.entrypoint", "/tmp/meshguard-dns", \
      "--build.include_ext", "go", \
      "--build.exclude_dir", "bin", \
      "--build.poll", "true", \

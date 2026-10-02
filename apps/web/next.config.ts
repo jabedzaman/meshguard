@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@mesh/ui"],
+  transpilePackages: ["@meshguard/ui"],
 };
 
 export default nextConfig;

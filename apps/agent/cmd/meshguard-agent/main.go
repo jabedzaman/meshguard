@@ -1,9 +1,9 @@
-// Command mesh-agent is the device daemon. It owns the device's keys and
+// Command meshguard-agent is the device daemon. It owns the device's keys and
 // WireGuard interface and serves a local API to the desktop app and CLI.
 //
-//	mesh-agent [flags]               run in the foreground
-//	sudo mesh-agent install [flags]  install as a system service and start it
-//	sudo mesh-agent uninstall        stop and remove the service
+//	meshguard-agent [flags]               run in the foreground
+//	sudo meshguard-agent install [flags]  install as a system service and start it
+//	sudo meshguard-agent uninstall        stop and remove the service
 package main
 
 import (
@@ -19,10 +19,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/twinlabshq/mesh/apps/agent/internal/agent"
-	"github.com/twinlabshq/mesh/apps/agent/internal/service"
-	"github.com/twinlabshq/mesh/internal/ipc"
-	"github.com/twinlabshq/mesh/internal/state"
+	"github.com/jabedzaman/meshguard/apps/agent/internal/agent"
+	"github.com/jabedzaman/meshguard/apps/agent/internal/service"
+	"github.com/jabedzaman/meshguard/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/state"
 )
 
 var version = "dev"
@@ -39,10 +39,10 @@ func flags(name string) (*flag.FlagSet, *options) {
 	o := &options{}
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
 	fs.StringVar(&o.socket, "socket", ipc.DefaultSocketPath(), "local API socket path")
-	fs.StringVar(&o.socketOwner, "socket-owner", "", `"uid:gid" that owns the socket so that user can run mesh without sudo (default: the sudo user)`)
+	fs.StringVar(&o.socketOwner, "socket-owner", "", `"uid:gid" that owns the socket so that user can run meshguard without sudo (default: the sudo user)`)
 	fs.StringVar(&o.stateDir, "state-dir", state.DefaultDir(), "directory for keys and enrollment state")
 	fs.IntVar(&o.port, "port", 51820, "WireGuard UDP listen port")
-	fs.StringVar(&o.iface, "interface", "", `WireGuard interface name (default "mesh0"; "utun" on macOS)`)
+	fs.StringVar(&o.iface, "interface", "", `WireGuard interface name (default "meshguard0"; "utun" on macOS)`)
 	return fs, o
 }
 
@@ -54,12 +54,12 @@ func main() {
 			return
 		case "uninstall":
 			exitOn(service.Uninstall())
-			fmt.Println("Removed the mesh-agent service. Binaries and state were kept.")
+			fmt.Println("Removed the meshguard-agent service. Binaries and state were kept.")
 			return
 		}
 	}
 
-	fs, o := flags("mesh-agent")
+	fs, o := flags("meshguard-agent")
 	fs.Parse(os.Args[1:])
 	a := &agent.Agent{Version: version, StateDir: o.stateDir, ListenPort: o.port, InterfaceName: o.iface}
 	if err := run(o, a); err != nil {
@@ -70,7 +70,7 @@ func main() {
 
 func exitOn(err error) {
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mesh-agent:", err)
+		fmt.Fprintln(os.Stderr, "meshguard-agent:", err)
 		os.Exit(1)
 	}
 }
@@ -78,7 +78,7 @@ func exitOn(err error) {
 // installService validates the flags, saves them in the service definition
 // and starts it. The socket is owned by the user who ran sudo.
 func installService(args []string) error {
-	fs, o := flags("mesh-agent install")
+	fs, o := flags("meshguard-agent install")
 	fs.Parse(args) // exits on unknown flags, before anything is installed
 	if o.socketOwner == "" {
 		if uid, gid := os.Getenv("SUDO_UID"), os.Getenv("SUDO_GID"); uid != "" && gid != "" {
@@ -88,8 +88,8 @@ func installService(args []string) error {
 	if err := service.Install(args); err != nil {
 		return err
 	}
-	fmt.Println("Installed and started mesh-agent:", service.Describe())
-	fmt.Println("It starts at boot. Check it with: mesh status")
+	fmt.Println("Installed and started meshguard-agent:", service.Describe())
+	fmt.Println("It starts at boot. Check it with: meshguard status")
 	return nil
 }
 
@@ -125,7 +125,7 @@ func run(o *options, a *agent.Agent) error {
 }
 
 // shareSocket lets one non-root user use the CLI without sudo: the owner from
-// -socket-owner, or the user who ran `sudo mesh-agent`. It returns that user's
+// -socket-owner, or the user who ran `sudo meshguard-agent`. It returns that user's
 // uid, which the agent then accepts as an operator.
 func shareSocket(socket, owner string) (uint32, bool) {
 	if os.Geteuid() != 0 {

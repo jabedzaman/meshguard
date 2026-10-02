@@ -1,6 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
-import { eq, schema } from "@mesh/db";
+import { eq, schema } from "@meshguard/db";
 import { auth, getDb } from "~/lib/auth";
 
 export type InvitationView =

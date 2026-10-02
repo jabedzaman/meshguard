@@ -6,14 +6,14 @@ import { createHash, createPublicKey, verify } from "node:crypto";
  * enrollment. Keep in sync with internal/coordination/sign.go.
  *
  * Headers:
- *   X-Mesh-Device:    device id
- *   X-Mesh-Timestamp: unix milliseconds
- *   X-Mesh-Signature: base64 Ed25519 signature of signingString(...)
+ *   X-MeshGuard-Device:    device id
+ *   X-MeshGuard-Timestamp: unix milliseconds
+ *   X-MeshGuard-Signature: base64 Ed25519 signature of signingString(...)
  */
 export const DEVICE_HEADERS = {
-  device: "x-mesh-device",
-  timestamp: "x-mesh-timestamp",
-  signature: "x-mesh-signature",
+  device: "x-meshguard-device",
+  timestamp: "x-meshguard-timestamp",
+  signature: "x-meshguard-signature",
 } as const;
 
 /** Requests outside this window are rejected, limiting replay of captured requests. */

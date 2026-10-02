@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { getErrorMessage } from "@mesh/api-client";
+import { getErrorMessage } from "@meshguard/api-client";
 import { AddDeviceDialog } from "~/components/add-device-dialog";
 import { DevicesList } from "~/components/devices-list";
 import { EnrollmentTokensList } from "~/components/enrollment-tokens-list";

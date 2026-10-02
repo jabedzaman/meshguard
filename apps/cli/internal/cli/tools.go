@@ -13,8 +13,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/twinlabshq/mesh/internal/dns"
-	"github.com/twinlabshq/mesh/internal/ipc"
+	"github.com/jabedzaman/meshguard/internal/dns"
+	"github.com/jabedzaman/meshguard/internal/ipc"
 )
 
 // findPeer resolves a peer by name (case-insensitive, unique prefix, with or
@@ -35,7 +35,7 @@ func findPeer(peers []ipc.Peer, query string) (ipc.Peer, error) {
 	case 1:
 		return matches[0], nil
 	case 0:
-		return ipc.Peer{}, fmt.Errorf("no peer named %q (see mesh peers)", query)
+		return ipc.Peer{}, fmt.Errorf("no peer named %q (see meshguard peers)", query)
 	default:
 		names := make([]string, len(matches))
 		for i, m := range matches {
@@ -50,9 +50,9 @@ func newIP(o *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ip [peer]",
 		Short: "Print this machine's mesh IP, or a peer's",
-		Example: `  mesh ip              # this machine's IPv4
-  mesh ip -6           # this machine's IPv6
-  mesh ip macbook      # a peer's IPv4`,
+		Example: `  meshguard ip              # this machine's IPv4
+  meshguard ip -6           # this machine's IPv6
+  meshguard ip macbook      # a peer's IPv4`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := o.status()
@@ -180,7 +180,7 @@ func newVersion(o *options) *cobra.Command {
 		Short: "Print the CLI and agent versions",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Printf("mesh   %s\n", Version)
+			fmt.Printf("meshguard  %s\n", Version)
 			if s, err := o.status(); err == nil {
 				fmt.Printf("agent  %s\n", s.Version)
 			} else {

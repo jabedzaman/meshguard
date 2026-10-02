@@ -1,10 +1,10 @@
-module github.com/twinlabshq/mesh/apps/agent
+module github.com/jabedzaman/meshguard/apps/agent
 
 go 1.27.1
 
 require (
 	github.com/stretchr/testify v1.12.1
-	github.com/twinlabshq/mesh/internal v0.0.0
+	github.com/jabedzaman/meshguard/internal v0.0.0
 )
 
 require (
@@ -17,4 +17,4 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446 // indirect
 )
 
-replace github.com/twinlabshq/mesh/internal => ../../internal
+replace github.com/jabedzaman/meshguard/internal => ../../internal

@@ -5,6 +5,6 @@ export default defineConfig({
   schema: "./src/schema/index.ts",
   out: "./migrations",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://mesh:mesh@localhost:5432/mesh",
+    url: process.env.DATABASE_URL ?? "postgres://meshguard:meshguard@localhost:5432/meshguard",
   },
 });

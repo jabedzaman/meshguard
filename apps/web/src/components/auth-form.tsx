@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import type { FormEvent } from "react";
-import { Button } from "@mesh/ui/components/button";
+import { Button } from "@meshguard/ui/components/button";
 import {
   Card,
   CardContent,
@@ -12,9 +12,9 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@mesh/ui/components/card";
-import { Input } from "@mesh/ui/components/input";
-import { Label } from "@mesh/ui/components/label";
+} from "@meshguard/ui/components/card";
+import { Input } from "@meshguard/ui/components/input";
+import { Label } from "@meshguard/ui/components/label";
 import { authClient, unwrap } from "~/lib/auth-client";
 import { useHydrated } from "~/hooks/use-hydrated";
 

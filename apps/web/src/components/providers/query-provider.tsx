@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
-import { DetailedError } from "@mesh/api-client";
+import { DetailedError } from "@meshguard/api-client";
 
 function createQueryClient() {
   return new QueryClient({
