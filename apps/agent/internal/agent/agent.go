@@ -358,6 +358,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	c.peers = nm.Peers
 	c.stun = nm.Stun
 	a.updateDNSLocked(c, nm)
+	a.saveNameLocked(nm.Self.Name)
 	switch {
 	case applyErr != nil:
 		c.problem = "cannot apply peers: " + applyErr.Error()
@@ -479,6 +480,25 @@ func (a *Agent) setProblem(c *connection, p string) {
 }
 
 // statusLocked builds the status. Caller holds a.mu.
+// saveNameLocked keeps the saved device name in step with the control plane,
+// where it can be renamed. Caller holds a.mu.
+func (a *Agent) saveNameLocked(name string) {
+	if name == "" {
+		return
+	}
+	st, err := state.Load(a.StateDir)
+	if err != nil || st.Device.Name == name {
+		return
+	}
+	old := st.Device.Name
+	st.Device.Name = name
+	if err := state.Save(a.StateDir, st); err != nil {
+		slog.Warn("cannot save renamed device", "err", err)
+		return
+	}
+	slog.Info("device renamed", "from", old, "to", name)
+}
+
 func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	s := ipc.Status{
 		Version: a.Version,

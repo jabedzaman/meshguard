@@ -58,12 +58,17 @@ func (e *fakeEngine) Peers() []wireguard.Peer {
 // deletes counts DELETE /v1/devices/self calls on the last signedControlPlane.
 var deletes *atomic.Int32
 
+// selfName is the name the last signedControlPlane syncs for the device, so tests can rename it.
+var selfName *atomic.Value
+
 func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 	t.Helper()
 	var mu sync.Mutex
 	var identityKey ed25519.PublicKey
 	var count atomic.Int32
 	deletes = &atomic.Int32{}
+	selfName = &atomic.Value{}
+	selfName.Store("laptop")
 	peerKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +99,7 @@ func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 				return
 			}
 			count.Add(1)
-			_, _ = w.Write([]byte(`{"self":{"id":"d1","name":"laptop","meshIpv4":"10.77.0.2"},"network":{"id":"n1","name":"home"},"peers":[{"id":"d2","name":"server","wireguardPublicKey":"` + peerKey + `","meshIpv4":"10.77.0.3","meshIpv6":"fd00:1:2:0::3","endpoints":["192.168.1.9:51820","[2001:db8::9]:51820"]}]}`))
+			_, _ = w.Write([]byte(`{"self":{"id":"d1","name":"` + selfName.Load().(string) + `","meshIpv4":"10.77.0.2"},"network":{"id":"n1","name":"home"},"peers":[{"id":"d2","name":"server","wireguardPublicKey":"` + peerKey + `","meshIpv4":"10.77.0.3","meshIpv6":"fd00:1:2:0::3","endpoints":["192.168.1.9:51820","[2001:db8::9]:51820"]}]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -189,6 +194,34 @@ func TestServesPeersOverDNS(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:"+strconv.Itoa(port), status.DNS.Resolver)
 	assert.Empty(t, status.DNS.Configured, "tests leave the OS resolver alone")
 	assert.Equal(t, "server.internal", status.Peers[0].DNSName)
+}
+
+func TestRenameFromControlPlaneIsSaved(t *testing.T) {
+	server, _ := signedControlPlane(t)
+	a := &Agent{
+		Version:      "test",
+		StateDir:     t.TempDir(),
+		SyncInterval: 50 * time.Millisecond,
+		StartEngine:  func(wireguard.Config) (Engine, error) { return &fakeEngine{}, nil },
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	require.Eventually(t, func() bool { a.mu.Lock(); defer a.mu.Unlock(); return a.ctx != nil }, time.Second, 10*time.Millisecond)
+	rec, _, _ := call(t, a.Handler(), http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Renamed from the web: the next sync carries the new name.
+	selfName.Store("workstation")
+	require.Eventually(t, func() bool {
+		_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
+		return status.Device.Name == "workstation" && status.DNS != nil && status.DNS.Name == "workstation.internal"
+	}, 2*time.Second, 20*time.Millisecond)
+
+	// Saved, so it survives a restart before the next sync.
+	st, err := stateLoad(a)
+	require.NoError(t, err)
+	assert.Equal(t, "workstation", st.Device.Name)
 }
 
 func TestWithoutWireGuardStillSyncsAndExplains(t *testing.T) {
