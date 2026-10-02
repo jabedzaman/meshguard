@@ -27,9 +27,11 @@
 
 ```
 apps/api/src/
-  app.ts                      middleware order, error handlers, route mounting
+  app.ts                      middleware order, error handlers; mounts /v1
+  routes/v1.ts                mounts each feature router under /v1
   modules/<feature>/
-    <feature>.routes.ts       paths → controller handlers
+    <feature>.routes.ts       paths → controller handlers (nest sub-resources here,
+                              e.g. networks mounts /:networkId/enrollment-tokens)
     <feature>.controller.ts   validate input, call a service, shape the response
     <feature>.schema.ts       request body schemas
   schemas/params.schema.ts    shared path params (idParams, networkIdParams, ...)
@@ -57,6 +59,14 @@ definitions to hide actions (`usePermission(...)`).
 
 In the web app, `proxy.ts` does all routing on auth state (session, active
 organization); layouts and pages only load data.
+
+## Device enrollment
+
+A device joins a network with a one-time enrollment token
+(`mesh up --token mesh_enr_...`). Tokens are created from the network page,
+shown once, and stored only as a SHA-256 hash with a short display prefix.
+They expire (1h / 24h / 7d), can be revoked, and are single-use. Members can
+create tokens; revoking someone else's needs `device: delete`.
 
 ## Email
 

@@ -45,7 +45,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ Member search (when orgs grow); stale active org on a leaver's other devices (layout fallback)
 - ⬜ Device address allocation (random free address, unique per network; enforced by DB constraints)
 - ⬜ Device identity: agent generates identity + WireGuard key pairs, stores them securely
-- ⬜ Enrollment: one-time token → device record → mesh IP assigned
+- ✅ Enrollment tokens: create (shown once, hashed), list active, revoke; network page with Add device
+- ⬜ Enrollment: agent redeems token → device record → mesh IP assigned
 - ⬜ Coordination: agent receives network map stream, applies peer config
 - ⬜ WireGuard on macOS: userspace `wireguard-go` + utun, routes for mesh range
 - ⬜ Endpoint discovery: report local + STUN-observed endpoints
