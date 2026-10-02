@@ -1,7 +1,7 @@
 import type { Db } from "@mesh/db";
-import { NetworksService } from "~/services/networks/networks.service";
+import { type CreateNetworkInput, NetworksService } from "~/services/networks/networks.service";
 
-export { NetworksService };
+export { NetworksService, type CreateNetworkInput };
 
 export function createServices(db: Db) {
   return {

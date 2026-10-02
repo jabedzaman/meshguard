@@ -4,4 +4,5 @@ import type { AppEnv } from "~/types";
 
 export const networksRoutes = new Hono<AppEnv>()
   .get("/", ...controller.list)
+  .post("/", ...controller.create)
   .get("/:id", ...controller.get);
