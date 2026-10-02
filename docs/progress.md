@@ -4,6 +4,8 @@ Status of goals and milestones. Update this file in the same commit as the work 
 
 Legend: ✅ done · 🚧 in progress · ⬜ not started
 
+Items are numbered `M<milestone>.<n>` (`L.<n>` for Later) so they can be picked by ID, e.g. "do M1.20". IDs are stable: append new items at the end of a milestone, never renumber.
+
 ## North star
 
 > Install → Sign in → Devices appear → Click workspace → Everything connects.
@@ -14,16 +16,16 @@ Networking should disappear into the workflow.
 
 ### M0 — Repo bootstrap ✅
 
-- ✅ pnpm + Turborepo monorepo, `~/*` import alias
-- ✅ Apps: `api` (Hono), `web` (Next.js), `desktop` (Tauri 2), `mcp`, `agent`, `cli`, `relay`, `dns` (Go)
-- ✅ Packages: `config`, `db`, `auth`, `api-client`, `mcp-sdk`, `ui` (shadcn), `proto`
-- ✅ TS packages built with tsup, apps run with `tsx watch`
-- ✅ Go workspace (`go.work`) with shared `internal/` module
-- ✅ Protobuf contracts linted and generated with buf
-- ✅ Docker dev env: Postgres, Redis, NATS + api/web/relay/dns with hot reload (`apps/<app>/Dockerfile.dev`, env injected by Compose)
-- ✅ Typed API client via Hono RPC (`hc<AppType>`), sample `/v1/networks` route
-- ✅ First Drizzle migration (organizations, networks, devices)
-- ✅ Playwright e2e suite (`pnpm e2e:up && pnpm test:e2e`) on an isolated stack and `mesh_test` database
+- ✅ M0.1 pnpm + Turborepo monorepo, `~/*` import alias
+- ✅ M0.2 Apps: `api` (Hono), `web` (Next.js), `desktop` (Tauri 2), `mcp`, `agent`, `cli`, `relay`, `dns` (Go)
+- ✅ M0.3 Packages: `config`, `db`, `auth`, `api-client`, `mcp-sdk`, `ui` (shadcn), `proto`
+- ✅ M0.4 TS packages built with tsup, apps run with `tsx watch`
+- ✅ M0.5 Go workspace (`go.work`) with shared `internal/` module
+- ✅ M0.6 Protobuf contracts linted and generated with buf
+- ✅ M0.7 Docker dev env: Postgres, Redis, NATS + api/web/relay/dns with hot reload (`apps/<app>/Dockerfile.dev`, env injected by Compose)
+- ✅ M0.8 Typed API client via Hono RPC (`hc<AppType>`), sample `/v1/networks` route
+- ✅ M0.9 First Drizzle migration (organizations, networks, devices)
+- ✅ M0.10 Playwright e2e suite (`pnpm e2e:up && pnpm test:e2e`) on an isolated stack and `mesh_test` database
 
 ### M1 — Working private mesh (the real MVP) 🚧
 
@@ -31,77 +33,74 @@ Devices ping each other over WireGuard: directly on a shared network, through th
 
 Goal: Mac A and Mac B on different networks can ping each other's mesh IP, directly over WireGuard, and recover from disconnects automatically.
 
-- ✅ Human auth: Better Auth email/password sign-up/sign-in in `api` and `web`
-- 🚧 GitHub sign-in: wired, needs an OAuth app (`GITHUB_CLIENT_ID/SECRET`)
-- ✅ Organizations: Better Auth organization plugin, onboarding in `web`, active org restored on sign-in
-- ✅ `/v1` routes require a session and are scoped to the active organization
-- ✅ `web` route protection via Next.js proxy with `redirectTo`
-- ✅ All auth routing in `web/proxy.ts` (session, active org); layouts only load data; onboarding at `/organizations/create`; `/api/organizations/[organizationId]/activate` restores a missing active org
-- ✅ Networks: create (`POST /v1/networks`), default `10.77.0.0/16` (configurable, RFC 1918 only), random IPv6 ULA /48 per network
-- ✅ Organization switcher
-- ✅ Roles: owner / admin / member (`@mesh/auth/permissions`), enforced in the API with `requirePermission`
-- ✅ Invitations: invite by email (owner/admin), pending list, cancel; email via workers + react-email
-- ✅ Invitation page `/invitations/[invitationId]`: accept / decline, sign-up from the link, wrong-account, expired / cancelled / used states
-- ✅ Role assignment on the members list (owners: any role; admins: admin/member, not owners; own row read-only)
-- ✅ Remove member (owners/admins; only owners act on owners) and leave organization (proxy then activates the next org)
-- ⬜ Member search (when orgs grow); stale active org on a leaver's other devices (layout fallback)
-- ⬜ Device address allocation (random free address, unique per network; enforced by DB constraints)
-- ✅ Device identity: Ed25519 identity + Curve25519 WireGuard keys, state file 0600 in a 0700 dir
-- ✅ Enrollment tokens: create (shown once, hashed), list active, revoke; network page with Add device
-- ✅ Enrollment: `mesh up --token` → agent generates keys → `POST /v1/devices/enroll` → device with random free mesh IPv4/IPv6; devices listed on the network page
-- ✅ Coordination: signed `POST /v1/devices/self/sync` every 10s returns the network map; agent applies peers
-- ✅ WireGuard: embedded wireguard-go on TUN (`mesh0` / utun), mesh addresses + network routes (Linux in the lab; macOS on a real MacBook Air ↔ WSL, 2026-10-02, 0% loss both ways)
-- ✅ Endpoint discovery: local interface addresses + STUN-observed public address
-- ⬜ NAT traversal: UDP hole punching between peers
-- ✅ Presence: sync updates lastSeenAt; the API decides online (30s window); web polls every 5s
-- ⬜ Presence in Redis with TTL keys instead of a Postgres write per sync (needed at scale)
-- ⬜ Push device events to the web (WebSocket/SSE, NATS `device.connected`) instead of polling
-- 🚧 Reconnect: agent restart reconnects from saved state (lab-tested); sleep/network change not yet handled
-- ✅ CLI (cobra): `mesh up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
-- ⬜ Agent local API auth (peer credentials on the Unix socket)
+- ✅ M1.1 Human auth: Better Auth email/password sign-up/sign-in in `api` and `web`
+- 🚧 M1.2 GitHub sign-in: wired, needs an OAuth app (`GITHUB_CLIENT_ID/SECRET`)
+- ✅ M1.3 Organizations: Better Auth organization plugin, onboarding in `web`, active org restored on sign-in
+- ✅ M1.4 `/v1` routes require a session and are scoped to the active organization
+- ✅ M1.5 `web` route protection via Next.js proxy with `redirectTo`
+- ✅ M1.6 All auth routing in `web/proxy.ts` (session, active org); layouts only load data; onboarding at `/organizations/create`; `/api/organizations/[organizationId]/activate` restores a missing active org
+- ✅ M1.7 Networks: create (`POST /v1/networks`), default `10.77.0.0/16` (configurable, RFC 1918 only), random IPv6 ULA /48 per network
+- ✅ M1.8 Organization switcher
+- ✅ M1.9 Roles: owner / admin / member (`@mesh/auth/permissions`), enforced in the API with `requirePermission`
+- ✅ M1.10 Invitations: invite by email (owner/admin), pending list, cancel; email via workers + react-email
+- ✅ M1.11 Invitation page `/invitations/[invitationId]`: accept / decline, sign-up from the link, wrong-account, expired / cancelled / used states
+- ✅ M1.12 Role assignment on the members list (owners: any role; admins: admin/member, not owners; own row read-only)
+- ✅ M1.13 Remove member (owners/admins; only owners act on owners) and leave organization (proxy then activates the next org)
+- ⬜ M1.14 Member search (when orgs grow); stale active org on a leaver's other devices (layout fallback)
+- ✅ M1.15 Device identity: Ed25519 identity + Curve25519 WireGuard keys, state file 0600 in a 0700 dir
+- ✅ M1.16 Enrollment tokens: create (shown once, hashed), list active, revoke; network page with Add device
+- ✅ M1.17 Enrollment: `mesh up --token` → agent generates keys → `POST /v1/devices/enroll` → device with random free mesh IPv4/IPv6; devices listed on the network page
+- ✅ M1.18 Coordination: signed `POST /v1/devices/self/sync` every 10s returns the network map; agent applies peers
+- ✅ M1.19 WireGuard: embedded wireguard-go on TUN (`mesh0` / utun), mesh addresses + network routes (Linux in the lab; macOS on a real MacBook Air ↔ WSL, 2026-10-02, 0% loss both ways)
+- ✅ M1.20 Endpoint discovery: local interface addresses + STUN-observed public address
+- ✅ M1.21 Presence: sync updates lastSeenAt; the API decides online (30s window); web polls every 5s
+- ⬜ M1.22 Presence in Redis with TTL keys instead of a Postgres write per sync (needed at scale)
+- ⬜ M1.23 Push device events to the web (WebSocket/SSE, NATS `device.connected`) instead of polling
+- 🚧 M1.24 Reconnect: agent restart reconnects from saved state (lab-tested); sleep/network change not yet handled
+- ✅ M1.25 CLI (cobra): `mesh up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
+- ⬜ M1.26 Agent local API auth (peer credentials on the Unix socket)
 
 ### M2 — Reachability and naming 🚧
 
-- ✅ Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks; real hardware: MacBook ↔ WSL via relay, 2026-10-02)
-- ✅ NAT traversal, first cut: STUN (self-hosted in mesh-relay), sealed disco pings, learned NAT mappings; direct through a NAT to a reachable peer (lab), relay for symmetric NAT
-- ⬜ NAT traversal when both peers are behind Linux-style NATs (conntrack port clash): coordinated punching / low-TTL trick / UPnP-NAT-PMP-PCP
-- ✅ Point-to-point (VPN) interfaces are never advertised or treated as shared networks
-- ✅ Device names use the short hostname (no `.local`)
-- ⬜ Rename devices from the web
-- ⬜ Private DNS (`<device>.<tld>`), answered locally by the agent
-- ⬜ ACLs (device → service → port)
-- ⬜ Key rotation
+- ✅ M2.1 Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks; real hardware: MacBook ↔ WSL via relay, 2026-10-02)
+- ✅ M2.2 NAT traversal, first cut: STUN (self-hosted in mesh-relay), sealed disco pings, learned NAT mappings; direct through a NAT to a reachable peer (lab), relay for symmetric NAT
+- ⬜ M2.3 NAT traversal when both peers are behind Linux-style NATs (conntrack port clash): coordinated punching / low-TTL trick / UPnP-NAT-PMP-PCP
+- ✅ M2.4 Point-to-point (VPN) interfaces are never advertised or treated as shared networks
+- ✅ M2.5 Device names use the short hostname (no `.local`)
+- ⬜ M2.6 Rename devices from the web
+- ⬜ M2.7 Private DNS (`<device>.<tld>`), answered locally by the agent
+- ⬜ M2.8 ACLs (device → service → port)
+- ⬜ M2.9 Key rotation
 
 ### M3 — Desktop app ⬜
 
-- ✅ Agent runs as a system service: `sudo mesh-agent install` (launchd / systemd; systemd tested by `pnpm test:systemd`; verified on a MacBook and WSL, 2026-10-02)
-
-- ⬜ Sign in, device enrollment, network selection
-- ⬜ Device list, peer health, connection status
-- ⬜ Agent ↔ desktop over Unix socket
-- ⬜ Menu-bar mode (carry over from Mapper)
+- ✅ M3.1 Agent runs as a system service: `sudo mesh-agent install` (launchd / systemd; systemd tested by `pnpm test:systemd`; verified on a MacBook and WSL, 2026-10-02)
+- ⬜ M3.2 Sign in, device enrollment, network selection
+- ⬜ M3.3 Device list, peer health, connection status
+- ⬜ M3.4 Agent ↔ desktop over Unix socket
+- ⬜ M3.5 Menu-bar mode (carry over from Mapper)
 
 ### M4 — Workspaces ⬜
 
-- ⬜ Workspace config schema (`workspace.yaml`)
-- ⬜ Activate / deactivate: remote checks, Docker Compose up, port forwarding
-- ⬜ Port conflict detection and resolution
-- ⬜ Service discovery, open URLs
-- ⬜ Git status / diff
-- ⬜ `mesh workspace list|activate|stop`
+- ⬜ M4.1 Workspace config schema (`workspace.yaml`)
+- ⬜ M4.2 Activate / deactivate: remote checks, Docker Compose up, port forwarding
+- ⬜ M4.3 Port conflict detection and resolution
+- ⬜ M4.4 Service discovery, open URLs
+- ⬜ M4.5 Git status / diff
+- ⬜ M4.6 `mesh workspace list|activate|stop`
 
 ### M5 — AI and diagnostics ⬜
 
-- ⬜ `mesh doctor`: peer, handshake, route, ACL, DNS, port, Docker checks
-- ⬜ MCP read-only tools (devices, topology, workspace, git, logs)
-- ⬜ MCP mutating tools behind explicit approval
-- ⬜ AI network doctor built on `mesh doctor`
+- ⬜ M5.1 `mesh doctor`: peer, handshake, route, ACL, DNS, port, Docker checks
+- ⬜ M5.2 MCP read-only tools (devices, topology, workspace, git, logs)
+- ⬜ M5.3 MCP mutating tools behind explicit approval
+- ⬜ M5.4 AI network doctor built on `mesh doctor`
 
 ### Later ⬜
 
-- ⬜ Temporary access links (time-limited, audited)
-- ⬜ Windows and Linux agents
-- ⬜ Product name + domain
+- ⬜ L.1 Temporary access links (time-limited, audited)
+- ⬜ L.2 Windows and Linux agents
+- ⬜ L.3 Product name + domain
 
 ## Open decisions
 
