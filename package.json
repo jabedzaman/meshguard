@@ -33,6 +33,7 @@
     "@playwright/test": "^1.63.0",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.1",
     "prettier": "^3.9.9",
     "tsup": "^8.5.1",

@@ -1,6 +1,7 @@
 import { createHash, generateKeyPairSync, type KeyObject, sign } from "node:crypto";
 import { sql } from "./support/db";
 import { E2E } from "./support/env";
+import { redis } from "./support/redis";
 import { api, expect, test } from "./support/fixtures";
 
 /** Raw 32-byte public keys, base64, as the agent sends them. */
@@ -296,16 +297,23 @@ test.describe("devices", () => {
     );
     const keys = signingDevice();
     const enrolled = await enroll({ token, hostname: "laptop", platform: "linux", ...keys.keys });
-    await sync({ id: enrolled.body.device.id, privateKey: keys.privateKey }, { endpoints: [] });
+    const device = { id: enrolled.body.device.id, privateKey: keys.privateKey };
+    const lastSeenInPostgres = async () =>
+      (await sql("select last_seen_at from devices where id = $1", [device.id]))[0]!.last_seen_at;
+
+    // The first sync persists lastSeenAt; the next ones only refresh Redis.
+    await sync(device, { endpoints: [] });
+    const persisted = await lastSeenInPostgres();
+    expect(persisted).not.toBeNull();
+    await sync(device, { endpoints: [] });
+    expect(await lastSeenInPostgres()).toEqual(persisted);
 
     await owner.page.goto(`/networks/${network.id}`);
     const row = owner.page.locator("li", { hasText: "laptop" });
     await expect(row).toContainText("online");
 
-    // The agent stops: its last sync is now older than the online window.
-    await sql("update devices set last_seen_at = now() - interval '1 minute' where id = $1", [
-      enrolled.body.device.id,
-    ]);
+    // The agent stops: its presence key expires after the online window.
+    await redis((client) => client.del(`presence:device:${enrolled.body.device.id}`));
     await expect(row).toContainText("last seen", { timeout: 15_000 });
   });
 });
