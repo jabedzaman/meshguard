@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
+import { DEVICE_NAME_PATTERN, deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
 
 describe("deviceNameFromHostname", () => {
   it("keeps the first label, lowercased", () => {
@@ -28,5 +28,24 @@ describe("numberedDeviceName", () => {
 
   it("stays within one DNS label", () => {
     expect(numberedDeviceName("a".repeat(63), 12)).toBe(`${"a".repeat(60)}-12`);
+  });
+});
+
+describe("DEVICE_NAME_PATTERN", () => {
+  it("accepts DNS labels", () => {
+    for (const name of ["a", "laptop", "build-box-2", "a".repeat(63)]) {
+      expect(DEVICE_NAME_PATTERN.test(name)).toBe(true);
+    }
+  });
+
+  it("rejects anything else", () => {
+    for (const name of ["", "-a", "a-", "Laptop", "my_box", "a.b", "a".repeat(64)]) {
+      expect(DEVICE_NAME_PATTERN.test(name)).toBe(false);
+    }
+  });
+
+  it("matches what hostnames turn into", () => {
+    expect(DEVICE_NAME_PATTERN.test(deviceNameFromHostname("Jabeds-MacBook-Air.local"))).toBe(true);
+    expect(DEVICE_NAME_PATTERN.test(numberedDeviceName("a".repeat(63), 12))).toBe(true);
   });
 });

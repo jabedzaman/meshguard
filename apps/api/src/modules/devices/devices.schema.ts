@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ENROLLMENT_TOKEN_PREFIX } from "@meshguard/server-core";
+import { DEVICE_NAME_PATTERN, ENROLLMENT_TOKEN_PREFIX } from "@meshguard/server-core";
 
 /** Base64 (standard) encoding of exactly 32 bytes: Ed25519 and Curve25519 public keys. */
 const publicKey32 = z
@@ -27,4 +27,16 @@ const endpoint = z
 export const syncDeviceBody = z.object({
   /** Where peers can reach this device's WireGuard, best first. */
   endpoints: z.array(endpoint).max(16),
+});
+
+export const renameDeviceBody = z.object({
+  /** The device's DNS label (`<name>.internal`); case is folded like DNS does. */
+  name: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(
+      DEVICE_NAME_PATTERN,
+      "Use 1–63 letters, digits and hyphens, not starting or ending with a hyphen",
+    ),
 });

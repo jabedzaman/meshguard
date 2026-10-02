@@ -6,7 +6,8 @@ import type { AppEnv } from "~/types";
 export const devicesRoutes = new Hono<AppEnv>()
   .post("/enroll", ...controller.enroll)
   .post("/self/sync", ...controller.sync)
-  .delete("/self", ...controller.deleteSelf);
+  .delete("/self", ...controller.deleteSelf)
+  .patch("/:id", ...controller.rename);
 
 /** Nested under the networks router: /v1/networks/:networkId/devices. */
 export const networkDevicesRoutes = new Hono<AppEnv>()

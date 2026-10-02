@@ -4,8 +4,12 @@ import { logger } from "~/lib/logger";
 import { validate } from "~/lib/validator";
 import { requireOrganization, requirePermission } from "~/middlewares/auth.middleware";
 import { requireDevice } from "~/middlewares/device.middleware";
-import { enrollDeviceBody, syncDeviceBody } from "~/modules/devices/devices.schema";
-import { networkIdParams } from "~/schemas/params.schema";
+import {
+  enrollDeviceBody,
+  renameDeviceBody,
+  syncDeviceBody,
+} from "~/modules/devices/devices.schema";
+import { idParams, networkIdParams } from "~/schemas/params.schema";
 
 /** Called by the agent (`meshguard up --token ...`); authenticated by the enrollment token. */
 export const enroll = factory.createHandlers(validate("json", enrollDeviceBody), async (c) => {
@@ -23,6 +27,22 @@ export const listForNetwork = factory.createHandlers(
       c.req.valid("param").networkId,
     );
     return c.json(devices, 200);
+  },
+);
+
+/** Renames a device; its DNS name changes with it. */
+export const rename = factory.createHandlers(
+  requireOrganization,
+  requirePermission({ device: ["update"] }),
+  validate("param", idParams),
+  validate("json", renameDeviceBody),
+  async (c) => {
+    const device = await c.var.services.devices.rename(
+      c.var.organizationId,
+      c.req.valid("param").id,
+      c.req.valid("json").name,
+    );
+    return c.json(device, 200);
   },
 );
 

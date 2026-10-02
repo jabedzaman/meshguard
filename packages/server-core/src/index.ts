@@ -1,6 +1,7 @@
 export * from "./errors";
 export * from "./events/device-events";
 export * from "./lib/device-auth";
+export * from "./lib/device-name";
 export * from "./lib/ip";
 export * from "./lib/mailer";
 export * from "./lib/nats";

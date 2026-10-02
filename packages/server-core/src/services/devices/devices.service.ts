@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, ne, schema, type Db } from "@meshguard/db";
+import { and, desc, eq, gt, inArray, isNull, ne, schema, type Db } from "@meshguard/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import type { DeviceEvents } from "~/events/device-events";
 import { isUniqueViolation } from "~/lib/db-errors";
@@ -246,6 +246,35 @@ export class DevicesService {
     if (!deleted) throw new NotFoundError("device");
     await this.presence.clear(deleted.networkId, deleted.id);
     this.events.publish({ type: "removed", networkId: deleted.networkId, deviceId: deleted.id });
+  }
+
+  /**
+   * Renames a device in the organization. The name is its DNS label, so it
+   * must stay unique in the network; agents pick it up on their next sync.
+   */
+  async rename(organizationId: string, deviceId: string, name: string) {
+    const inOrganization = this.db
+      .select({ id: networks.id })
+      .from(networks)
+      .where(eq(networks.organizationId, organizationId));
+    try {
+      const [device] = await this.db
+        .update(devices)
+        .set({ name })
+        .where(and(eq(devices.id, deviceId), inArray(devices.networkId, inOrganization)))
+        .returning({ id: devices.id, networkId: devices.networkId, name: devices.name });
+      if (!device) throw new NotFoundError("device");
+      this.events.publish({ type: "updated", networkId: device.networkId, deviceId: device.id });
+      return device;
+    } catch (error) {
+      if (isUniqueViolation(error, "devices_network_id_name_unique")) {
+        throw new ConflictError(
+          "device_name_taken",
+          `Another device in this network is named ${name}`,
+        );
+      }
+      throw error;
+    }
   }
 
   /** Live device events for a network in the organization; call `close` when done. */
