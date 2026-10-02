@@ -27,6 +27,7 @@ read `.env` themselves.
 | Web | http://localhost:3000 |
 | API | http://localhost:4000 |
 | Mailpit (catches all dev email) | http://localhost:8025 |
+| Relay | ws://localhost:3340/relay (health: http://localhost:3340/healthz) |
 | NATS monitoring | http://localhost:8222 |
 
 If a host port is taken by another project, override it in `.env` (`*_HOST_PORT`).
@@ -86,15 +87,17 @@ sudo ~/.local/bin/mesh-agent -socket /tmp/mesh.sock -state-dir $HOME/.mesh
 Under sudo the agent hands the socket to the invoking user, so `mesh` works
 without sudo.
 
-## Two-device lab
+## Mesh lab
 
-Two containerized agents on one Docker network, enrolled into a fresh network
-on the e2e stack, pinging each other over the mesh:
+Four containerized agents on the e2e stack. `lab-a` and `lab-b` share a Docker
+network and must connect directly; `lab-c` and `lab-d` are on isolated
+networks (they can reach the API and relay, not each other) and must connect
+through the relay:
 
 ```sh
 pnpm e2e:up
-pnpm lab        # builds lab-a/lab-b, enrolls both, pings v4 both ways and v6
-docker exec mesh-lab-a mesh status
+pnpm lab        # enrolls both pairs, pings v4 both ways and v6, checks the path
+docker exec mesh-lab-c mesh status   # peers "via relay"
 pnpm lab:down
 ```
 

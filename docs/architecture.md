@@ -91,9 +91,23 @@ its mesh addresses with the network prefix (so the whole range routes through
 the interface) and replaces the peer list when the map changes. Each peer gets
 its first endpoint, host routes for its mesh addresses and a 25s keepalive.
 
-Devices are shown online if they synced in the last 30s. For now peers must
-reach each other directly (same LAN or a public IP); NAT traversal and relays
-come next. Without root the agent stays registered and syncing, and
+Devices are shown online if they synced in the last 30s.
+
+## Relay
+
+When peers can't reach each other directly, WireGuard packets go through the
+relay (`apps/relay`, `internal/relay`). Agents keep an outbound WebSocket to
+it, so it works behind any NAT; it forwards frames of
+`[32-byte WireGuard key][packet]` by key and only ever sees ciphertext. On
+connect, an agent proves it owns the key it claims: it answers a random
+challenge with a NaCl box sealed by its WireGuard private key.
+
+The sync response includes `relay.url` (API env `RELAY_URL`). The agent's
+WireGuard transport (`wireguard.Bind`) wraps UDP and sends endpoints written
+as `relay/<hex key>` through the relay client. Per peer, the agent uses a
+direct endpoint if the peer advertises an address on a network it is attached
+to (same LAN), and the relay otherwise. STUN-based hole punching, to go direct
+across NATs, comes next. Without root the agent stays registered and syncing, and
 `mesh status` explains why WireGuard isn't running.
 
 ## Email

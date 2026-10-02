@@ -27,7 +27,7 @@ Networking should disappear into the workflow.
 
 ### M1 — Working private mesh (the real MVP) 🚧
 
-Two devices on the same network ping each other over WireGuard (`pnpm lab`). Remaining: NAT traversal so devices on different networks connect.
+Devices ping each other over WireGuard: directly on a shared network, through the relay otherwise (`pnpm lab`). Remaining for production use: a public relay/API deployment, then direct connections across NATs.
 
 Goal: Mac A and Mac B on different networks can ping each other's mesh IP, directly over WireGuard, and recover from disconnects automatically.
 
@@ -58,9 +58,10 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ `mesh login`, `mesh status`, `mesh devices`, `mesh connect`, `mesh disconnect`
 - ⬜ Agent local API auth (peer credentials on the Unix socket)
 
-### M2 — Reachability and naming ⬜
+### M2 — Reachability and naming 🚧
 
-- ⬜ Relay fallback when direct connection fails
+- ✅ Relay fallback: WebSocket relay with key-possession handshake; agents relay peers not on a shared network (lab: isolated networks connect via relay)
+- ⬜ NAT traversal: STUN-observed endpoints and hole punching, then switch from relay to direct
 - ⬜ Private DNS (`<device>.<tld>`), answered locally by the agent
 - ⬜ ACLs (device → service → port)
 - ⬜ Key rotation
@@ -128,4 +129,5 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Agent ↔ API uses HTTP/JSON (Hono routes) for the MVP instead of protobuf/gRPC; revisit for the coordination stream |
 | 2026-10-02 | Go tests use testify; Go apps `replace` the local `internal` module so they build without go.work |
 | 2026-10-02 | Devices authenticate with Ed25519-signed requests (2 min window); agents poll a sync endpoint every 10s rather than a stream for the MVP |
+| 2026-10-02 | Relay-first reachability: WebSocket relay (works behind any NAT) before hole punching; peers on a shared network go direct |
 | 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |
