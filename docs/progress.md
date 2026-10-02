@@ -55,7 +55,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.20 Endpoint discovery: local interface addresses + STUN-observed public address
 - ✅ M1.21 Presence: sync updates lastSeenAt; the API decides online (30s window); web polls every 5s
 - ✅ M1.22 Presence in Redis with TTL keys instead of a Postgres write per sync; Postgres gets endpoint changes and lastSeenAt every 5 min
-- ⬜ M1.23 Push device events to the web (WebSocket/SSE, NATS `device.connected`) instead of polling
+- ✅ M1.23 Push device events to the web instead of polling: NATS `network.<id>.device.<type>` (enrolled, connected, updated, disconnected via Redis key expiry, removed) → SSE → the device list refetches
 - ✅ M1.24 Reconnect: agent restart reconnects from saved state; network changes and wake from sleep rebind sockets, reset NAT/disco state, redial the relay and resync (lab: peer changes address → direct again in ~13s; verified on the MacBook, 2026-10-02)
 - ✅ M1.25 CLI (cobra): `mesh up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
 - ⬜ M1.26 Agent local API auth (peer credentials on the Unix socket)
@@ -140,3 +140,4 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Hole punching via STUN from WireGuard's socket + NaCl-sealed disco pings (Tailscale-style); relay stays the fallback |
 | 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |
 | 2026-10-02 | Device presence in Redis (30s TTL key per device); Postgres `last_seen_at` persisted every 5 min only for "last seen" |
+| 2026-10-02 | Device events to the web over SSE (one-way, works through the existing cookie/CORS setup) fed by NATS; events are refetch hints, not state |

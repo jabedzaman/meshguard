@@ -92,10 +92,20 @@ the interface) and replaces the peer list when the map changes. Each peer gets
 its first endpoint, host routes for its mesh addresses and a 25s keepalive.
 
 Presence lives in Redis, not Postgres: each sync sets
-`presence:device:<id>` with a 30s TTL, and a device is online while that key
+`presence:device:<networkId>:<deviceId>` with a 30s TTL, and a device is online while that key
 exists. Postgres is written only when the endpoints change, plus
 `last_seen_at` at most every 5 minutes (a `presence:persisted:<id>` NX key
 gates it) so offline devices still show when they were last seen.
+
+Device changes are pushed to the web, not polled. The API publishes
+`network.<networkId>.device.<type>` on NATS when a device enrolls, connects
+(its presence key was absent), changes endpoints or is removed; the workers app
+publishes `disconnected` when a presence key expires, from Redis expired-key
+notifications (it enables `notify-keyspace-events Ex` at startup; on managed
+Redis that forbids `CONFIG`, set it there). The network page holds an
+EventSource on `GET /v1/networks/:networkId/devices/events` and re-reads the
+device list on every event and on every (re)connect, so events are only hints
+and a lost one costs at most a stale row until the next.
 
 ## Relay
 
