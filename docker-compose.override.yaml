@@ -37,6 +37,32 @@ services:
       - ./packages/auth/dist:/app/packages/auth/dist
       - ./packages/config/dist:/app/packages/config/dist
       - ./packages/db/dist:/app/packages/db/dist
+      - ./packages/emails/dist:/app/packages/emails/dist
+      - ./packages/server-core/dist:/app/packages/server-core/dist
+      - ./packages/utils/dist:/app/packages/utils/dist
+
+  workers:
+    container_name: mesh-workers
+    build:
+      context: .
+      dockerfile: apps/workers/Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SMTP_URL=smtp://mailpit:1025
+      - CHOKIDAR_USEPOLLING=1
+      - CHOKIDAR_INTERVAL=500
+    depends_on:
+      redis:
+        condition: service_started
+      mailpit:
+        condition: service_started
+    volumes:
+      - ./apps/workers/src:/app/apps/workers/src
+      - ./packages/config/dist:/app/packages/config/dist
+      - ./packages/db/dist:/app/packages/db/dist
+      - ./packages/emails/dist:/app/packages/emails/dist
       - ./packages/server-core/dist:/app/packages/server-core/dist
       - ./packages/utils/dist:/app/packages/utils/dist
 

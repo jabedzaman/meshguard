@@ -36,6 +36,13 @@ services:
     volumes:
       - nats_data:/data
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mesh-mailpit
+    ports:
+      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
+      - "${MAILPIT_UI_HOST_PORT:-8025}:8025"
+
 volumes:
   postgres_data:
   redis_data:

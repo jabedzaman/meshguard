@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1.4
+FROM node:22-slim
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/workers/package.json apps/workers/
+COPY packages/config/package.json packages/config/
+COPY packages/db/package.json packages/db/
+COPY packages/emails/package.json packages/emails/
+COPY packages/server-core/package.json packages/server-core/
+COPY packages/utils/package.json packages/utils/
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch
+
+COPY . .
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile \
+    --filter @mesh/workers... \
+    --filter mesh
+
+RUN pnpm turbo run build --filter=@mesh/workers^...
+
+CMD ["pnpm", "-F", "@mesh/workers", "watch"]

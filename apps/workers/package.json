@@ -1,0 +1,23 @@
+{
+  "name": "@mesh/workers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "watch": "tsx watch src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mesh/config": "workspace:^",
+    "@mesh/emails": "workspace:^",
+    "@mesh/server-core": "workspace:^",
+    "@mesh/utils": "workspace:^",
+    "bullmq": "^6.3.11",
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}
