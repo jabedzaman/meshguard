@@ -2,6 +2,7 @@ import { and, desc, eq, gt, isNull, ne, schema, type Db } from "@mesh/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import type { DeviceEvents } from "~/events/device-events";
 import { isUniqueViolation } from "~/lib/db-errors";
+import { deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
 import type { PresenceStore } from "~/lib/presence";
 import { hashToken } from "~/lib/tokens";
@@ -31,8 +32,9 @@ export class DevicesService {
 
   /**
    * Redeems an enrollment token and registers the device with random free
-   * mesh addresses. The token is consumed in the same transaction, so it can
-   * enroll at most one device.
+   * mesh addresses and a name unique in its network (`laptop`, `laptop-2`, …),
+   * which is also its DNS label. The token is consumed in the same
+   * transaction, so it can enroll at most one device.
    */
   async enroll(input: EnrollDeviceInput) {
     const enrolled = await this.db.transaction(async (tx) => {
@@ -59,7 +61,23 @@ export class DevicesService {
       const [network] = await tx.select().from(networks).where(eq(networks.id, token.networkId));
       if (!network) throw new NotFoundError("network");
 
+      const baseName = deviceNameFromHostname(input.hostname);
+      const taken = new Set(
+        (
+          await tx
+            .select({ name: devices.name })
+            .from(devices)
+            .where(eq(devices.networkId, network.id))
+        ).map((d) => d.name),
+      );
+      let nameNumber = 1;
+      const nextFreeName = () => {
+        while (taken.has(numberedDeviceName(baseName, nameNumber))) nameNumber++;
+        return numberedDeviceName(baseName, nameNumber);
+      };
+
       for (let attempt = 0; attempt < MAX_ADDRESS_ATTEMPTS; attempt++) {
+        const name = nextFreeName();
         try {
           // Savepoint per attempt: a unique violation would otherwise abort the transaction.
           const device = await tx.transaction(async (sp) => {
@@ -67,7 +85,7 @@ export class DevicesService {
               .insert(devices)
               .values({
                 networkId: network.id,
-                name: input.hostname,
+                name,
                 hostname: input.hostname,
                 platform: input.platform,
                 identityPublicKey: input.identityPublicKey,
@@ -102,6 +120,11 @@ export class DevicesService {
             isUniqueViolation(error, "devices_network_id_mesh_ipv4_unique") ||
             isUniqueViolation(error, "devices_network_id_mesh_ipv6_unique")
           ) {
+            continue;
+          }
+          if (isUniqueViolation(error, "devices_network_id_name_unique")) {
+            // Taken by a concurrent enrollment.
+            taken.add(name);
             continue;
           }
           throw error;

@@ -94,6 +94,29 @@ test.describe("devices", () => {
     });
   });
 
+  test("device names are DNS labels, unique in the network", async ({
+    createUser,
+    createOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Names Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const enrollAs = async (hostname: string) => {
+      const { token } = await api<{ token: string }>(
+        owner.page,
+        `/v1/networks/${network.id}/enrollment-tokens`,
+        {},
+      );
+      const res = await enroll({ token, hostname, platform: "darwin", ...deviceKeys() });
+      expect(res.status).toBe(201);
+      return res.body.device.name as string;
+    };
+
+    expect(await enrollAs("Jabeds-MacBook-Air.local")).toBe("jabeds-macbook-air");
+    expect(await enrollAs("jabeds-macbook-air")).toBe("jabeds-macbook-air-2");
+    expect(await enrollAs("Jabeds-MacBook-Air")).toBe("jabeds-macbook-air-3");
+  });
+
   test("tokens are single-use, revocable and keys can't enroll twice", async ({
     createUser,
     createOrganization,

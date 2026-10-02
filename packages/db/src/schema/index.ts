@@ -55,6 +55,7 @@ export const devices = pgTable(
     networkId: uuid("network_id")
       .notNull()
       .references(() => networks.id, { onDelete: "cascade" }),
+    /** Unique in the network and a DNS label: the device resolves as `<name>.internal`. */
     name: text("name").notNull(),
     hostname: text("hostname").notNull(),
     platform: platform("platform").notNull(),
@@ -76,6 +77,7 @@ export const devices = pgTable(
     // instead of coordinating through a central allocator.
     unique("devices_network_id_mesh_ipv4_unique").on(t.networkId, t.meshIpv4),
     unique("devices_network_id_mesh_ipv6_unique").on(t.networkId, t.meshIpv6),
+    unique("devices_network_id_name_unique").on(t.networkId, t.name),
   ],
 );
 
