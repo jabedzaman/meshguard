@@ -87,6 +87,20 @@ sudo ~/.local/bin/mesh-agent -socket /tmp/mesh.sock -state-dir $HOME/.mesh
 Under sudo the agent hands the socket to the invoking user, so `mesh` works
 without sudo.
 
+### Running the agent as a service
+
+```sh
+sudo mesh-agent install                         # launchd (macOS) / systemd (Linux), starts at boot
+sudo mesh-agent install -state-dir $HOME/.mesh  # keep an existing enrollment from a dev run
+mesh status                                     # default socket; no sudo or MESH_SOCKET needed
+sudo mesh-agent uninstall                       # stops and removes the service, keeps state
+```
+
+`install` copies `mesh-agent` (and `mesh`, if it's in the same folder) to
+`/usr/local/bin`, saves any agent flags you pass into the service, and makes
+the user who ran sudo the socket owner. Logs: `/var/log/mesh-agent.log` on
+macOS, `journalctl -u mesh-agent` on Linux.
+
 ## Mesh lab
 
 Four containerized agents on the e2e stack. `lab-a` and `lab-b` share a Docker

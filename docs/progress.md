@@ -71,6 +71,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 
 ### M3 — Desktop app ⬜
 
+- ✅ Agent runs as a system service: `sudo mesh-agent install` (launchd / systemd)
+
 - ⬜ Sign in, device enrollment, network selection
 - ⬜ Device list, peer health, connection status
 - ⬜ Agent ↔ desktop over Unix socket
