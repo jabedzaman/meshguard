@@ -24,6 +24,8 @@ services:
       # The relay URL agents get. Set RELAY_PUBLIC_URL in .env when agents on
       # other machines need it (e.g. ws://<this machine's LAN/tailnet IP>:3340/relay).
       - RELAY_URL=${RELAY_PUBLIC_URL:-ws://localhost:3340/relay}
+      # Agents ask these for their public address (hole punching).
+      - STUN_SERVERS=${STUN_SERVERS:-stun.l.google.com:19302,stun.cloudflare.com:3478}
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
     ports:
@@ -105,8 +107,11 @@ services:
       dockerfile: apps/relay/Dockerfile.dev
     ports:
       - "${RELAY_HOST_PORT:-3340}:3340"
-    # Also on the isolated lab networks, so lab-c and lab-d can reach it.
-    networks: [default, lab_c, lab_d]
+    # Also on the lab's "internet", where lab devices reach it (relay + STUN).
+    networks:
+      default: {}
+      lab_inet:
+        ipv4_address: 10.200.0.11
 
   dns:
     <<: *go-volumes
@@ -133,13 +138,17 @@ services:
       - NATS_URL=nats://nats:4222
       - BETTER_AUTH_URL=http://localhost:4200
       - WEB_URL=http://localhost:3200
-      - RELAY_URL=ws://relay:3340/relay
+      - RELAY_URL=ws://10.200.0.11:3340/relay
+      - STUN_SERVERS=10.200.0.11:3478
       - LOG_LEVEL=warn
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
     ports:
       - "4200:4000"
-    networks: [default, lab_c, lab_d]
+    networks:
+      default: {}
+      lab_inet:
+        ipv4_address: 10.200.0.10
     depends_on:
       postgres:
         condition: service_healthy
@@ -226,8 +235,11 @@ services:
     command: ["npx", "-y", "playwright@1.63.0", "run-server", "--port", "3300", "--host", "127.0.0.1"]
 
   # ---------------------------------------------------------------------------
-  # Two-device lab (`pnpm lab`): agents in containers with TUN access, enrolled
-  # against the e2e API. Needs the e2e stack (`pnpm e2e:up`).
+  # Mesh lab (`pnpm lab`), on the e2e stack. lab_inet plays the internet (API
+  # .10, relay + STUN .11). lab-a/lab-b share it like a LAN. lab-e sits behind
+  # a cone NAT and lab-f is directly on the internet (must go direct through
+  # e's NAT). lab-g sits behind a symmetric NAT and lab-h behind a cone NAT
+  # (punching can't work; must use the relay).
   # ---------------------------------------------------------------------------
   lab-a: &lab-device
     profiles: [lab]
@@ -239,30 +251,101 @@ services:
     cap_add: [NET_ADMIN]
     devices:
       - /dev/net/tun:/dev/net/tun
+    networks: [lab_inet]
 
   lab-b:
     <<: *lab-device
     container_name: mesh-lab-b
     hostname: lab-b
 
-  # lab-c and lab-d sit on separate networks: they reach the API and relay but
-  # not each other, so they can only connect through the relay.
-  lab-c:
+  lab-e: &lab-natted
     <<: *lab-device
-    container_name: mesh-lab-c
-    hostname: lab-c
-    networks: [lab_c]
+    container_name: mesh-lab-e
+    hostname: lab-e
+    # Route everything through this device's NAT router.
+    command: ["sh", "-c", "ip route replace default via $$GATEWAY && exec mesh-agent"]
+    environment: [GATEWAY=10.201.0.2]
+    networks:
+      lab_lan_e: { ipv4_address: 10.201.0.10 }
 
-  lab-d:
+  # Reachable on the "internet" with no NAT, like a VPS.
+  lab-f:
     <<: *lab-device
-    container_name: mesh-lab-d
-    hostname: lab-d
-    networks: [lab_d]
+    container_name: mesh-lab-f
+    hostname: lab-f
+    networks:
+      lab_inet: { ipv4_address: 10.200.0.30 }
+
+  lab-g:
+    <<: *lab-natted
+    container_name: mesh-lab-g
+    hostname: lab-g
+    environment: [GATEWAY=10.203.0.2]
+    networks:
+      lab_lan_g: { ipv4_address: 10.203.0.10 }
+
+  lab-h:
+    <<: *lab-natted
+    container_name: mesh-lab-h
+    hostname: lab-h
+    environment: [GATEWAY=10.204.0.2]
+    networks:
+      lab_lan_h: { ipv4_address: 10.204.0.10 }
+
+  router-e: &lab-router
+    profiles: [lab]
+    container_name: mesh-router-e
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM alpine:3.22
+        RUN apk add --no-cache iptables iproute2
+    cap_add: [NET_ADMIN]
+    sysctls:
+      net.ipv4.ip_forward: 1
+    # NAT the LAN out of the "internet" interface. NAT_FLAGS=--random-fully
+    # makes it symmetric (new public port per destination).
+    command:
+      - sh
+      - -c
+      - |
+        inet=$$(ip -o -4 addr | awk '/ 10\.200\.0\./ {print $$2}')
+        iptables -t nat -A POSTROUTING -o "$$inet" -j MASQUERADE $$NAT_FLAGS
+        exec sleep infinity
+    environment: [NAT_FLAGS=]
+    networks:
+      lab_inet: { ipv4_address: 10.200.0.20 }
+      lab_lan_e: { ipv4_address: 10.201.0.2 }
+
+  router-g:
+    <<: *lab-router
+    container_name: mesh-router-g
+    environment: [NAT_FLAGS=--random-fully]
+    networks:
+      lab_inet: { ipv4_address: 10.200.0.22 }
+      lab_lan_g: { ipv4_address: 10.203.0.2 }
+
+  router-h:
+    <<: *lab-router
+    container_name: mesh-router-h
+    networks:
+      lab_inet: { ipv4_address: 10.200.0.23 }
+      lab_lan_h: { ipv4_address: 10.204.0.2 }
 
 volumes:
   go_mod_cache:
   go_build_cache:
 
 networks:
-  lab_c:
-  lab_d:
+  lab_inet:
+    ipam: { config: [{ subnet: 10.200.0.0/24 }] }
+    # Docker drops traffic to a container's address arriving from another
+    # bridge; the lab's NAT routers forward exactly that, so allow it here.
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: nat-unprotected
+  lab_lan_e:
+    ipam: { config: [{ subnet: 10.201.0.0/24 }] }
+  lab_lan_g:
+    ipam: { config: [{ subnet: 10.203.0.0/24 }] }
+  lab_lan_h:
+    ipam: { config: [{ subnet: 10.204.0.0/24 }] }
