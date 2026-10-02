@@ -19,10 +19,18 @@
     "docker:up": "pnpm build:packages && docker compose up -d",
     "docker:down": "docker compose down",
     "docker:restart": "docker compose down && pnpm build:packages && docker compose up -d",
-    "docker:remove": "docker compose down --rmi all --volumes --remove-orphans"
+    "docker:remove": "docker compose down --rmi all --volumes --remove-orphans",
+    "e2e:up": "pnpm build:packages && docker compose --profile e2e up -d --build api-e2e web-e2e workers-e2e playwright",
+    "e2e:down": "docker compose --profile e2e rm -sf api-e2e web-e2e workers-e2e playwright",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "typecheck:e2e": "tsc -p tests/tsconfig.json"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
     "prettier": "^3.9.9",
     "tsup": "^8.5.1",
     "tsx": "^4.23.15",
