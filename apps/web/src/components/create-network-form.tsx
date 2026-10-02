@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@mesh/ui/components/form";
 import { Input } from "@mesh/ui/components/input";
+import { usePermission } from "~/components/providers/organization-provider";
 import { networkMutations, networkQueries } from "~/lib/queries";
 
 // Shape checks only; the API validates the range (private, prefix, host bits)
@@ -28,6 +29,12 @@ const schema = z.object({
 type Values = z.infer<typeof schema>;
 
 export function CreateNetworkForm() {
+  const canCreate = usePermission({ network: ["create"] });
+  if (!canCreate) return null;
+  return <CreateNetworkFormInner />;
+}
+
+function CreateNetworkFormInner() {
   const queryClient = useQueryClient();
   const form = useForm<Values>({
     resolver: zodResolver(schema),

@@ -16,3 +16,8 @@ export const listOrganizations = cache(async () =>
 export const getActiveOrganization = cache(async () =>
   auth.api.getFullOrganization({ headers: await headers() }),
 );
+
+/** The user's membership (role) in the active organization. */
+export const getActiveMember = cache(async () =>
+  auth.api.getActiveMember({ headers: await headers() }),
+);
