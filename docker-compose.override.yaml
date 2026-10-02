@@ -21,6 +21,8 @@ services:
       - DATABASE_URL=postgres://mesh:mesh@postgres:5432/mesh
       - REDIS_URL=redis://redis:6379
       - NATS_URL=nats://nats:4222
+      # Agents on this machine reach the relay through the published port.
+      - RELAY_URL=ws://localhost:${RELAY_HOST_PORT:-3340}/relay
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
     ports:
@@ -100,6 +102,10 @@ services:
     build:
       context: .
       dockerfile: apps/relay/Dockerfile.dev
+    ports:
+      - "${RELAY_HOST_PORT:-3340}:3340"
+    # Also on the isolated lab networks, so lab-c and lab-d can reach it.
+    networks: [default, lab_c, lab_d]
 
   dns:
     <<: *go-volumes
@@ -126,11 +132,13 @@ services:
       - NATS_URL=nats://nats:4222
       - BETTER_AUTH_URL=http://localhost:4200
       - WEB_URL=http://localhost:3200
+      - RELAY_URL=ws://relay:3340/relay
       - LOG_LEVEL=warn
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
     ports:
       - "4200:4000"
+    networks: [default, lab_c, lab_d]
     depends_on:
       postgres:
         condition: service_healthy
@@ -236,6 +244,24 @@ services:
     container_name: mesh-lab-b
     hostname: lab-b
 
+  # lab-c and lab-d sit on separate networks: they reach the API and relay but
+  # not each other, so they can only connect through the relay.
+  lab-c:
+    <<: *lab-device
+    container_name: mesh-lab-c
+    hostname: lab-c
+    networks: [lab_c]
+
+  lab-d:
+    <<: *lab-device
+    container_name: mesh-lab-d
+    hostname: lab-d
+    networks: [lab_d]
+
 volumes:
   go_mod_cache:
   go_build_cache:
+
+networks:
+  lab_c:
+  lab_d:

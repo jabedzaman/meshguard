@@ -229,6 +229,8 @@ test.describe("devices", () => {
         endpoints: ["192.168.1.9:51820", "[2001:db8::9]:51820"],
       }),
     ]);
+    // The relay agents fall back to when a peer isn't directly reachable.
+    expect(map.body.relay).toEqual({ url: expect.stringMatching(/^wss?:\/\/.+\/relay$/) });
     // Private identity keys never come back.
     expect(JSON.stringify(map.body)).not.toContain(server.keys.identityPublicKey);
 
