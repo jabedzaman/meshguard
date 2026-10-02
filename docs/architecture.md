@@ -6,6 +6,7 @@
 | --- | --- |
 | `apps/api` | Control plane API (Hono) |
 | `apps/web` | Dashboard (Next.js) |
+| `apps/www` | Website and docs (Next.js + MDX) |
 | `apps/workers` | Background jobs (BullMQ), including all email delivery |
 | `apps/desktop` | Desktop app (Tauri 2 + React) |
 | `apps/mcp` | MCP server |

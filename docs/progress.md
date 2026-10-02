@@ -26,6 +26,7 @@ Networking should disappear into the workflow.
 - ✅ M0.8 Typed API client via Hono RPC (`hc<AppType>`), sample `/v1/networks` route
 - ✅ M0.9 First Drizzle migration (organizations, networks, devices)
 - ✅ M0.10 Playwright e2e suite (`pnpm e2e:up && pnpm test:e2e`) on an isolated stack and `meshguard_test` database
+- ✅ M0.11 `apps/www`: website and docs (Next.js + MDX). Pages are `src/content/docs/**/*.mdx`; each folder's `meta.json` sets its sidebar title and order
 
 ### M1 — Working private mesh (the real MVP) 🚧
 
