@@ -166,7 +166,10 @@ private use, so it never collides with a public name). Names are DNS labels,
 unique per network; the API picks `laptop`, `laptop-2`, … at enrollment.
 Owners and admins rename devices (`PATCH /v1/devices/:id`, 409
 `device_name_taken` on a clash); the next sync carries the new name to every
-agent, and each agent saves its own in its state file.
+agent, and each agent saves its own in its state file. Removing a device
+(`DELETE /v1/devices/:id`) deletes its row and presence; peers drop it on
+their next sync, and its own signed requests get 401 `invalid_device_signature`,
+the same answer as an unknown device, so ids can't be probed.
 
 - The agent serves DNS (`internal/dns`) over UDP and TCP on its mesh IPv4,
   port 53 (Linux), or on `127.0.0.1:53053` (macOS, which routes a utun's own

@@ -148,6 +148,11 @@ in the network: a second `laptop` becomes `laptop-2`. Owners and admins can
 rename a device on its network page (Rename); peers resolve the new name, and
 the device saves it, within one sync (~10s). The old name stops resolving.
 
+Owners and admins can also remove a device there (Remove). Peers drop it on
+their next sync, and its agent is refused from then on: `meshguard status`
+says the device was removed. To bring it back, run `meshguard logout --force`
+on it, then `meshguard up --token <new token>`.
+
 The agent answers DNS locally and sends only `.internal` queries there; other
 lookups never touch it:
 

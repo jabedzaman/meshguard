@@ -71,6 +71,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M2.7 Private DNS: `<device>.internal`, answered by the agent on its mesh IP; split DNS via `/etc/resolver` (macOS) and systemd-resolved (Linux); device names are DNS labels unique per network (lab: all pairs resolve each other; MacBook resolves and pings `thinkpad.internal`, 2026-10-02)
 - ⬜ M2.8 ACLs (device → service → port)
 - ⬜ M2.9 Key rotation
+- ✅ M2.10 Remove devices from the web (owners/admins): peers drop it on their next sync; the removed agent is refused and says how to re-join
 
 ### M3 — Desktop app ⬜
 
