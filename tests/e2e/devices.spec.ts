@@ -117,6 +117,97 @@ test.describe("devices", () => {
     expect(await enrollAs("Jabeds-MacBook-Air")).toBe("jabeds-macbook-air-3");
   });
 
+  test("admins rename devices; peers get the new name on sync", async ({
+    createUser,
+    createOrganization,
+    addToOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Rename Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const token = () =>
+      api<{ token: string }>(owner.page, `/v1/networks/${network.id}/enrollment-tokens`, {}).then(
+        (t) => t.token,
+      );
+    const laptop = signingDevice();
+    const a = await enroll({
+      token: await token(),
+      hostname: "laptop",
+      platform: "darwin",
+      ...laptop.keys,
+    });
+    const server = signingDevice();
+    const b = await enroll({
+      token: await token(),
+      hostname: "server",
+      platform: "linux",
+      ...server.keys,
+    });
+    const rename = (name: string, page = owner.page) =>
+      api<{ name: string }>(page, `/v1/devices/${a.body.device.id}`, { name }, { method: "PATCH" });
+
+    // From the web: the dialog saves and the list shows the new name.
+    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.getByRole("button", { name: "Rename laptop" }).click();
+    const input = owner.page.getByLabel("Device name");
+    await input.fill("Work-Laptop");
+    await expect(owner.page.getByText("work-laptop.internal")).toBeVisible();
+    await owner.page.getByRole("button", { name: "Save" }).click();
+    await expect(owner.page.getByRole("dialog")).toHaveCount(0);
+    await expect(owner.page.locator("li", { hasText: "work-laptop" })).toContainText("macOS");
+
+    // A name another device has is refused on the field.
+    await owner.page.getByRole("button", { name: "Rename work-laptop" }).click();
+    await input.fill("server");
+    await owner.page.getByRole("button", { name: "Save" }).click();
+    await expect(
+      owner.page.getByText("Another device in this network is named server"),
+    ).toBeVisible();
+    await owner.page.keyboard.press("Escape");
+
+    // Peers and the device itself see it on their next sync.
+    const map = await sync(
+      { id: b.body.device.id, privateKey: server.privateKey },
+      { endpoints: [] },
+    );
+    expect(map.body.peers).toEqual([expect.objectContaining({ name: "work-laptop" })]);
+    const self = await sync(
+      { id: a.body.device.id, privateKey: laptop.privateKey },
+      { endpoints: [] },
+    );
+    expect(self.body.self.name).toBe("work-laptop");
+
+    // Only DNS labels; case is folded.
+    expect((await rename("  Laptop-2 ")).name).toBe("laptop-2");
+    for (const name of ["-x", "x-", "a.b", "my_box", "", "a".repeat(64)]) {
+      await expect(rename(name)).rejects.toMatchObject({
+        status: 400,
+      });
+    }
+    await expect(rename("server")).rejects.toMatchObject({
+      status: 409,
+      body: { error: { code: "device_name_taken" } },
+    });
+
+    // Members can't rename, and see no button.
+    const member = await createUser("Member");
+    await addToOrganization(owner, member, "member");
+    await expect(rename("mine", member.page)).rejects.toMatchObject({
+      status: 403,
+    });
+    await member.page.goto(`/networks/${network.id}`);
+    const row = member.page.locator("li", { hasText: "laptop-2" });
+    await expect(row).toBeVisible();
+    await expect(row.getByRole("button", { name: /^Rename/ })).toHaveCount(0);
+
+    // Another organization's device is not found.
+    const outsider = await createUser("Outsider");
+    await createOrganization(outsider, "Other Org");
+    await expect(rename("taken", outsider.page)).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
   test("tokens are single-use, revocable and keys can't enroll twice", async ({
     createUser,
     createOrganization,
