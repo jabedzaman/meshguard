@@ -1,11 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "@meshguard/api-client";
+import { Button } from "@meshguard/ui/components/button";
+import { ConfirmDialog } from "~/components/confirm-dialog";
 import { usePermission } from "~/components/providers/organization-provider";
 import { RenameDeviceDialog } from "~/components/rename-device-dialog";
 import { useDeviceEvents } from "~/hooks/use-device-events";
-import { deviceQueries } from "~/lib/queries";
+import { deviceMutations, deviceQueries } from "~/lib/queries";
 
 const PLATFORM_LABELS = { darwin: "macOS", linux: "Linux", windows: "Windows" } as const;
 
@@ -19,6 +21,8 @@ function presence(device: { online: boolean; lastSeenAt: string | null }) {
 export function DevicesList({ networkId }: { networkId: string }) {
   const { data: devices, isPending, error } = useQuery(deviceQueries.list(networkId));
   const canRename = usePermission({ device: ["update"] });
+  const canRemove = usePermission({ device: ["delete"] });
+  const queryClient = useQueryClient();
   // Devices join and drop from the command line; the API pushes the changes.
   useDeviceEvents(networkId);
 
@@ -54,6 +58,22 @@ export function DevicesList({ networkId }: { networkId: string }) {
               <span>{device.meshIpv6}</span>
             </span>
             {canRename && <RenameDeviceDialog device={device} />}
+            {canRemove && (
+              <ConfirmDialog
+                trigger={
+                  <Button variant="ghost" size="sm" aria-label={`Remove ${device.name}`}>
+                    Remove
+                  </Button>
+                }
+                title={`Remove ${device.name}?`}
+                description={`It leaves the network and peers stop reaching ${device.name}.internal. To bring it back, run meshguard logout --force on it, then enroll it again.`}
+                confirmLabel="Remove device"
+                onConfirm={async () => {
+                  await deviceMutations.remove(device.id);
+                  await queryClient.invalidateQueries({ queryKey: deviceQueries.all() });
+                }}
+              />
+            )}
           </div>
         </li>
       ))}

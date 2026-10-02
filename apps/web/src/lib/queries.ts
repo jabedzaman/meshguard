@@ -88,4 +88,5 @@ export const deviceQueries = {
 export const deviceMutations = {
   rename: (id: string, name: string) =>
     parseResponse(api.v1.devices[":id"].$patch({ param: { id }, json: { name } })),
+  remove: (id: string) => parseResponse(api.v1.devices[":id"].$delete({ param: { id } })),
 };
