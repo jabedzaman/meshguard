@@ -1,0 +1,28 @@
+---
+title: Join a network
+description: Enroll a device with a token and check that it's connected.
+---
+
+## Create a token
+
+On the network page, click **Add device** and copy the token. Tokens work once
+and expire.
+
+## Join
+
+```sh
+meshguard up --token meshguard_enr_...
+meshguard up --token meshguard_enr_... --server https://api.example.com
+```
+
+`--server` defaults to `$MESHGUARD_SERVER`, then `http://localhost:4000`. A
+machine already in a network must `meshguard logout` before joining another.
+
+## Check the connection
+
+```sh
+meshguard status
+```
+
+The first line shows the device, its network and the state. Peers are listed
+below with the path they use: `direct` or `relay`.

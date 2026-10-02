@@ -1,0 +1,15 @@
+---
+title: Troubleshooting
+description: Common errors and how to fix them.
+---
+
+| Symptom | Fix |
+| --- | --- |
+| `agent not reachable … no agent socket here` | Start the agent: `sudo meshguard-agent install`, or point `--socket` / `MESHGUARD_SOCKET` at where it listens. |
+| `agent not reachable … permission denied` | The socket belongs to another user. Reinstall with `sudo meshguard-agent install` as yourself, or run `meshguard` with sudo. |
+| `this user may not control the mesh agent` | You aren't root, the agent's user or the socket owner. Run `meshguard` with sudo, or reinstall as yourself. |
+| `! WireGuard is not running … needs root` | The agent isn't running as root. Use the service, or `sudo meshguard-agent`. |
+| Peer stays `relay` | Expected behind symmetric NATs, or when both peers are behind home routers. `meshguard netcheck` on both ends shows the NAT types. |
+| Peers drop after sleep or a Wi-Fi change | They should come back within ~15s (relay first, then direct). |
+| `dns … not set up in the OS` | No systemd-resolved (common in containers and WSL). Use `dig @<mesh ip>`, or install systemd-resolved. |
+| Peer handshake `never` | The peer is offline or down, or the relay is unreachable from one side. |

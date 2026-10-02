@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1.4
+FROM node:22-slim
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/www/package.json apps/www/
+COPY packages/ui/package.json packages/ui/
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch
+
+COPY . .
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile \
+    --filter @meshguard/www... \
+    --filter meshguard
+
+CMD ["pnpm", "-F", "@meshguard/www", "watch", "--hostname", "0.0.0.0"]

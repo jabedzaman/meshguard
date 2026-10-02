@@ -1,0 +1,29 @@
+---
+title: Private DNS
+description: Reach every device as <name>.internal.
+---
+
+Every device resolves as `<name>.internal`, e.g. `ssh jabeds-macbook-air.internal`.
+Device names come from the hostname (lowercased, first label) and are unique
+in the network: a second `laptop` becomes `laptop-2`.
+
+## Renaming and removing devices
+
+Owners and admins can rename a device on its network page. Peers resolve the
+new name, and the device saves it, within one sync (~10s). The old name stops
+resolving.
+
+Owners and admins can also remove a device there. Peers drop it on their next
+sync, and its agent is refused from then on. To bring it back, run
+`meshguard logout --force` on it, then `meshguard up --token <new token>`.
+
+## How it resolves
+
+The agent answers DNS locally and sends only `.internal` queries there; other
+lookups never touch it.
+
+| Platform | Setup |
+| --- | --- |
+| macOS | Serves on `127.0.0.1:53053` and writes `/etc/resolver/internal` (removed on `meshguard down`). |
+| Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0` (`~internal`). |
+| Other Linux | Serves on the mesh IPv4, port 53, but the OS isn't configured. Query it directly: `dig @$(meshguard ip) laptop.internal`. |

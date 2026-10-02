@@ -1,0 +1,34 @@
+---
+title: Agent
+description: Flags, logs and the local API of meshguard-agent.
+---
+
+## Flags
+
+| Flag | Default | |
+| --- | --- | --- |
+| `-socket` | `/var/run/meshguard/agent.sock` (`$MESHGUARD_SOCKET`) | Local API socket |
+| `-socket-owner` | The sudo user | `uid:gid` that owns the socket and may use the agent without sudo |
+| `-state-dir` | `/var/lib/meshguard` (Linux), `/Library/Application Support/MeshGuard` (macOS) | Keys and enrollment |
+| `-port` | `51820` | WireGuard UDP port |
+| `-interface` | `meshguard0` (Linux), `utunN` (macOS) | Interface name |
+
+To run it in the foreground instead of as a service:
+
+```sh
+sudo meshguard-agent -socket /tmp/meshguard.sock -state-dir $HOME/.meshguard
+```
+
+## Logs
+
+| Platform | Where |
+| --- | --- |
+| macOS | `/var/log/meshguard-agent.log` |
+| Linux | `journalctl -u meshguard-agent -f` |
+
+## Local API access
+
+The local API is guarded twice: the socket's file mode (only its owner and
+root can connect), and the caller's peer credentials, which the kernel reports
+for every connection. The agent answers only root, its own user and the socket
+owner, and refuses callers it can't identify.

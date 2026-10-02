@@ -1,0 +1,103 @@
+---
+title: Commands
+description: Every meshguard command.
+---
+
+Every command accepts `--socket` (default `$MESHGUARD_SOCKET` or
+`/var/run/meshguard/agent.sock`) and `--help`. `status`, `peers` and `netcheck`
+accept `--json`.
+
+## meshguard up
+
+Join a network with a token from the network page (**Add device**), or
+reconnect after `meshguard down`.
+
+```sh
+meshguard up --token meshguard_enr_...   # join
+meshguard up                             # reconnect after meshguard down
+```
+
+## meshguard down
+
+Disconnect: tears down the WireGuard interface and stops syncing. The device
+stays in its network with the same keys and addresses, and stays down across
+agent restarts until `meshguard up`. Peers see it go offline.
+
+## meshguard logout
+
+Leave the network: removes this device on the control plane, disconnects and
+deletes the local keys and state. Joining again needs a new token. If the
+control plane can't be reached, it refuses unless you pass `--force` (which
+forgets the device locally only; remove it from the web afterwards).
+
+## meshguard status
+
+```txt
+thinkpad in home (connected)
+  mesh IPv4  10.77.141.90
+  mesh IPv6  fda3:ad78:5bac:0:6a19:fb37:e6f8:60e3
+  server     http://localhost:4000
+  interface  meshguard0
+  dns        thinkpad.internal (resolver 10.77.141.90:53, via systemd-resolved)
+  access     only by 2 rules (13 packets refused)
+  public     203.0.113.7:51820
+  relay      ws://localhost:3340/relay (connected)
+
+peers:
+  NAME                DNS                          IPv4         PATH     HANDSHAKE
+  jabeds-macbook-air  jabeds-macbook-air.internal  10.77.0.214  relay    6s ago
+```
+
+States: `not_enrolled`, `connected`, `enrolled` (registered but not
+connected; a `!` line says why, e.g. WireGuard needs root), `down`.
+
+## meshguard peers
+
+The peer table on its own. `PATH` is `direct <ip:port>` (LAN or hole-punched)
+or `relay`. A handshake older than about 3 minutes means the peer isn't
+exchanging traffic.
+
+## meshguard ip
+
+```sh
+meshguard ip            # this machine's mesh IPv4
+meshguard ip -6         # IPv6
+meshguard ip macbook    # a peer's (name, unique prefix, name.internal, or mesh IP)
+```
+
+Handy in scripts: `ssh "$(meshguard ip macbook)"`.
+
+## meshguard ping
+
+Pings a peer by name over the mesh (runs the system `ping`), showing which path
+it uses. `-c` sets the count, `-6` uses IPv6.
+
+## meshguard netcheck
+
+Diagnoses NAT traversal from the WireGuard socket:
+
+```txt
+STUN:
+  stun.l.google.com:19302          public 203.0.113.7:51820      23ms
+  stun.cloudflare.com:3478         public 203.0.113.7:51820      18ms
+
+NAT:    endpoint-independent (direct connections can work)
+relay:  ws://localhost:3340/relay (connected)
+```
+
+| NAT | Meaning |
+| --- | --- |
+| endpoint-independent | Same public address for every server: hole punching can work. |
+| symmetric | A different public port per server: direct connections are unlikely; peers use the relay. |
+| unknown | Fewer than two STUN servers answered. |
+
+## meshguard version
+
+CLI and agent versions.
+
+## Shell completion
+
+```sh
+meshguard completion zsh > "${fpath[1]}/_meshguard"
+meshguard completion bash > /etc/bash_completion.d/meshguard
+```

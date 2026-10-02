@@ -1,0 +1,35 @@
+---
+title: Installation
+description: Install the agent as a system service on macOS or Linux.
+---
+
+Build (or copy) both binaries, then install the agent as a system service:
+
+```sh
+sudo meshguard-agent install
+```
+
+This copies `meshguard-agent` (and `meshguard`, if it's in the same folder) to
+`/usr/local/bin` and registers a service that starts at boot and restarts if
+the agent exits: a **launchd** daemon on macOS, a **systemd** unit on Linux.
+
+You (the user who ran sudo) become the owner of the agent socket, so
+`meshguard` works without sudo.
+
+## Agent flags
+
+Flags passed to `install` are saved into the service:
+
+```sh
+sudo meshguard-agent install -state-dir $HOME/.meshguard
+```
+
+See [Agent](/docs/cli/agent) for every flag.
+
+## Uninstall
+
+Remove the service. Binaries and state are kept:
+
+```sh
+sudo meshguard-agent uninstall
+```

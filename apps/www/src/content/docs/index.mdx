@@ -1,0 +1,32 @@
+---
+title: Introduction
+description: MeshGuard connects your machines into one private network, wherever they are.
+---
+
+Every device you add gets a private address and a `.internal` name, and talks
+to the others directly over WireGuard. When two devices can't reach each other
+directly, traffic falls back to a relay automatically.
+
+<Callout title="Two binaries per machine">
+  `meshguard-agent` is the daemon that owns the device's keys and WireGuard
+  interface. `meshguard` is the CLI; it talks only to the local agent, never to
+  the control plane.
+</Callout>
+
+## Get started
+
+<Steps>
+
+### Install the agent
+
+Install `meshguard-agent` as a system service. See [Installation](/docs/getting-started/installation).
+
+### Join a network
+
+Create a token on the network page and run `meshguard up --token ...`. See [Join a network](/docs/getting-started/join-a-network).
+
+### Reach your devices
+
+Connect to any peer by name: `ssh laptop.internal`.
+
+</Steps>
