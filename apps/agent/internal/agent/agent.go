@@ -8,21 +8,25 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/netip"
 	"os"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/twinlabshq/mesh/internal/coordination"
+	"github.com/twinlabshq/mesh/internal/disco"
 	"github.com/twinlabshq/mesh/internal/discovery"
 	"github.com/twinlabshq/mesh/internal/identity"
 	"github.com/twinlabshq/mesh/internal/ipc"
 	"github.com/twinlabshq/mesh/internal/relay"
 	"github.com/twinlabshq/mesh/internal/state"
+	"github.com/twinlabshq/mesh/internal/stun"
 	"github.com/twinlabshq/mesh/internal/wireguard"
 )
 
@@ -33,6 +37,8 @@ type Engine interface {
 	Stats() (map[string]wireguard.PeerStats, error)
 	SetRelay(wireguard.RelaySender)
 	DeliverRelay(relay.Packet)
+	SetInterceptor(wireguard.Interceptor)
+	SendTo(netip.AddrPort, []byte) error
 	Close()
 }
 
@@ -60,6 +66,57 @@ type Agent struct {
 	relayClient *relay.Client
 	relayURL    string
 	stopRelay   context.CancelFunc
+
+	// Hole punching. disco is set once WireGuard is up; nat has its own lock
+	// because the interceptor runs on WireGuard's receive goroutines.
+	disco *disco.Manager
+	nat   natState
+}
+
+// natState is what STUN told us about our public address.
+type natState struct {
+	mu       sync.Mutex
+	pending  map[stun.TxID]time.Time
+	public   netip.AddrPort
+	publicAt time.Time
+}
+
+// stunFreshFor is how long a STUN result is advertised without a new answer.
+const stunFreshFor = time.Minute
+
+func (n *natState) handle(packet []byte) {
+	tx, addr, err := stun.ParseResponse(packet)
+	if err != nil {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if _, ok := n.pending[tx]; ok {
+		delete(n.pending, tx)
+		n.public, n.publicAt = addr, time.Now()
+	}
+}
+
+func (n *natState) publicEndpoint() (netip.AddrPort, bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.public, n.public.IsValid() && time.Since(n.publicAt) < stunFreshFor
+}
+
+func (n *natState) newRequest() []byte {
+	tx, req := stun.Request()
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.pending == nil {
+		n.pending = map[stun.TxID]time.Time{}
+	}
+	for old, at := range n.pending {
+		if time.Since(at) > 30*time.Second {
+			delete(n.pending, old)
+		}
+	}
+	n.pending[tx] = time.Now()
+	return req
 }
 
 // Run starts the background loop if the device is already enrolled, then
@@ -93,6 +150,9 @@ func (a *Agent) startLocked(st *state.State) {
 	if err == nil {
 		a.engine, err = a.startEngine()(cfg)
 	}
+	if err == nil {
+		a.startHolePunchingLocked(st)
+	}
 	if err != nil {
 		a.engine = nil // never keep a half-made engine, even a typed nil
 		// Keep syncing so the device shows as online; explain in status.
@@ -100,6 +160,54 @@ func (a *Agent) startLocked(st *state.State) {
 		slog.Warn("wireguard unavailable", "err", err)
 	}
 	go a.loop(a.ctx, st)
+}
+
+// startHolePunchingLocked routes STUN and disco packets out of WireGuard's
+// socket and pings peers' candidate endpoints every second. Caller holds a.mu.
+func (a *Agent) startHolePunchingLocked(st *state.State) {
+	keys, err := st.Keys()
+	if err != nil {
+		return
+	}
+	public, err := relay.PublicKey(keys.WireGuard)
+	if err != nil {
+		return
+	}
+	engine := a.engine
+	d := disco.NewManager(keys.WireGuard, disco.Key(public), engine.SendTo)
+	a.disco = d
+	engine.SetInterceptor(func(packet []byte, from netip.AddrPort) bool {
+		if stun.Is(packet) {
+			a.nat.handle(packet)
+			return true
+		}
+		return d.Handle(packet, from)
+	})
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-a.ctx.Done():
+				return
+			case <-ticker.C:
+				d.Tick()
+			}
+		}
+	}()
+}
+
+// probeStun asks each STUN server for our public address, from WireGuard's
+// socket. Answers arrive through the interceptor and are used next sync.
+func (a *Agent) probeStun(engine Engine, servers []string) {
+	for _, server := range servers {
+		addr, err := net.ResolveUDPAddr("udp4", server)
+		if err != nil {
+			continue
+		}
+		ap := addr.AddrPort()
+		_ = engine.SendTo(netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port()), a.nat.newRequest())
+	}
 }
 
 func (a *Agent) startEngine() func(wireguard.Config) (Engine, error) {
@@ -194,8 +302,12 @@ func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclu
 
 	var endpoints []string
 	if engine != nil {
-		// Only advertise endpoints when WireGuard is actually listening.
+		// Only advertise endpoints when WireGuard is actually listening:
+		// local addresses first, then the public one STUN reported.
 		endpoints = discovery.Endpoints(a.listenPort(), engine.Name(), exclude)
+		if public, ok := a.nat.publicEndpoint(); ok && !slices.Contains(endpoints, public.String()) {
+			endpoints = append(endpoints, public.String())
+		}
 	}
 	if endpoints == nil {
 		endpoints = []string{}
@@ -215,6 +327,27 @@ func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclu
 	var applyErr error
 	if engine != nil {
 		relayOn := a.ensureRelay(ctx, nm.Relay, engine, wgPrivate)
+		a.probeStun(engine, nm.Stun)
+		a.mu.Lock()
+		d := a.disco
+		a.mu.Unlock()
+		if d != nil {
+			candidates := map[disco.Key][]netip.AddrPort{}
+			for _, p := range nm.Peers {
+				key, err := peerKey(p.WireGuardPublicKey)
+				if err != nil {
+					continue
+				}
+				var eps []netip.AddrPort
+				for _, ep := range p.Endpoints {
+					if ap, err := netip.ParseAddrPort(ep); err == nil {
+						eps = append(eps, ap)
+					}
+				}
+				candidates[disco.Key(key)] = eps
+			}
+			d.SetPeers(candidates)
+		}
 		local := discovery.LocalPrefixes(engine.Name())
 		peers := make([]wireguard.Peer, 0, len(nm.Peers))
 		for _, p := range nm.Peers {
@@ -224,7 +357,7 @@ func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclu
 					peer.AllowedIPs = append(peer.AllowedIPs, prefix)
 				}
 			}
-			peer.Endpoint = chooseEndpoint(p, local, relayOn)
+			peer.Endpoint = chooseEndpoint(p, local, punched(d, p), relayOn)
 			peers = append(peers, peer)
 		}
 		changed, err := engine.SetPeers(peers)
@@ -246,12 +379,30 @@ func (a *Agent) syncOnce(ctx context.Context, client *coordination.Client, exclu
 	}
 }
 
-// chooseEndpoint picks how to reach a peer: directly if it advertises an
-// address on a network we're attached to, otherwise through the relay, and as
-// a last resort its first advertised endpoint.
-func chooseEndpoint(p coordination.Peer, local []netip.Prefix, relayOn bool) string {
+// punched returns the hole-punched direct path to p confirmed by disco, if any.
+func punched(d *disco.Manager, p coordination.Peer) string {
+	if d == nil {
+		return ""
+	}
+	key, err := peerKey(p.WireGuardPublicKey)
+	if err != nil {
+		return ""
+	}
+	if addr, ok := d.Direct(disco.Key(key)); ok {
+		return addr.String()
+	}
+	return ""
+}
+
+// chooseEndpoint picks how to reach a peer: an address on a network we're
+// attached to, then a hole-punched path confirmed by disco, then the relay,
+// and as a last resort its first advertised endpoint.
+func chooseEndpoint(p coordination.Peer, local []netip.Prefix, punched string, relayOn bool) string {
 	if direct := discovery.DirectEndpoint(p.Endpoints, local); direct != "" {
 		return direct
+	}
+	if punched != "" {
+		return punched
 	}
 	if relayOn {
 		if key, err := peerKey(p.WireGuardPublicKey); err == nil {
@@ -418,6 +569,9 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	}
 	if a.relayClient != nil {
 		s.Relay = &ipc.RelayStatus{URL: a.relayURL, Connected: a.relayClient.Connected()}
+	}
+	if public, ok := a.nat.publicEndpoint(); ok {
+		s.PublicEndpoint = public.String()
 	}
 	var stats map[string]wireguard.PeerStats
 	if a.engine != nil {

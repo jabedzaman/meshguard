@@ -84,6 +84,9 @@ func status() error {
 	if s.Interface != "" {
 		fmt.Printf("  interface  %s\n", s.Interface)
 	}
+	if s.PublicEndpoint != "" {
+		fmt.Printf("  public     %s\n", s.PublicEndpoint)
+	}
 	if s.Relay != nil {
 		state := "connecting"
 		if s.Relay.Connected {
@@ -101,14 +104,14 @@ func status() error {
 			if p.LastHandshake != nil {
 				handshake = "handshake " + time.Since(*p.LastHandshake).Round(time.Second).String() + " ago"
 			}
-			endpoint := p.Endpoint
+			endpoint := "direct " + p.Endpoint
 			if p.ViaRelay {
 				endpoint = "via relay"
 			}
-			if endpoint == "" {
+			if p.Endpoint == "" {
 				endpoint = "-"
 			}
-			fmt.Printf("  %-20s %-15s %-22s %s\n", p.Name, p.MeshIPv4, endpoint, handshake)
+			fmt.Printf("  %-20s %-15s %-29s %s\n", p.Name, p.MeshIPv4, endpoint, handshake)
 		}
 	}
 	return nil
