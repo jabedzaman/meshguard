@@ -32,7 +32,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased motion-safe:scroll-smooth`}
+      // Lets Next turn smooth scrolling off while it scrolls to the top on navigation.
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <head>

@@ -31,15 +31,9 @@ export function DocsSidebar({ tree }: DocsSidebarProps) {
   );
 
   return (
-    <>
-      <details className="group border-b py-3 lg:hidden">
-        <summary className="cursor-pointer list-none text-sm font-medium">Menu</summary>
-        <div className="pt-4">{nav}</div>
-      </details>
-      <aside className="hidden lg:block">
-        <div className="sticky top-14 max-h-[calc(100vh-3.5rem)] overflow-y-auto py-14 pr-2">{nav}</div>
-      </aside>
-    </>
+    <aside className="hidden lg:block">
+      <div className="sticky top-14 max-h-[calc(100vh-3.5rem)] overflow-y-auto py-14 pr-2">{nav}</div>
+    </aside>
   );
 }
 
