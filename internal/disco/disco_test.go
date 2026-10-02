@@ -189,3 +189,30 @@ func TestFollowsPeerToNewAddress(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, moved, got)
 }
+
+// b moves without a's knowing (no ping reaches a from the new address). Once
+// the old path misses a keepalive, a tries b's new candidates from the
+// network map instead of waiting for the old path to expire.
+func TestSearchesWhenConfirmedPathGoesQuiet(t *testing.T) {
+	a, b, aKey, bKey, n, c := pair(t)
+	a.SetPeers(map[Key][]netip.AddrPort{bKey: {n.from[b]}})
+	b.SetPeers(map[Key][]netip.AddrPort{aKey: nil})
+	a.Tick()
+	_, ok := a.Direct(bKey)
+	require.True(t, ok)
+
+	moved := netip.MustParseAddrPort("203.0.113.77:41000")
+	n.mu.Lock()
+	delete(n.nodes, n.from[b])
+	n.nodes[moved], n.from[b] = b, moved
+	n.mu.Unlock()
+	a.SetPeers(map[Key][]netip.AddrPort{bKey: {moved}}) // learned from a sync
+
+	for i := 0; i < 8; i++ {
+		c.add(time.Second)
+		a.Tick()
+	}
+	got, ok := a.Direct(bKey)
+	require.True(t, ok)
+	assert.Equal(t, moved, got, "found well before the old path expired")
+}

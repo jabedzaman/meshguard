@@ -28,7 +28,8 @@ const (
 	headerLen = 6 + 32 + 24
 	// pingEvery is how often unconfirmed candidates are pinged.
 	pingEvery = 2 * time.Second
-	// keepEvery is how often a confirmed path is re-checked.
+	// keepEvery is how often a confirmed path is re-checked. Once a check
+	// goes unanswered for pingEvery, all candidates are pinged again.
 	keepEvery = 5 * time.Second
 	// FreshFor is how long a pong keeps a path confirmed.
 	FreshFor = 20 * time.Second
@@ -148,8 +149,11 @@ func (m *Manager) Tick() {
 				targets = append(targets, addr)
 			}
 		}
+		// A confirmed path that missed a keepalive may be dead (the
+		// peer moved): look for a new one while still using it.
+		healthy := confirmed && now.Sub(p.lastPong) <= keepEvery+pingEvery
 		every := pingEvery
-		if confirmed {
+		if healthy {
 			// Keep the confirmed path alive, and follow the peer if it
 			// pinged us from somewhere new since (its network changed).
 			targets, every = []netip.AddrPort{p.best}, keepEvery
