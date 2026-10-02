@@ -23,6 +23,7 @@ Networking should disappear into the workflow.
 - ✅ Docker dev env: Postgres, Redis, NATS + api/web/relay/dns with hot reload (`apps/<app>/Dockerfile.dev`, env injected by Compose)
 - ✅ Typed API client via Hono RPC (`hc<AppType>`), sample `/v1/networks` route
 - ✅ First Drizzle migration (organizations, networks, devices)
+- ✅ Playwright e2e suite (`pnpm e2e:up && pnpm test:e2e`) on an isolated stack and `mesh_test` database
 
 ### M1 — Working private mesh (the real MVP) 🚧
 
@@ -120,4 +121,5 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-01 | Organization id always comes from the session (`requireOrganization`), never from request params |
 | 2026-10-02 | Three roles (owner, admin, member) on Better Auth access control; definitions shared by API (enforcement) and web (hiding UI) via `@mesh/auth/permissions` |
 | 2026-10-02 | All email goes through BullMQ (`email` queue) to `apps/workers`; templates in `@mesh/emails` (react-email); Mailpit in dev |
+| 2026-10-02 | E2E tests run on a separate Compose profile (`e2e`) with its own database; browser in the official Playwright image so WSL needs no system packages |
 | 2026-10-02 | Every network defaults to `10.77.0.0/16` (addresses unique per network only, no global allocator); random IPv6 ULA /48 per network; devices get random free addresses, uniqueness enforced by DB constraints. Relays must route by WireGuard key, never by mesh IP |
