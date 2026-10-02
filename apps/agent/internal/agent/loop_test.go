@@ -152,3 +152,30 @@ func TestWithoutWireGuardStillSyncsAndExplains(t *testing.T) {
 	assert.Contains(t, status.Problem, "WireGuard is not running")
 	require.Len(t, status.Peers, 1, "peers are still listed")
 }
+
+// Regression: a failed start that returns a typed nil (*wireguard.Engine)(nil)
+// inside the Engine interface used to crash the sync loop.
+func TestTypedNilEngineDoesNotCrash(t *testing.T) {
+	server, syncs := signedControlPlane(t)
+	a := &Agent{
+		Version:      "test",
+		StateDir:     t.TempDir(),
+		SyncInterval: 50 * time.Millisecond,
+		StartEngine: func(wireguard.Config) (Engine, error) {
+			var e *wireguard.Engine
+			return e, assert.AnError
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	require.Eventually(t, func() bool { a.mu.Lock(); defer a.mu.Unlock(); return a.ctx != nil }, time.Second, 10*time.Millisecond)
+
+	rec, _, _ := call(t, a.Handler(), http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Eventually(t, func() bool { return syncs.Load() >= 2 }, 2*time.Second, 20*time.Millisecond)
+
+	_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
+	assert.Equal(t, "enrolled", status.State)
+	assert.Contains(t, status.Problem, "WireGuard is not running")
+}

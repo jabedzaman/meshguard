@@ -86,6 +86,7 @@ func (a *Agent) startLocked(st *state.State) {
 		a.engine, err = a.startEngine()(cfg)
 	}
 	if err != nil {
+		a.engine = nil // never keep a half-made engine, even a typed nil
 		// Keep syncing so the device shows as online; explain in status.
 		a.problem = "WireGuard is not running: " + err.Error()
 		slog.Warn("wireguard unavailable", "err", err)
@@ -97,7 +98,15 @@ func (a *Agent) startEngine() func(wireguard.Config) (Engine, error) {
 	if a.StartEngine != nil {
 		return a.StartEngine
 	}
-	return func(cfg wireguard.Config) (Engine, error) { return wireguard.Start(cfg) }
+	return func(cfg wireguard.Config) (Engine, error) {
+		e, err := wireguard.Start(cfg)
+		if err != nil {
+			// Return an untyped nil: a nil *wireguard.Engine in the Engine
+			// interface would compare non-nil and crash on first use.
+			return nil, err
+		}
+		return e, nil
+	}
 }
 
 func (a *Agent) listenPort() int {

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/twinlabshq/mesh/apps/agent/internal/agent"
@@ -41,6 +42,7 @@ func run(socket string, a *agent.Agent) error {
 	if err != nil {
 		return err
 	}
+	shareSocketWithSudoUser(socket)
 
 	srv := &http.Server{Handler: a.Handler()}
 	done := make(chan struct{})
@@ -59,4 +61,20 @@ func run(socket string, a *agent.Agent) error {
 		return err
 	}
 	return nil
+}
+
+// shareSocketWithSudoUser lets the user who ran `sudo mesh-agent` use the CLI
+// without sudo: the socket is handed to them instead of staying root-only.
+func shareSocketWithSudoUser(socket string) {
+	if os.Geteuid() != 0 {
+		return
+	}
+	uid, err1 := strconv.Atoi(os.Getenv("SUDO_UID"))
+	gid, err2 := strconv.Atoi(os.Getenv("SUDO_GID"))
+	if err1 != nil || err2 != nil {
+		return
+	}
+	if err := os.Chown(socket, uid, gid); err != nil {
+		slog.Warn("could not share socket with sudo user", "err", err)
+	}
 }
