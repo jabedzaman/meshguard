@@ -23,6 +23,12 @@ peer_path() {
     p.viaRelay ? "relay" : (p.endpoint ? "direct" : "")'
 }
 peer_line() { docker exec "meshguard-$1" meshguard peers | sed -n 2p; }
+# The detail of one doctor check: doctor_detail <device> <check name> <doctor args...>
+doctor_detail() {
+  local device=$1 name=$2; shift 2
+  docker exec "meshguard-$device" meshguard doctor --json "$@" | node -pe "
+    (JSON.parse(require('fs').readFileSync(0, 'utf8')).findLast(c => c.name === '$name') || {}).detail"
+}
 dns_name() { docker exec "meshguard-$1" meshguard status --json | json .dns.name; }
 
 echo "==> migrating the e2e database"
@@ -110,6 +116,19 @@ b_id=$(docker exec meshguard-lab-b meshguard status --json | json .device.id)
 for port in 8080 9090; do docker exec -d meshguard-lab-b nc -lk "$port"; done
 expect_traffic allowed "lab-a -> lab-b:8080 before rules" can_connect lab-a "$b4" 8080
 
+if out=$(docker exec meshguard-lab-a meshguard doctor lab-b --port 8080); then
+  ok "lab-a: meshguard doctor lab-b --port 8080 finds no problems"
+else
+  fail "lab-a: meshguard doctor lab-b --port 8080:"; echo "$out"
+fi
+got=$(doctor_detail lab-b listening --port 8080)
+if [[ "$got" == on* ]]; then ok "lab-b doctor --port 8080: listening $got"; else fail "lab-b doctor --port 8080: '$got'"; fi
+if docker exec meshguard-lab-a meshguard doctor lab-b --port 7070 >/dev/null; then
+  fail "doctor lab-b --port 7070 passed, but nothing listens there"
+else
+  ok "doctor lab-b --port 7070 fails: $(doctor_detail lab-a port lab-b --port 7070)"
+fi
+
 patch "/v1/networks/$acl_network/acl" '{"defaultAction":"deny"}' >/dev/null
 expect_traffic blocked "lab-a -> lab-b ping, deny without rules" can_ping lab-a "$b4"
 expect_traffic blocked "lab-b -> lab-a ping, deny without rules" can_ping lab-b "$a4"
@@ -120,6 +139,11 @@ post "/v1/networks/$acl_network/acl/rules" \
 expect_traffic allowed "lab-a -> lab-b:8080 by rule" can_connect lab-a "$b4" 8080
 expect_traffic blocked "lab-a -> lab-b:9090, not in the rule" can_connect lab-a "$b4" 9090
 expect_traffic blocked "lab-a -> lab-b ping, not in the rule" can_ping lab-a "$b4"
+for check in "8080:every peer may connect" "9090:no peer may connect to tcp/9090"; do
+  port=${check%%:*} want=${check#*:}
+  got=$(doctor_detail lab-b access --port "$port")
+  if [ "$got" = "$want" ]; then ok "lab-b doctor --port $port: $got"; else fail "lab-b doctor --port $port: '$got', want '$want'"; fi
+done
 
 post "/v1/networks/$acl_network/acl/rules" \
   '{"sourceDeviceId":null,"destinationDeviceId":null,"protocol":"icmp"}' >/dev/null
