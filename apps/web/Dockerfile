@@ -7,15 +7,22 @@ ENV PATH="$PNPM_HOME:$PATH"
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable
 WORKDIR /app
+# Dependency download is its own layer, rebuilt only when the lockfile changes.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch
 COPY . .
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile \
+# Empty in git, but the runtime stage copies it.
+RUN mkdir -p apps/web/public
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --offline \
     --filter @meshguard/web... \
     --filter meshguard
 # Inlined into the browser bundle at build time.
 ARG NEXT_PUBLIC_API_URL=http://localhost:4000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NODE_ENV=production
-RUN pnpm turbo run build --filter=@meshguard/web...
+RUN --mount=type=cache,id=turbo,target=/app/.turbo/cache \
+    --mount=type=cache,id=next,target=/app/apps/web/.next/cache \
+    pnpm turbo run build --filter=@meshguard/web...
 
 FROM node:22-slim
 ENV NODE_ENV=production
