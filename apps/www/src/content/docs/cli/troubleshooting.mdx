@@ -3,6 +3,9 @@ title: Troubleshooting
 description: Common errors and how to fix them.
 ---
 
+Start with `meshguard doctor` (or `meshguard doctor <peer>`): it runs the checks
+below and prints a fix for each problem.
+
 | Symptom | Fix |
 | --- | --- |
 | `agent not reachable … no agent socket here` | Start the agent: `sudo meshguard-agent install`, or point `--socket` / `MESHGUARD_SOCKET` at where it listens. |

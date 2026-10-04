@@ -89,8 +89,8 @@ Running it in the foreground instead of as a service:
 ## Commands
 
 Every command accepts `--socket` (default `$MESHGUARD_SOCKET` or
-`/var/run/meshguard/agent.sock`) and `--help`. `status`, `peers` and `netcheck`
-accept `--json`.
+`/var/run/meshguard/agent.sock`) and `--help`. `status`, `peers`, `netcheck`
+and `doctor` accept `--json`.
 
 ### `meshguard up`
 
@@ -208,6 +208,51 @@ advertised endpoints:
 | symmetric | A different public port per server: direct connections are unlikely; peers use the relay. |
 | unknown | Fewer than two STUN servers answered. |
 
+### `meshguard doctor [peer]`
+
+Checks what stands between this machine and its peers, and says how to fix
+what it finds. Exits 1 if any check fails (warnings don't).
+
+```
+this device
+  ✓ agent          running (c43d4de)
+  ✓ network        thinkpad in home
+  ✓ wireguard      meshguard0 up
+  ✓ control plane  synced 4s ago with https://meshguard-api.jabed.dev
+  ✓ route          mesh traffic goes through meshguard0
+  ✓ relay          connected to wss://meshguard-relay.jabed.dev/relay
+  ! nat            symmetric NAT (public 203.0.113.7:52286)
+                   → direct connections are unlikely from this network: peers will use the relay
+  ✓ dns            thinkpad.internal → 10.77.86.29
+  ✓ access         every peer may connect
+
+peers
+  ✓ jabeds-macbook-air  direct 192.168.1.43:51820, handshake 30s ago
+```
+
+```sh
+meshguard doctor                    # this machine and every peer's handshake
+meshguard doctor macbook            # the path to a peer: handshake, route, DNS, ping
+meshguard doctor macbook --port 22  # ...and whether its TCP port 22 accepts connections
+meshguard doctor --port 8080        # can peers reach this machine's port 8080?
+```
+
+| Check | What it looks at |
+| --- | --- |
+| agent | The agent answers, and runs the same build as the CLI. |
+| network, wireguard | Enrolled, not down, interface up (needs root). |
+| control plane | Synced in the last 30s; otherwise why not. |
+| route | The OS sends mesh traffic through the mesh interface, not another VPN that overlaps the range. |
+| relay, nat | Relay connected; NAT type from STUN (symmetric means peers use the relay). |
+| dns | `<name>.internal` resolves through the OS the way other programs resolve it, including the WSL case where systemd-resolved has the names but `/etc/resolv.conf` points elsewhere. |
+| access | This device's access rules; with `--port`, which peers may connect to it. |
+| peer | Handshake in the last 3 minutes and the path; with a peer, also ping (no reply with a live handshake usually means the peer's rules don't allow ICMP) and `--port` (refused: nothing listens there; no answer: its access rules or a firewall). |
+| listening (`--port` alone) | Something listens on the port on an address peers reach (`0.0.0.0` or the mesh IP), not only `127.0.0.1`, which is a common mistake with Docker's `-p 127.0.0.1:…`. |
+
+Access rules are enforced by the destination, so to see whether a peer lets
+this device in, run `meshguard doctor --port N` on that peer. `--json` prints
+the checks.
+
 ### `meshguard version`
 
 CLI and agent versions.
@@ -220,6 +265,9 @@ meshguard completion bash > /etc/bash_completion.d/meshguard
 ```
 
 ## Troubleshooting
+
+Start with `meshguard doctor` (or `meshguard doctor <peer>`): it runs the checks
+below and prints a fix for each problem.
 
 | Symptom | Fix |
 | --- | --- |

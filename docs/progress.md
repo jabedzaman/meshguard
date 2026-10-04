@@ -92,9 +92,9 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M4.5 Git status / diff
 - ⬜ M4.6 `meshguard workspace list|activate|stop`
 
-### M5 — AI and diagnostics ⬜
+### M5 — AI and diagnostics 🚧
 
-- ⬜ M5.1 `meshguard doctor`: peer, handshake, route, ACL, DNS, port, Docker checks
+- ✅ M5.1 `meshguard doctor [peer] [--port N]`: agent, enrollment, WireGuard, control plane sync, route overlap, relay, NAT, DNS through the OS resolver (incl. WSL resolv.conf bypassing systemd-resolved), access rules (`GET /v1/access`: which peers may connect on a port), peer handshakes; for a peer, route, DNS, ping and TCP port; for a local port, listeners peers can reach (Docker `127.0.0.1` publish hint). Exits 1 on failures, `--json` (lab: doctor on a peer's port and rules). Docker container checks wait for workspaces (M4)
 - ⬜ M5.2 MCP read-only tools (devices, topology, workspace, git, logs)
 - ⬜ M5.3 MCP mutating tools behind explicit approval
 - ⬜ M5.4 AI network doctor built on `meshguard doctor`
@@ -146,3 +146,4 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Agent local API authorizes by kernel peer credentials on top of the socket's file mode; one level of access (no read-only tier for other users yet) |
 | 2026-10-02 | Access rules are enforced by the destination's agent only (it gets just the rules naming it as destination); new networks default to allow, deny is opt-in per network. The agent drops new inbound traffic until its first sync, and treats rules it can't parse as absent (never widening them) |
 | 2026-10-02 | Private DNS under `.internal` (ICANN-reserved), answered by each agent from its network map; only `.internal` is routed to it (split DNS), resolv.conf is never rewritten |
+| 2026-10-04 | `meshguard doctor` runs in the CLI as the calling user, so DNS, routes, ping and ports are checked the way that user's programs see them; the agent only adds what it alone knows (`/v1/access` evaluates the access rules). A peer's rules are checked by running doctor on that peer, since each agent only gets the rules naming it as destination |
