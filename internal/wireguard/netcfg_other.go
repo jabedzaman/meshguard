@@ -8,6 +8,6 @@ import (
 	"runtime"
 )
 
-func configureInterface(string, []netip.Prefix) error {
+func configureInterface(string, []netip.Prefix, []netip.Prefix) error {
 	return fmt.Errorf("interface configuration is not supported on %s yet", runtime.GOOS)
 }

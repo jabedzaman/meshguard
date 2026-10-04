@@ -81,3 +81,27 @@ func TestFilteredTUNLetsRepliesIn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, [][]byte{reply}, inner.written)
 }
+
+func TestFilteredTUNAnswersLocalPackets(t *testing.T) {
+	local := udp4("10.77.0.2", "100.100.100.53", 4000, 53)
+	toPeer := udp4("10.77.0.2", "10.77.0.1", 4000, 53)
+	inner := &fakeTUN{toRead: [][]byte{toPeer, local}}
+	filter := acl.NewFilter(acl.Policy{})
+	ft := &filteredTUN{Device: inner, filter: filter}
+	answer := []byte("reply")
+	h := LocalHandler(func(p []byte) ([]byte, bool) {
+		if netip.AddrFrom4([4]byte(p[16:20])) != netip.MustParseAddr("100.100.100.53") {
+			return nil, false
+		}
+		return answer, true
+	})
+	ft.local.Store(&h)
+
+	bufs, sizes := withOffset(16, make([]byte, 100), make([]byte, 100)), make([]int, 2)
+	n, err := ft.Read(bufs, sizes, 16)
+	require.NoError(t, err)
+	require.Equal(t, 2, n)
+	assert.Equal(t, len(toPeer), sizes[0], "a peer's packet goes on to WireGuard")
+	assert.Zero(t, sizes[1], "a local packet doesn't")
+	assert.Equal(t, [][]byte{answer}, inner.written, "the reply goes back to the OS")
+}

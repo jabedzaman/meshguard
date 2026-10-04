@@ -32,12 +32,14 @@ type Config struct {
 	// 10.77.4.9/16 and fd12:3456:789a:0:..../48, so the whole network routes
 	// through the interface.
 	Addresses []netip.Prefix
+	// More prefixes routed into the interface, e.g. the DNS resolver's address.
+	Routes []netip.Prefix
 }
 
 // Engine is a running WireGuard interface.
 type Engine struct {
 	name string
-	tun  tun.Device
+	tun  *filteredTUN
 	dev  *device.Device
 	bind *Bind
 	// Access rules for packets from peers.
@@ -64,7 +66,8 @@ func Start(cfg Config) (*Engine, error) {
 	logger := device.NewLogger(device.LogLevelError, "wireguard: ")
 	bind := NewBind(conn.NewDefaultBind())
 	filter := acl.NewFilter(acl.Policy{})
-	dev := device.NewDevice(&filteredTUN{Device: t, filter: filter}, bind, logger)
+	ft := &filteredTUN{Device: t, filter: filter}
+	dev := device.NewDevice(ft, bind, logger)
 	base := fmt.Sprintf("private_key=%s\nlisten_port=%d\n", hex.EncodeToString(cfg.PrivateKey[:]), cfg.ListenPort)
 	if err := dev.IpcSet(base); err != nil {
 		dev.Close()
@@ -74,12 +77,12 @@ func Start(cfg Config) (*Engine, error) {
 		dev.Close()
 		return nil, fmt.Errorf("bring up wireguard: %w", err)
 	}
-	if err := configureInterface(name, cfg.Addresses); err != nil {
+	if err := configureInterface(name, cfg.Addresses, cfg.Routes); err != nil {
 		dev.Close()
 		return nil, fmt.Errorf("configure %s: %w", name, err)
 	}
 	slog.Info("wireguard up", "interface", name, "port", cfg.ListenPort, "addresses", cfg.Addresses)
-	return &Engine{name: name, tun: t, dev: dev, bind: bind, filter: filter}, nil
+	return &Engine{name: name, tun: ft, dev: dev, bind: bind, filter: filter}, nil
 }
 
 // SetRelay sets how packets for relay/<key> endpoints are sent.
@@ -100,6 +103,9 @@ func (e *Engine) Rebind() error { return e.dev.BindUpdate() }
 
 // SetACL replaces the access rules for packets from peers.
 func (e *Engine) SetACL(p acl.Policy) { e.filter.SetPolicy(p) }
+
+// SetLocalHandler answers packets for addresses the agent serves itself.
+func (e *Engine) SetLocalHandler(h LocalHandler) { e.tun.local.Store(&h) }
 
 // ACLDropped counts packets from peers the access rules refused.
 func (e *Engine) ACLDropped() uint64 { return e.filter.Dropped() }
