@@ -518,13 +518,14 @@ func plural(n int, word string) string {
 	return strconv.Itoa(n) + " " + word + "s"
 }
 
-// pingOnce sends a couple of pings and reports whether any came back.
+// pingOnce pings once a second until a reply comes back, for up to 5s: a
+// peer on Wi-Fi often loses the first ping while its radio wakes up.
 func pingOnce(ip string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	args := []string{"-c", "2", "-W", "2", ip}
+	args := []string{"-c", "1", "-w", "5", ip} // with -w, -c counts replies
 	if runtime.GOOS == "darwin" {
-		args = []string{"-c", "2", "-t", "4", ip} // -W is milliseconds there; -t bounds the run
+		args = []string{"-o", "-t", "5", ip} // -o: stop at the first reply
 	}
 	return execQuiet(ctx, "ping", args...)
 }
