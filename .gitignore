@@ -23,3 +23,6 @@ test-results/
 # Go binaries built in place (`go build` in an app folder)
 /apps/*/meshguard
 /apps/*/meshguard-*
+
+# Real k8s secrets (copy of deploy/k8s/secret.example.yaml)
+deploy/k8s/secret.yaml

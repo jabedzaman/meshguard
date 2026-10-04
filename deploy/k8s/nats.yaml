@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: meshguard-nats
+  labels:
+    app: meshguard-nats
+    app.kubernetes.io/part-of: meshguard
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  serviceName: meshguard-nats
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meshguard-nats
+  template:
+    metadata:
+      labels:
+        app: meshguard-nats
+        app.kubernetes.io/part-of: meshguard
+        app.kubernetes.io/managed-by: kustomize
+    spec:
+      containers:
+        - name: nats
+          image: nats:2.11-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["--jetstream", "--store_dir", "/data", "--http_port", "8222"]
+          ports:
+            - containerPort: 4222
+              name: client
+            - containerPort: 8222
+              name: monitor
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 300m
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meshguard-nats
+  labels:
+    app: meshguard-nats
+    app.kubernetes.io/part-of: meshguard
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    app: meshguard-nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client

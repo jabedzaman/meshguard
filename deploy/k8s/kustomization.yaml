@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: meshguard
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - redis.yaml
+  - nats.yaml
+  - api.yaml
+  - web.yaml
+  - workers.yaml
+  - cloudflared.yaml

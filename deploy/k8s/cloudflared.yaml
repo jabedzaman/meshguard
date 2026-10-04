@@ -1,0 +1,41 @@
+# Tunnel + public hostnames are configured in the Cloudflare Zero Trust
+# dashboard (Networks → Tunnels), not here — this just runs the connector
+# that dials out to Cloudflare's edge using the token from meshguard-secrets.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meshguard-cloudflared
+  labels:
+    app: meshguard-cloudflared
+    app.kubernetes.io/part-of: meshguard
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meshguard-cloudflared
+  template:
+    metadata:
+      labels:
+        app: meshguard-cloudflared
+        app.kubernetes.io/part-of: meshguard
+        app.kubernetes.io/managed-by: kustomize
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest
+          imagePullPolicy: IfNotPresent
+          args: ["tunnel", "--no-autoupdate", "run"]
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: meshguard-secrets
+                  key: CLOUDFLARE_TUNNEL_TOKEN
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 300m

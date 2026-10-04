@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meshguard-workers
+  labels:
+    app: meshguard-workers
+    app.kubernetes.io/part-of: meshguard
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meshguard-workers
+  template:
+    metadata:
+      labels:
+        app: meshguard-workers
+        app.kubernetes.io/part-of: meshguard
+        app.kubernetes.io/managed-by: kustomize
+    spec:
+      containers:
+        - name: workers
+          image: ghcr.io/jabedzaman/meshguard-workers:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9091
+              name: health
+          envFrom:
+            - configMapRef:
+                name: meshguard-config
+            - secretRef:
+                name: meshguard-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 50m
+            limits:
+              memory: 384Mi
+              cpu: 300m

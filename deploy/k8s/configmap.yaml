@@ -1,0 +1,21 @@
+# Public hostnames route through the Cloudflare Tunnel (see cloudflared.yaml).
+# NEXT_PUBLIC_API_URL is baked into the web image at build time instead; keep
+# the NEXT_PUBLIC_API_URL repo variable on GitHub equal to BETTER_AUTH_URL.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: meshguard-config
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  API_PORT: "4000"
+  BETTER_AUTH_URL: "https://api-meshguard.jabed.dev"
+  WEB_URL: "https://meshguard.jabed.dev"
+  # Web and API are on different subdomains; the session cookie is set on
+  # this parent domain so both can read it.
+  AUTH_COOKIE_DOMAIN: "jabed.dev"
+  REDIS_URL: "redis://meshguard-redis:6379"
+  NATS_URL: "nats://meshguard-nats:4222"
+  MAIL_FROM: "MeshGuard <no-reply@jabed.dev>"
+  # No relay on this cluster yet: peers connect directly or not at all.
+  STUN_SERVERS: "stun.l.google.com:19302,stun.cloudflare.com:3478"

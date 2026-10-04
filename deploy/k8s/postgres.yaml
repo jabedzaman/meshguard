@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: meshguard-postgres
+  labels:
+    app: meshguard-postgres
+    app.kubernetes.io/part-of: meshguard
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  serviceName: meshguard-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meshguard-postgres
+  template:
+    metadata:
+      labels:
+        app: meshguard-postgres
+        app.kubernetes.io/part-of: meshguard
+        app.kubernetes.io/managed-by: kustomize
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              value: meshguard
+            - name: POSTGRES_DB
+              value: meshguard
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: meshguard-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+              name: postgres
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "meshguard", "-d", "meshguard"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "meshguard", "-d", "meshguard"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meshguard-postgres
+  labels:
+    app: meshguard-postgres
+    app.kubernetes.io/part-of: meshguard
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    app: meshguard-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

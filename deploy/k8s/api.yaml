@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meshguard-api
+  labels:
+    app: meshguard-api
+    app.kubernetes.io/part-of: meshguard
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meshguard-api
+  template:
+    metadata:
+      labels:
+        app: meshguard-api
+        app.kubernetes.io/part-of: meshguard
+        app.kubernetes.io/managed-by: kustomize
+    spec:
+      # Applies pending migrations before every rollout; no-op when up to date.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/jabedzaman/meshguard-api:latest
+          imagePullPolicy: Always
+          command: ["node", "dist/migrate.js"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: meshguard-secrets
+                  key: DATABASE_URL
+      containers:
+        - name: api
+          image: ghcr.io/jabedzaman/meshguard-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: meshguard-config
+            - secretRef:
+                name: meshguard-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+---
+# NodePort for debugging over Tailscale without the tunnel.
+apiVersion: v1
+kind: Service
+metadata:
+  name: meshguard-api
+  labels:
+    app: meshguard-api
+    app.kubernetes.io/part-of: meshguard
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  type: NodePort
+  selector:
+    app: meshguard-api
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http
+      nodePort: 30400
