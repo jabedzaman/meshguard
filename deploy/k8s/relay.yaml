@@ -1,0 +1,57 @@
+# Agents reach this over WebSocket through the Cloudflare Tunnel. STUN is off:
+# the tunnel can't carry UDP, so agents use the public STUN servers instead
+# (STUN_SERVERS in configmap.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meshguard-relay
+  labels:
+    app: meshguard-relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meshguard-relay
+  template:
+    metadata:
+      labels:
+        app: meshguard-relay
+    spec:
+      containers:
+        - name: relay
+          image: ghcr.io/jabedzaman/meshguard-relay:latest
+          imagePullPolicy: Always
+          args: ["-stun-addr="]
+          ports:
+            - containerPort: 3340
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meshguard-relay
+  labels:
+    app: meshguard-relay
+spec:
+  selector:
+    app: meshguard-relay
+  ports:
+    - name: http
+      port: 3340
+      targetPort: http

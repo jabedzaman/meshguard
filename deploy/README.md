@@ -5,10 +5,11 @@ nats, cloudflared) on the single-node k3s cluster on `thinkpad` (Tailscale
 `100.82.18.127`). Public access is a Cloudflare Tunnel, so there's no ingress or
 cert-manager. Same layout as kuchupuchu's `deploy/`.
 
-| Host                      | Service                                          |
-| ------------------------- | ------------------------------------------------ |
-| `meshguard.jabed.dev`     | `meshguard-web.meshguard.svc.cluster.local:3000` |
-| `meshguard-api.jabed.dev` | `meshguard-api.meshguard.svc.cluster.local:4000` |
+| Host                        | Service                                            |
+| --------------------------- | -------------------------------------------------- |
+| `meshguard.jabed.dev`       | `meshguard-web.meshguard.svc.cluster.local:3000`   |
+| `meshguard-api.jabed.dev`   | `meshguard-api.meshguard.svc.cluster.local:4000`   |
+| `meshguard-relay.jabed.dev` | `meshguard-relay.meshguard.svc.cluster.local:3340` |
 
 Hostnames are one level deep on purpose: Cloudflare's free certificate covers
 `*.jabed.dev` but not `*.meshguard.jabed.dev`. To change them, update
@@ -106,14 +107,13 @@ Then sign up at https://meshguard.jabed.dev.
 Pushes to main build new `:latest` images. Roll them out with:
 
 ```sh
-kubectl -n meshguard rollout restart deploy/meshguard-api deploy/meshguard-web deploy/meshguard-workers
+kubectl -n meshguard rollout restart deploy/meshguard-api deploy/meshguard-web deploy/meshguard-workers deploy/meshguard-relay
 ```
 
 ## Notes
 
-- **Relay is not deployed.** Devices connect directly (LAN or hole punching via
-  the public STUN servers in `configmap.yaml`); pairs that need the relay
-  (symmetric NAT on both sides) won't connect yet. The relay also needs UDP for
-  STUN, which a Cloudflare Tunnel can't carry.
+- **Relay** runs WebSocket-only through the tunnel (`-stun-addr=`): the tunnel
+  can't carry UDP, so agents find their public address with the public STUN
+  servers in `configmap.yaml` and fall back to the relay when hole punching fails.
 - **Cookies** are scoped to `jabed.dev` (`AUTH_COOKIE_DOMAIN`) so the session
   set by the API is visible to the web app on its own subdomain.
