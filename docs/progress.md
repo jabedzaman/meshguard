@@ -74,6 +74,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M2.9 Key rotation
 - ✅ M2.10 Remove devices from the web (owners/admins): peers drop it on their next sync; the removed agent is refused and says how to re-join
 - ⬜ M2.11 Access rules by tag or group (`tag:server`), and pushing rule changes to agents instead of waiting for the next sync
+- 🚧 M2.12 DNS resolver on a virtual address, Tailscale style: the agent answers UDP queries to `100.100.100.53` inside its TUN, so every OS uses the same address and no socket (drops the macOS `127.0.0.1:53053` workaround); short names (`ssh laptop`) through the `internal` search domain on Linux; reverse lookups (PTR) for mesh addresses
+- ⬜ M2.13 Full DNS: forward other names to the OS's own resolvers, admin split DNS (domain → nameserver over the mesh), override local DNS, NetworkManager / resolvconf fallbacks, Windows NRPT. Waits for exit nodes or a customer that needs it
 
 ### M3 — Desktop app ⬜
 
@@ -147,3 +149,4 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Access rules are enforced by the destination's agent only (it gets just the rules naming it as destination); new networks default to allow, deny is opt-in per network. The agent drops new inbound traffic until its first sync, and treats rules it can't parse as absent (never widening them) |
 | 2026-10-02 | Private DNS under `.internal` (ICANN-reserved), answered by each agent from its network map; only `.internal` is routed to it (split DNS), resolv.conf is never rewritten |
 | 2026-10-04 | `meshguard doctor` runs in the CLI as the calling user, so DNS, routes, ping and ports are checked the way that user's programs see them; the agent only adds what it alone knows (`/v1/access` evaluates the access rules). A peer's rules are checked by running doctor on that peer, since each agent only gets the rules naming it as destination |
+| 2026-10-04 | DNS moves to a virtual resolver address the agent intercepts in its TUN (like Tailscale's `100.100.100.100`), but stays split: only `.internal` and the mesh's reverse zones go to it. `100.100.100.53` is in the range Tailscale reserves for its own services, so it never collides with a Tailscale node and coexists with MagicDNS. Forwarding and taking over all DNS (M2.13) wait until something needs them |
