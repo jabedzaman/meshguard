@@ -56,7 +56,8 @@ type ACLStatus struct {
 type DNSStatus struct {
 	// This device's name, e.g. "laptop.internal".
 	Name string `json:"name"`
-	// Where the agent answers, e.g. "10.77.0.9:53"; empty if it couldn't listen.
+	// Where the agent answers inside its TUN, "100.100.100.53"; empty if it
+	// doesn't.
 	Resolver string `json:"resolver,omitempty"`
 	// How the OS sends .internal queries to it, e.g. "systemd-resolved";
 	// empty if it doesn't (see Problem).

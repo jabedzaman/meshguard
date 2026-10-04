@@ -98,8 +98,10 @@ run_pair() {
   # The lab has no systemd-resolved, so ask the agent's resolver directly.
   local b_name resolved
   b_name=$(dns_name "$b")
-  resolved=$(docker exec "meshguard-$a" dig +short +time=2 +tries=1 @"$a4" "$b_name" A)
+  resolved=$(docker exec "meshguard-$a" dig +short +time=2 +tries=1 @100.100.100.53 "$b_name" A)
   if [ "$resolved" = "$b4" ]; then ok "$a resolves $b_name -> $b4"; else fail "$a resolves $b_name to '${resolved}', want $b4"; fi
+  resolved=$(docker exec "meshguard-$a" dig +short +time=2 +tries=1 @100.100.100.53 -x "$b4")
+  if [ "$resolved" = "$b_name." ]; then ok "$a resolves $b4 -> $b_name"; else fail "$a resolves $b4 to '${resolved}', want $b_name."; fi
   if [ "$path" = "$want" ]; then ok "path: $(peer_line "$a" | awk '{$1=$1; print}')"; else fail "path is ${path:-unknown}, want $want: $(peer_line "$a")"; fi
 }
 

@@ -40,6 +40,8 @@ type Engine interface {
 	// SetACL replaces what peers may send in; until then only replies pass.
 	SetACL(acl.Policy)
 	ACLDropped() uint64
+	// SetLocalHandler answers packets for addresses the agent serves (DNS).
+	SetLocalHandler(wireguard.LocalHandler)
 	Close()
 }
 
@@ -64,8 +66,6 @@ type Agent struct {
 	// linkState summarizes the network attachment; a change means the
 	// network changed. Default: the advertisable local addresses.
 	linkState func(engine Engine, exclude []netip.Prefix) string
-	// dnsListen replaces dns.ListenAddr and skips OS resolver setup (tests).
-	dnsListen netip.AddrPort
 
 	mu   sync.Mutex // guards ctx and conn, and serializes up/down/logout
 	ctx  context.Context
@@ -149,7 +149,7 @@ func (a *Agent) stopLocked() {
 		return
 	}
 	a.conn = nil
-	c.cancel() // stops the loop, relay, disco ticker and DNS server
+	c.cancel() // stops the loop, relay and disco ticker
 	a.stopDNSLocked(c)
 	if c.engine != nil {
 		c.engine.Close()
@@ -245,6 +245,7 @@ func (a *Agent) engineConfig(st *state.State) (wireguard.Config, error) {
 		ListenPort:    a.listenPort(),
 		PrivateKey:    keys.WireGuard,
 		Addresses:     addresses,
+		Routes:        []netip.Prefix{netip.PrefixFrom(dns.ResolverAddr, 32)},
 	}, nil
 }
 

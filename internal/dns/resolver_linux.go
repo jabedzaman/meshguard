@@ -3,27 +3,31 @@ package dns
 import (
 	"errors"
 	"fmt"
-	"net/netip"
 	"os/exec"
 )
 
-// ListenAddr is where the agent serves DNS: its mesh address, which
-// systemd-resolved reaches like any per-link DNS server.
-func ListenAddr(meshIPv4 netip.Addr) netip.AddrPort {
-	return netip.AddrPortFrom(meshIPv4, 53)
-}
-
-// ConfigureOS points the system resolver at server for Domain on iface. It
-// needs systemd-resolved; the settings go away with the interface. It returns
-// a short description of how, for status.
-func ConfigureOS(iface string, server netip.AddrPort) (string, error) {
+// ConfigureOS points the system resolver at ResolverAddr on iface, for
+// Domain and the reverse zones only. Domain is also a search domain, so short
+// names like "laptop" resolve. It needs systemd-resolved; the settings go
+// away with the interface. It returns a short description of how, for status.
+func ConfigureOS(iface string, reverseZones []string) (string, error) {
 	if _, err := exec.LookPath("resolvectl"); err != nil {
 		return "", errors.New("split DNS needs systemd-resolved (resolvectl not found)")
 	}
-	if err := resolvectl("dns", iface, server.Addr().String()); err != nil {
+	if err := resolvectl("dns", iface, ResolverAddr.String()); err != nil {
 		return "", err
 	}
-	if err := resolvectl("domain", iface, "~"+Domain); err != nil {
+	// A plain domain is both a search and a routing domain; "~" ones only route.
+	domains := []string{"domain", iface, Domain}
+	for _, zone := range reverseZones {
+		domains = append(domains, "~"+zone)
+	}
+	if err := resolvectl(domains...); err != nil {
+		return "", err
+	}
+	// Never the default route, whatever resolved infers from the domains:
+	// other names keep going where they went before.
+	if err := resolvectl("default-route", iface, "false"); err != nil {
 		return "", err
 	}
 	return "systemd-resolved", nil

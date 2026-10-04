@@ -312,7 +312,7 @@ func (d *doctor) resolves(check, name, ip string, s ipc.Status) {
 			"doesn't send programs to it: sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf " +
 			"(on WSL, first set generateResolvConf = false under [network] in /etc/wsl.conf)"
 	case s.DNS.Configured == "systemd-resolved":
-		fix = "resolvectl status " + s.Interface + " should show " + s.DNS.Resolver + " and ~internal"
+		fix = "resolvectl status " + s.Interface + " should show " + s.DNS.Resolver + " and the internal domain"
 	default:
 		fix = "scutil --dns should list a resolver for internal"
 	}

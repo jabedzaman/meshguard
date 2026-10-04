@@ -74,7 +74,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M2.9 Key rotation
 - ✅ M2.10 Remove devices from the web (owners/admins): peers drop it on their next sync; the removed agent is refused and says how to re-join
 - ⬜ M2.11 Access rules by tag or group (`tag:server`), and pushing rule changes to agents instead of waiting for the next sync
-- 🚧 M2.12 DNS resolver on a virtual address, Tailscale style: the agent answers UDP queries to `100.100.100.53` inside its TUN, so every OS uses the same address and no socket (drops the macOS `127.0.0.1:53053` workaround); short names (`ssh laptop`) through the `internal` search domain on Linux; reverse lookups (PTR) for mesh addresses
+- ✅ M2.12 DNS resolver on a virtual address, Tailscale style: the agent answers UDP queries to `100.100.100.53` inside its TUN, so every OS uses the same address and no socket (drops the macOS `127.0.0.1:53053` workaround); short names (`ssh laptop`) through the `internal` search domain on Linux; reverse lookups (PTR) for mesh addresses (lab: names and reverse lookups for every pair; systemd-resolved settings checked in a container. Not yet on the MacBook)
 - ⬜ M2.13 Full DNS: forward other names to the OS's own resolvers, admin split DNS (domain → nameserver over the mesh), override local DNS, NetworkManager / resolvconf fallbacks, Windows NRPT. Waits for exit nodes or a customer that needs it
 
 ### M3 — Desktop app ⬜

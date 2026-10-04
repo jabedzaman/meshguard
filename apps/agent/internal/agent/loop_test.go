@@ -4,14 +4,13 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,11 +19,13 @@ import (
 
 	"github.com/jabedzaman/meshguard/internal/acl"
 	"github.com/jabedzaman/meshguard/internal/coordination"
+	"github.com/jabedzaman/meshguard/internal/dns"
 	"github.com/jabedzaman/meshguard/internal/ipc"
 	"github.com/jabedzaman/meshguard/internal/relay"
 	"github.com/jabedzaman/meshguard/internal/wireguard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 type fakeEngine struct {
@@ -33,6 +34,7 @@ type fakeEngine struct {
 	cfg     wireguard.Config
 	acl     *acl.Policy
 	rebinds atomic.Int32
+	local   wireguard.LocalHandler
 }
 
 func (e *fakeEngine) Name() string { return "meshguard-test0" }
@@ -161,17 +163,17 @@ func TestUpStartsWireGuardAndSyncsPeers(t *testing.T) {
 
 func TestServesPeersOverDNS(t *testing.T) {
 	server, _ := signedControlPlane(t)
-	probe, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	require.NoError(t, err)
-	port := probe.LocalAddr().(*net.UDPAddr).Port
-	probe.Close()
-
+	engine := &fakeEngine{}
 	a := &Agent{
 		Version:      "test",
 		StateDir:     t.TempDir(),
 		SyncInterval: 50 * time.Millisecond,
-		StartEngine:  func(wireguard.Config) (Engine, error) { return &fakeEngine{}, nil },
-		dnsListen:    netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), uint16(port)),
+		StartEngine: func(cfg wireguard.Config) (Engine, error) {
+			engine.mu.Lock()
+			defer engine.mu.Unlock()
+			engine.cfg = cfg
+			return engine, nil
+		},
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -180,27 +182,28 @@ func TestServesPeersOverDNS(t *testing.T) {
 	rec, _, _ := call(t, a.Handler(), http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	r := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-		var d net.Dialer
-		return d.DialContext(ctx, network, net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
-	}}
 	// The peer appears after the first sync.
-	var ips []netip.Addr
 	require.Eventually(t, func() bool {
-		ips, err = r.LookupNetIP(ctx, "ip", "server.internal")
-		return err == nil
+		return len(engine.lookup(t, "server.internal.", dnsmessage.TypeA)) == 1
 	}, 2*time.Second, 20*time.Millisecond)
-	assert.ElementsMatch(t, []netip.Addr{netip.MustParseAddr("10.77.0.3"), netip.MustParseAddr("fd00:1:2::3")}, ips)
-	ips, err = r.LookupNetIP(ctx, "ip4", "laptop.internal")
-	require.NoError(t, err)
-	assert.Equal(t, []netip.Addr{netip.MustParseAddr("10.77.0.2")}, ips)
+	answers := engine.lookup(t, "server.internal.", dnsmessage.TypeAAAA)
+	require.Len(t, answers, 1)
+	assert.Equal(t, netip.MustParseAddr("fd00:1:2::3").As16(), answers[0].Body.(*dnsmessage.AAAAResource).AAAA)
+	answers = engine.lookup(t, "laptop.internal.", dnsmessage.TypeA)
+	require.Len(t, answers, 1)
+	assert.Equal(t, [4]byte{10, 77, 0, 2}, answers[0].Body.(*dnsmessage.AResource).A)
+	// The network's reverse zone comes from the state file.
+	answers = engine.lookup(t, "3.0.77.10.in-addr.arpa.", dnsmessage.TypePTR)
+	require.Len(t, answers, 1)
+	assert.Equal(t, "server.internal.", answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
 
 	_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
 	require.NotNil(t, status.DNS)
 	assert.Equal(t, "laptop.internal", status.DNS.Name)
-	assert.Equal(t, "127.0.0.1:"+strconv.Itoa(port), status.DNS.Resolver)
+	assert.Equal(t, dns.ResolverAddr.String(), status.DNS.Resolver)
 	assert.Empty(t, status.DNS.Configured, "tests leave the OS resolver alone")
 	assert.Equal(t, "server.internal", status.Peers[0].DNSName)
+	assert.Equal(t, []netip.Prefix{netip.MustParsePrefix("100.100.100.53/32")}, engine.Config().Routes)
 }
 
 func TestRenameFromControlPlaneIsSaved(t *testing.T) {
@@ -308,6 +311,43 @@ func (e *fakeEngine) SetACL(p acl.Policy) {
 	e.acl = &p
 }
 func (e *fakeEngine) ACLDropped() uint64 { return 0 }
+func (e *fakeEngine) SetLocalHandler(h wireguard.LocalHandler) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.local = h
+}
+
+// lookup sends a DNS query the way the OS would, as a packet into the TUN
+// for the resolver address, and returns the answers.
+func (e *fakeEngine) lookup(t *testing.T, name string, qtype dnsmessage.Type) []dnsmessage.Resource {
+	t.Helper()
+	q, err := (&dnsmessage.Message{
+		Header:    dnsmessage.Header{ID: 7, RecursionDesired: true},
+		Questions: []dnsmessage.Question{{Name: dnsmessage.MustNewName(name), Type: qtype, Class: dnsmessage.ClassINET}},
+	}).Pack()
+	require.NoError(t, err)
+	packet := make([]byte, 28+len(q))
+	packet[0], packet[9] = 0x45, 17 // IPv4, UDP
+	binary.BigEndian.PutUint16(packet[2:], uint16(len(packet)))
+	copy(packet[12:], []byte{10, 77, 0, 2})
+	resolver := dns.ResolverAddr.As4()
+	copy(packet[16:], resolver[:])
+	binary.BigEndian.PutUint16(packet[20:], 40000)
+	binary.BigEndian.PutUint16(packet[22:], 53)
+	binary.BigEndian.PutUint16(packet[24:], uint16(8+len(q)))
+	copy(packet[28:], q)
+
+	e.mu.Lock()
+	local := e.local
+	e.mu.Unlock()
+	require.NotNil(t, local, "no DNS handler on the engine")
+	reply, handled := local(packet)
+	require.True(t, handled)
+	require.Greater(t, len(reply), 28)
+	var m dnsmessage.Message
+	require.NoError(t, m.Unpack(reply[28:]))
+	return m.Answers
+}
 func (e *fakeEngine) ACL() *acl.Policy {
 	e.mu.Lock()
 	defer e.mu.Unlock()

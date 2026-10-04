@@ -5,7 +5,8 @@ description: Reach every device as <name>.internal.
 
 Every device resolves as `<name>.internal`, e.g. `ssh jabeds-macbook-air.internal`.
 Device names come from the hostname (lowercased, first label) and are unique
-in the network: a second `laptop` becomes `laptop-2`.
+in the network: a second `laptop` becomes `laptop-2`. Mesh addresses resolve
+back to names too (`dig -x 10.77.0.214`).
 
 ## Renaming and removing devices
 
@@ -19,11 +20,13 @@ sync, and its agent is refused from then on. To bring it back, run
 
 ## How it resolves
 
-The agent answers DNS locally and sends only `.internal` queries there; other
-lookups never touch it.
+The agent answers DNS at `100.100.100.53` on every device. Queries to it are
+routed into the WireGuard interface and answered by the agent itself; they
+never leave the machine. The OS sends only `.internal` and the mesh's reverse
+zones there; other lookups never touch it.
 
 | Platform | Setup |
 | --- | --- |
-| macOS | Serves on `127.0.0.1:53053` and writes `/etc/resolver/internal` (removed on `meshguard down`). |
-| Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0` (`~internal`). |
-| Other Linux | Serves on the mesh IPv4, port 53, but the OS isn't configured. Query it directly: `dig @$(meshguard ip) laptop.internal`. |
+| macOS | Writes `/etc/resolver/internal` and one file per reverse zone (removed on `meshguard down`). Short names don't resolve. |
+| Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0`. `internal` is a search domain, so short names work: `ssh laptop`. |
+| Other Linux | The OS isn't configured. Query the resolver directly: `dig @100.100.100.53 laptop.internal`. |

@@ -172,16 +172,24 @@ agent, and each agent saves its own in its state file. Removing a device
 their next sync, and its own signed requests get 401 `invalid_device_signature`,
 the same answer as an unknown device, so ids can't be probed.
 
-- The agent serves DNS (`internal/dns`) over UDP and TCP on its mesh IPv4,
-  port 53 (Linux), or on `127.0.0.1:53053` (macOS, which routes a utun's own
-  address into the tunnel, so local queries to it never arrive), with A/AAAA records for itself and every peer from the latest network
-  map. Unknown names under `.internal` get NXDOMAIN; anything else is refused,
-  since the OS only sends `.internal` here.
-- Split DNS: macOS reads `/etc/resolver/internal`; on Linux the agent sets
-  the resolver and `~internal` routing domain on `meshguard0` through
-  systemd-resolved. Nothing else on the machine changes, and without
-  systemd-resolved the agent leaves resolv.conf alone and says so in
-  `meshguard status`.
+- The resolver is `100.100.100.53` on every device, like Tailscale's
+  `100.100.100.100`, and in the range Tailscale keeps for its own services, so
+  it never collides with a Tailscale node. The agent routes that /32 into its
+  TUN and catches UDP queries to port 53 as the OS writes them
+  (`filteredTUN`), before WireGuard: they're answered and written straight
+  back to the OS, never reach a peer, and no socket is bound. Only UDP: the
+  answers are small enough never to be truncated.
+- The agent (`internal/dns`) answers A/AAAA for itself and every peer from the
+  latest network map, and PTR in the network's reverse zones
+  (`77.10.in-addr.arpa`; a prefix between octets becomes the longer zones
+  inside it, never a shorter one). Unknown names in those zones get NXDOMAIN;
+  anything else is refused, since the OS only sends those zones here.
+- Split DNS: macOS reads `/etc/resolver/internal` and a file per reverse zone;
+  on Linux the agent sets the resolver on `meshguard0` through
+  systemd-resolved, with `internal` as a search domain (short names) and the
+  reverse zones as routing-only domains, and never as the default route.
+  Nothing else on the machine changes, and without systemd-resolved the agent
+  leaves resolv.conf alone and says so in `meshguard status`.
 - Names are answered locally, so lookups work offline and never reach the
   control plane. No `meshguard-dns` service is involved yet.
 

@@ -1,8 +1,7 @@
 package dns
 
 import (
-	"context"
-	"net"
+	"encoding/binary"
 	"net/netip"
 	"testing"
 
@@ -81,40 +80,77 @@ func TestSetRecordsReplaces(t *testing.T) {
 	assert.Len(t, ask(t, s, "desktop.internal.", dnsmessage.TypeA).Answers, 1)
 }
 
-func TestServesOverUDPAndTCP(t *testing.T) {
+func TestReverseLookups(t *testing.T) {
 	s := testServer()
-	addr := netip.MustParseAddrPort("127.0.0.1:0")
-	// Pick a free port first; Start binds UDP and TCP to the same one.
-	probe, err := net.ListenUDP("udp", net.UDPAddrFromAddrPort(addr))
-	require.NoError(t, err)
-	addr = probe.LocalAddr().(*net.UDPAddr).AddrPort()
-	probe.Close()
+	s.SetNetworks([]netip.Prefix{netip.MustParsePrefix("10.77.0.0/16"), netip.MustParsePrefix("fd00:1:2::/48")})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	require.NoError(t, s.Start(ctx, addr))
+	m := ask(t, s, "9.0.77.10.in-addr.arpa.", dnsmessage.TypePTR)
+	assert.Equal(t, dnsmessage.RCodeSuccess, m.RCode)
+	require.Len(t, m.Answers, 1)
+	assert.Equal(t, "laptop.internal.", m.Answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
 
-	r := &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-			var d net.Dialer
-			return d.DialContext(ctx, network, addr.String())
-		},
+	m = ask(t, s, "9.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.2.0.0.0.1.0.0.0.0.0.d.f.ip6.arpa.", dnsmessage.TypePTR)
+	require.Len(t, m.Answers, 1)
+	assert.Equal(t, "laptop.internal.", m.Answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
+
+	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "99.0.77.10.in-addr.arpa.", dnsmessage.TypePTR).RCode, "free address")
+	assert.Equal(t, dnsmessage.RCodeSuccess, ask(t, s, "77.10.in-addr.arpa.", dnsmessage.TypeSOA).RCode, "zone apex")
+	assert.Equal(t, dnsmessage.RCodeRefused, ask(t, s, "9.0.78.10.in-addr.arpa.", dnsmessage.TypePTR).RCode, "outside the mesh")
+}
+
+func TestReverseZones(t *testing.T) {
+	zones := func(cidrs ...string) []string {
+		var prefixes []netip.Prefix
+		for _, c := range cidrs {
+			prefixes = append(prefixes, netip.MustParsePrefix(c))
+		}
+		return ReverseZones(prefixes)
 	}
-	ips, err := r.LookupNetIP(ctx, "ip4", "laptop.internal")
-	require.NoError(t, err)
-	assert.Equal(t, []netip.Addr{netip.MustParseAddr("10.77.0.9")}, ips)
+	assert.Equal(t, []string{"77.10.in-addr.arpa", "2.0.0.0.1.0.0.0.0.0.d.f.ip6.arpa"}, zones("10.77.0.0/16", "fd00:1:2::/48"))
+	assert.Equal(t, []string{"10.in-addr.arpa"}, zones("10.0.0.0/8"))
+	// Between octets: the longer zones inside, never 168.192 as a whole.
+	assert.Equal(t, []string{"0.168.192.in-addr.arpa", "1.168.192.in-addr.arpa", "2.168.192.in-addr.arpa", "3.168.192.in-addr.arpa"},
+		zones("192.168.0.0/22"))
+	assert.Len(t, zones("172.16.0.0/12"), 16)
+	assert.Equal(t, "31.172.in-addr.arpa", zones("172.16.0.0/12")[15])
+	assert.Equal(t, []string{"10.in-addr.arpa", "11.in-addr.arpa"}, zones("10.0.0.0/7"))
+	assert.Empty(t, zones("0.0.0.0/0"), "never every address")
+}
 
-	conn, err := net.Dial("tcp", addr.String())
-	require.NoError(t, err)
-	defer conn.Close()
-	q := query(t, "laptop.internal.", dnsmessage.TypeA)
-	_, err = conn.Write(append([]byte{0, byte(len(q))}, q...))
-	require.NoError(t, err)
-	buf := make([]byte, 512)
-	n, err := conn.Read(buf)
-	require.NoError(t, err)
+// queryPacket is a query as the OS sends it into the TUN.
+func queryPacket(t *testing.T, name string, qtype dnsmessage.Type) []byte {
+	return udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.AddrPortFrom(ResolverAddr, 53), query(t, name, qtype))
+}
+
+func TestHandlesPacketsForTheResolver(t *testing.T) {
+	s := testServer()
+
+	reply, handled := s.HandlePacket(queryPacket(t, "laptop.internal.", dnsmessage.TypeA))
+	require.True(t, handled)
+	require.NotNil(t, reply)
+	assert.Equal(t, uint16(0), fold(sum(0, reply[:ipv4HeaderLen]))^0xffff, "IP checksum")
+	assert.Equal(t, ResolverAddr, netip.AddrFrom4([4]byte(reply[12:16])))
+	assert.Equal(t, netip.MustParseAddr("10.77.0.2"), netip.AddrFrom4([4]byte(reply[16:20])))
+	udp := reply[ipv4HeaderLen:]
+	assert.Equal(t, uint16(53), binary.BigEndian.Uint16(udp[0:2]))
+	assert.Equal(t, uint16(40000), binary.BigEndian.Uint16(udp[2:4]))
+	pseudo := sum(0, reply[12:20]) + protoUDP + uint32(len(udp))
+	assert.Equal(t, uint16(0xffff), fold(sum(pseudo, udp)), "UDP checksum")
 	var m dnsmessage.Message
-	require.NoError(t, m.Unpack(buf[2:n]))
-	assert.Len(t, m.Answers, 1)
+	require.NoError(t, m.Unpack(udp[udpHeaderLen:]))
+	require.Len(t, m.Answers, 1)
+	assert.Equal(t, [4]byte{10, 77, 0, 9}, m.Answers[0].Body.(*dnsmessage.AResource).A)
+
+	// To a peer: not ours.
+	other := udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.MustParseAddrPort("10.77.0.9:53"), query(t, "laptop.internal.", dnsmessage.TypeA))
+	_, handled = s.HandlePacket(other)
+	assert.False(t, handled)
+
+	// To the resolver but not a UDP query on 53: dropped, no reply.
+	wrongPort := udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.AddrPortFrom(ResolverAddr, 54), query(t, "laptop.internal.", dnsmessage.TypeA))
+	reply, handled = s.HandlePacket(wrongPort)
+	assert.True(t, handled)
+	assert.Nil(t, reply)
+	_, handled = s.HandlePacket([]byte{0x60, 0, 0, 0})
+	assert.False(t, handled, "IPv6")
 }
