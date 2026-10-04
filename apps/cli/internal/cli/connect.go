@@ -10,11 +10,16 @@ import (
 	"github.com/jabedzaman/meshguard/internal/ipc"
 )
 
+// DefaultServer is the control plane used when neither --server nor
+// $MESHGUARD_SERVER is set. Release builds set it with
+// -ldflags "-X .../internal/cli.DefaultServer=https://api.example.com".
+var DefaultServer = "http://localhost:4000"
+
 func defaultServer() string {
 	if s := os.Getenv("MESHGUARD_SERVER"); s != "" {
 		return s
 	}
-	return "http://localhost:4000"
+	return DefaultServer
 }
 
 func newUp(o *options) *cobra.Command {

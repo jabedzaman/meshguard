@@ -103,7 +103,8 @@ meshguard up --token meshguard_enr_... --server https://api.example.com
 meshguard up                                               # reconnect after meshguard down
 ```
 
-`--server` defaults to `$MESHGUARD_SERVER`, then `http://localhost:4000`. Tokens
+`--server` defaults to `$MESHGUARD_SERVER`, then the server baked in at build time
+(`MESHGUARD_SERVER=https://... scripts/build-agent.sh`; `http://localhost:4000` if unset). Tokens
 work once and expire; a machine already in a network must `meshguard logout` before
 joining another.
 
