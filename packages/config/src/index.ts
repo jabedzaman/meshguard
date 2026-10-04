@@ -16,6 +16,11 @@ export const serverEnvSchema = z.object({
   BETTER_AUTH_URL: z.url(),
   /** Public URL of the web dashboard; allowed to call the API with cookies. */
   WEB_URL: z.url(),
+  /**
+   * Parent domain for auth cookies when web and API are on different
+   * subdomains, e.g. example.com for app.example.com + api.example.com.
+   */
+  AUTH_COOKIE_DOMAIN: optional,
   GITHUB_CLIENT_ID: optional,
   GITHUB_CLIENT_SECRET: optional,
   /** Relay agents use when peers can't reach each other directly, e.g. wss://relay.example.com/relay. */
@@ -44,6 +49,7 @@ export const authEnvSchema = serverEnvSchema.pick({
   BETTER_AUTH_SECRET: true,
   BETTER_AUTH_URL: true,
   WEB_URL: true,
+  AUTH_COOKIE_DOMAIN: true,
   GITHUB_CLIENT_ID: true,
   GITHUB_CLIENT_SECRET: true,
 });

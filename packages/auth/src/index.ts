@@ -11,6 +11,8 @@ export interface AuthOptions {
   baseURL: string;
   /** Origins allowed to call the auth endpoints with cookies, e.g. the web dashboard. */
   trustedOrigins: string[];
+  /** Shares session cookies across subdomains of this domain (web and API on different hosts). */
+  cookieDomain?: string;
   github?: { clientId: string; clientSecret: string };
   /**
    * Sends the invitation email. Only the API (which serves /api/auth) needs
@@ -32,6 +34,7 @@ export function authOptionsFromEnv(env: AuthEnv): AuthOptions {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_URL],
+    cookieDomain: env.AUTH_COOKIE_DOMAIN,
     github:
       env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
         ? { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET }
@@ -47,6 +50,9 @@ export function createAuth(db: Db, options: AuthOptions) {
     baseURL: options.baseURL,
     basePath: "/api/auth",
     trustedOrigins: options.trustedOrigins,
+    advanced: options.cookieDomain
+      ? { crossSubDomainCookies: { enabled: true, domain: options.cookieDomain } }
+      : undefined,
     database: drizzleAdapter(db, { provider: "pg", schema }),
     emailAndPassword: { enabled: true },
     socialProviders: options.github ? { github: options.github } : {},
