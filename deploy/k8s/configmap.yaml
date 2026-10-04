@@ -9,7 +9,7 @@ data:
   NODE_ENV: "production"
   LOG_LEVEL: "info"
   API_PORT: "4000"
-  BETTER_AUTH_URL: "https://api-meshguard.jabed.dev"
+  BETTER_AUTH_URL: "https://meshguard-api.jabed.dev"
   WEB_URL: "https://meshguard.jabed.dev"
   # Web and API are on different subdomains; the session cookie is set on
   # this parent domain so both can read it.

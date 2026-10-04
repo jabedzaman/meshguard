@@ -8,7 +8,7 @@ cert-manager. Same layout as kuchupuchu's `deploy/`.
 | Host                      | Service                                          |
 | ------------------------- | ------------------------------------------------ |
 | `meshguard.jabed.dev`     | `meshguard-web.meshguard.svc.cluster.local:3000` |
-| `api-meshguard.jabed.dev` | `meshguard-api.meshguard.svc.cluster.local:4000` |
+| `meshguard-api.jabed.dev` | `meshguard-api.meshguard.svc.cluster.local:4000` |
 
 Hostnames are one level deep on purpose: Cloudflare's free certificate covers
 `*.jabed.dev` but not `*.meshguard.jabed.dev`. To change them, update
@@ -46,7 +46,7 @@ The web image bakes the API URL into the browser bundle, so set it once and
 rebuild:
 
 ```sh
-gh variable set NEXT_PUBLIC_API_URL --body https://api-meshguard.jabed.dev
+gh variable set NEXT_PUBLIC_API_URL --body https://meshguard-api.jabed.dev
 gh workflow run images.yml
 ```
 
@@ -95,7 +95,7 @@ kubectl apply -k deploy/k8s
 kubectl -n meshguard get pods
 kubectl -n meshguard logs deploy/meshguard-api -c migrate
 kubectl -n meshguard logs -l app=meshguard-cloudflared --tail=50
-curl https://api-meshguard.jabed.dev/healthz
+curl https://meshguard-api.jabed.dev/healthz
 curl http://100.82.18.127:30400/healthz      # direct over Tailscale
 ```
 
