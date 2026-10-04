@@ -130,6 +130,23 @@ type StunResult struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// Access is returned by GET /v1/access?protocol=tcp&port=22: which peers may
+// open connections to this device by its access rules.
+type Access struct {
+	// False before the first sync, when new inbound traffic is dropped.
+	Synced bool `json:"synced"`
+	// "allow" or "deny", as in ACLStatus.
+	DefaultAction string       `json:"defaultAction,omitempty"`
+	Peers         []PeerAccess `json:"peers"`
+}
+
+// PeerAccess says whether one peer may connect.
+type PeerAccess struct {
+	Name     string `json:"name"`
+	MeshIPv4 string `json:"meshIpv4"`
+	Allowed  bool   `json:"allowed"`
+}
+
 // Error is returned by the local API with a non-2xx status.
 type Error struct {
 	Code    string `json:"code"`

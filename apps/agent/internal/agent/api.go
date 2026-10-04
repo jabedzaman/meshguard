@@ -11,9 +11,11 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jabedzaman/meshguard/internal/acl"
 	"github.com/jabedzaman/meshguard/internal/coordination"
 	"github.com/jabedzaman/meshguard/internal/identity"
 	"github.com/jabedzaman/meshguard/internal/ipc"
@@ -29,6 +31,7 @@ func (a *Agent) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/down", a.handleDown)
 	mux.HandleFunc("POST /v1/logout", a.handleLogout)
 	mux.HandleFunc("GET /v1/netcheck", a.handleNetcheck)
+	mux.HandleFunc("GET /v1/access", a.handleAccess)
 	return a.authorize(mux)
 }
 
@@ -287,6 +290,47 @@ func (a *Agent) handleNetcheck(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, nc)
+}
+
+// handleAccess evaluates the access rules for a new connection from each
+// peer, e.g. ?protocol=tcp&port=22 (port is ignored for icmp).
+func (a *Agent) handleAccess(w http.ResponseWriter, r *http.Request) {
+	proto := acl.Protocol(r.URL.Query().Get("protocol"))
+	var port uint16
+	switch proto {
+	case acl.TCP, acl.UDP:
+		n, err := strconv.ParseUint(r.URL.Query().Get("port"), 10, 16)
+		if err != nil || n == 0 {
+			writeError(w, http.StatusBadRequest, "bad_request", "port must be 1-65535")
+			return
+		}
+		port = uint16(n)
+	case acl.ICMP:
+	default:
+		writeError(w, http.StatusBadRequest, "bad_request", "protocol must be tcp, udp or icmp")
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	c := a.conn
+	if c == nil {
+		writeError(w, http.StatusConflict, "not_connected", "not connected (run meshguard up, or check meshguard status)")
+		return
+	}
+	res := ipc.Access{Synced: !c.lastSync.IsZero(), Peers: []ipc.PeerAccess{}}
+	policy := aclPolicy(c.acl)
+	if st := aclStatus(c.acl, res.Synced, 0); st != nil {
+		res.DefaultAction = st.DefaultAction
+	}
+	for _, p := range c.peers {
+		pa := ipc.PeerAccess{Name: p.Name, MeshIPv4: p.MeshIPv4}
+		if ip, err := netip.ParseAddr(p.MeshIPv4); err == nil && res.Synced {
+			pa.Allowed = policy.Allows(ip, proto, port)
+		}
+		res.Peers = append(res.Peers, pa)
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 var invalidHostnameChars = regexp.MustCompile(`[^A-Za-z0-9.-]+`)
