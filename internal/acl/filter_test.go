@@ -160,3 +160,19 @@ func TestIPv6ExtensionHeaders(t *testing.T) {
 	firstFragment := append([]byte{protoTCP, 0, 0, 0, 0, 0, 0, 1}, ports(40000, 23)...)
 	assert.False(t, f.Allow(ip6(44, peer6, self6, firstFragment)), "first fragment is checked")
 }
+
+func TestPolicyAllows(t *testing.T) {
+	assert.True(t, AllowAllPolicy.Allows(peer, TCP, 22))
+
+	p := Policy{Rules: []Rule{
+		{Sources: []netip.Prefix{netip.PrefixFrom(peer, 32)}, Protocol: TCP, PortFirst: 8000, PortLast: 8080},
+		{Protocol: ICMP},
+	}}
+	assert.True(t, p.Allows(peer, TCP, 8080))
+	assert.False(t, p.Allows(peer, TCP, 22), "port outside the rule")
+	assert.False(t, p.Allows(other, TCP, 8080), "source outside the rule")
+	assert.False(t, p.Allows(peer, UDP, 8080), "other protocol")
+	assert.True(t, p.Allows(other, ICMP, 0))
+	assert.True(t, p.Allows(peer6, ICMP, 0), "ICMPv6 counts as ICMP")
+	assert.False(t, Policy{Rules: []Rule{}}.Allows(peer, ICMP, 0), "deny without rules")
+}

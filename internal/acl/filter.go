@@ -167,3 +167,27 @@ func (r Rule) matches(p packet) bool {
 	}
 	return false
 }
+
+// Allows reports whether the policy lets src open a new connection to this
+// device (port is ignored for ICMP; 0 matches only rules for every port).
+// Replies to connections this device opened aren't considered.
+func (p Policy) Allows(src netip.Addr, proto Protocol, port uint16) bool {
+	if p.AllowAll {
+		return true
+	}
+	pkt := packet{src: src, dstPort: port}
+	switch proto {
+	case TCP:
+		pkt.proto = protoTCP
+	case UDP:
+		pkt.proto = protoUDP
+	case ICMP:
+		pkt.proto = protoICMP
+		if src.Is6() {
+			pkt.proto = protoICMPv6
+		}
+	default:
+		return false
+	}
+	return slices.ContainsFunc(p.Rules, func(r Rule) bool { return r.matches(pkt) })
+}
