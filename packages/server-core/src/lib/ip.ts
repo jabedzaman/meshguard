@@ -101,15 +101,27 @@ export function randomUlaPrefix(): string {
 }
 
 /**
+ * Offset of each network's DNS resolver from its network address, e.g.
+ * 10.77.0.53 in 10.77.0.0/16. Agents answer DNS there themselves, so it's
+ * never a device's. Must match `dns.ResolverAddr` in the Go agent.
+ */
+export const DNS_RESOLVER_OFFSET = 53;
+
+/**
  * A random host address in the range, excluding the network and broadcast
- * addresses. Callers retry on conflict; the database enforces uniqueness.
+ * addresses and the DNS resolver's. Callers retry on conflict; the database
+ * enforces uniqueness.
  */
 export function randomIpv4InCidr(cidr: string): string {
   const parsed = parseIpv4Cidr(cidr);
   if (!parsed || parsed.prefix > 30) throw new Error(`Not a usable IPv4 range: ${cidr}`);
   const hostCount = 2 ** (32 - parsed.prefix) - 2;
+  // Ranges too small to hold the resolver (smaller than networks allow) skip nothing.
+  const reserved = DNS_RESOLVER_OFFSET <= hostCount ? 1 : 0;
   const [random] = crypto.getRandomValues(new Uint32Array(1));
-  return formatIpv4(parsed.address + 1 + (random! % hostCount));
+  let offset = 1 + (random! % (hostCount - reserved));
+  if (reserved && offset >= DNS_RESOLVER_OFFSET) offset++;
+  return formatIpv4(parsed.address + offset);
 }
 
 /**

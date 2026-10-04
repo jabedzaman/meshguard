@@ -89,6 +89,15 @@ describe("randomIpv4InCidr", () => {
     for (const ip of ips) expect(ip.startsWith("10.77.")).toBe(true);
   });
 
+  it("never hands out the DNS resolver's address", () => {
+    // A /26 has 62 hosts, so 2000 draws would hit .53 with near certainty.
+    const ips = new Set(Array.from({ length: 2000 }, () => randomIpv4InCidr("10.77.0.0/26")));
+    expect(ips).not.toContain("10.77.0.53");
+    expect(ips).toContain("10.77.0.54");
+    expect(ips).toContain("10.77.0.62");
+    expect(ips.size).toBe(61);
+  });
+
   it("rejects ranges with no hosts", () => {
     expect(() => randomIpv4InCidr("10.77.0.0/31")).toThrow();
     expect(() => randomIpv4InCidr("nope")).toThrow();
