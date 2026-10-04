@@ -25,6 +25,8 @@ FROM node:22-slim
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=node:node /out .
+# For `node dist/migrate.js` (run as an init container before the API starts).
+COPY --chown=node:node packages/db/migrations ./migrations
 USER node
 EXPOSE 4000
 CMD ["node", "--enable-source-maps", "dist/index.js"]
