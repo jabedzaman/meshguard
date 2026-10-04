@@ -173,8 +173,11 @@ their next sync, and its own signed requests get 401 `invalid_device_signature`,
 the same answer as an unknown device, so ids can't be probed.
 
 - The resolver is `100.100.100.53` on every device, like Tailscale's
-  `100.100.100.100`, and in the range Tailscale keeps for its own services, so
-  it never collides with a Tailscale node. The agent routes that /32 into its
+  `100.100.100.100`: shared address space (`100.64.0.0/10`) is rare on LANs
+  and never inside a mesh network, and it sits next to MagicDNS, not on it.
+  Tailscale only reserves `.100` itself, so a Tailscale node could in theory
+  get `.53`; on a device running both, our /32 would shadow that one node. The
+  agent routes that /32 into its
   TUN and catches UDP queries to port 53 as the OS writes them
   (`filteredTUN`), before WireGuard: they're answered and written straight
   back to the OS, never reach a peer, and no socket is bound. Only UDP: the

@@ -22,9 +22,10 @@ const Domain = "internal"
 const TTL = 30
 
 // ResolverAddr is where the OS sends queries: the same on every device and
-// routed into the TUN, where the agent answers instead of a peer. It's in the
-// range Tailscale reserves for its own services, so it never collides with a
-// Tailscale node and coexists with MagicDNS on 100.100.100.100.
+// routed into the TUN, where the agent answers instead of a peer. Shared
+// address space (100.64.0.0/10) is rare on LANs and outside every mesh
+// network; next to MagicDNS's 100.100.100.100, not on it. A Tailscale node
+// could in theory hold this address, and its /32 route would shadow that node.
 var ResolverAddr = netip.MustParseAddr("100.100.100.53")
 
 // Record is one device's addresses. Either may be invalid (not assigned).
