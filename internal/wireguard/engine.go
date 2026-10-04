@@ -43,8 +43,8 @@ type Engine struct {
 	// Access rules for packets from peers.
 	filter *acl.Filter
 
-	mu       sync.Mutex
-	lastUAPI string
+	mu    sync.Mutex
+	peers []Peer // as last applied
 }
 
 // Start creates the TUN interface, brings up WireGuard and configures
@@ -107,22 +107,45 @@ func (e *Engine) ACLDropped() uint64 { return e.filter.Dropped() }
 // Name is the actual interface name.
 func (e *Engine) Name() string { return e.name }
 
-// SetPeers replaces the peer list. A no-op if it hasn't changed.
+// SetPeers makes the device's peers match. Existing peers keep their
+// sessions. A no-op if nothing changed.
 func (e *Engine) SetPeers(peers []Peer) (changed bool, err error) {
-	uapi, err := PeersUAPI(peers)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	uapi, err := PeersUAPI(e.peers, peers)
 	if err != nil {
 		return false, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if uapi == e.lastUAPI {
+	if uapi == "" {
 		return false, nil
 	}
 	if err := e.dev.IpcSet(uapi); err != nil {
 		return false, fmt.Errorf("set peers: %w", err)
 	}
-	e.lastUAPI = uapi
+	logEndpointChanges(e.peers, peers)
+	e.peers = append([]Peer(nil), peers...)
 	return true, nil
+}
+
+// logEndpointChanges logs each peer whose path changed, e.g. relay to direct.
+func logEndpointChanges(prev, next []Peer) {
+	old := map[string]string{}
+	for _, p := range prev {
+		old[p.PublicKey] = p.Endpoint
+	}
+	for _, p := range next {
+		if from, ok := old[p.PublicKey]; ok && from != p.Endpoint && p.Endpoint != "" {
+			slog.Info("peer endpoint changed", "peer", shortKey(p.PublicKey), "from", from, "to", p.Endpoint)
+		}
+	}
+}
+
+// shortKey abbreviates a base64 key the way wireguard-go's logs do.
+func shortKey(k string) string {
+	if len(k) < 8 {
+		return k
+	}
+	return k[:4] + "…" + k[len(k)-5:len(k)-1]
 }
 
 // PeerStats is the live state of one peer.

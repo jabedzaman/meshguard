@@ -25,8 +25,8 @@ func TestKeyToHex(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestPeersUAPI(t *testing.T) {
-	uapi, err := PeersUAPI([]Peer{
+func TestPeersUAPIAddsPeers(t *testing.T) {
+	uapi, err := PeersUAPI(nil, []Peer{
 		{PublicKey: key(2), AllowedIPs: []netip.Prefix{netip.MustParsePrefix("10.77.0.3/32")}},
 		{
 			PublicKey: key(1),
@@ -39,8 +39,7 @@ func TestPeersUAPI(t *testing.T) {
 	})
 	require.NoError(t, err)
 	// Sorted by key, endpoint only when known, allowed IPs replaced.
-	assert.Equal(t, `replace_peers=true
-public_key=01`+strings.Repeat("00", 31)+`
+	assert.Equal(t, `public_key=01`+strings.Repeat("00", 31)+`
 endpoint=192.168.1.5:51820
 persistent_keepalive_interval=25
 replace_allowed_ips=true
@@ -53,10 +52,42 @@ allowed_ip=10.77.0.3/32
 `, uapi)
 }
 
-func TestPeersUAPIEmptyRemovesAllPeers(t *testing.T) {
-	uapi, err := PeersUAPI(nil)
+func TestPeersUAPIUpdatesInPlace(t *testing.T) {
+	ips := func(s string) []netip.Prefix { return []netip.Prefix{netip.MustParsePrefix(s)} }
+	prev := []Peer{
+		{PublicKey: key(1), Endpoint: "relay/aa", AllowedIPs: ips("10.77.0.2/32")},
+		{PublicKey: key(2), Endpoint: "10.0.0.3:51820", AllowedIPs: ips("10.77.0.3/32")},
+		{PublicKey: key(3), Endpoint: "10.0.0.4:51820", AllowedIPs: ips("10.77.0.4/32")},
+	}
+
+	uapi, err := PeersUAPI(prev, prev)
 	require.NoError(t, err)
-	assert.Equal(t, "replace_peers=true\n", uapi)
+	assert.Empty(t, uapi, "nothing changed")
+
+	next := []Peer{
+		{PublicKey: key(1), Endpoint: "192.168.1.5:51820", AllowedIPs: ips("10.77.0.2/32")}, // relay -> direct
+		{PublicKey: key(2), Endpoint: "10.0.0.3:51820", AllowedIPs: ips("10.77.0.3/32")},    // unchanged
+		{PublicKey: key(4), AllowedIPs: ips("10.77.0.5/32")},                                // new
+	}
+	uapi, err = PeersUAPI(prev, next)
+	require.NoError(t, err)
+	// No replace_peers: it would drop every session. A new path only sets
+	// the endpoint; a removed peer is removed alone.
+	assert.Equal(t, `public_key=01`+strings.Repeat("00", 31)+`
+endpoint=192.168.1.5:51820
+public_key=04`+strings.Repeat("00", 31)+`
+persistent_keepalive_interval=25
+replace_allowed_ips=true
+allowed_ip=10.77.0.5/32
+public_key=03`+strings.Repeat("00", 31)+`
+remove=true
+`, uapi)
+}
+
+func TestPeersUAPIRemovesAllPeers(t *testing.T) {
+	uapi, err := PeersUAPI([]Peer{{PublicKey: key(1)}}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "public_key=01"+strings.Repeat("00", 31)+"\nremove=true\n", uapi)
 }
 
 func TestHostPrefix(t *testing.T) {
