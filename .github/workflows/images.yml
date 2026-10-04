@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web, workers]
+        app: [api, web, workers, relay]
     steps:
       - uses: actions/checkout@v4
 
