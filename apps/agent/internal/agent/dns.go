@@ -19,9 +19,9 @@ type dnsState struct {
 	configuredIface string
 }
 
-// startDNSLocked answers <name>.internal and the mesh's reverse zones at
-// dns.ResolverAddr inside the TUN, and points the OS resolver there for those
-// zones only. Failures are reported in status; the mesh works without DNS.
+// startDNSLocked answers <name>.internal and the mesh's reverse zones at the
+// network's dns.ResolverAddr inside the TUN, and points the OS resolver there
+// for those zones only. Failures are reported in status; the mesh works without DNS.
 // Caller holds a.mu and WireGuard is up.
 func (a *Agent) startDNSLocked(c *connection, st *state.State) {
 	c.dns.status = ipc.DNSStatus{Name: dns.Name(st.Device.Name)}
@@ -34,23 +34,28 @@ func (a *Agent) startDNSLocked(c *connection, st *state.State) {
 	server := &dns.Server{}
 	server.SetRecords(dnsRecords(st.Device, nil))
 	server.SetNetworks(networks)
+	resolver := server.Addr()
+	if !resolver.IsValid() {
+		c.dns.status.Problem = "the network's IPv4 range has no room for a DNS resolver"
+		return
+	}
 	c.engine.SetLocalHandler(server.HandlePacket)
 	c.dns.server = server
-	c.dns.status.Resolver = dns.ResolverAddr.String()
+	c.dns.status.Resolver = resolver.String()
 
 	if _, real := c.engine.(*wireguard.Engine); !real {
 		return // a fake engine in tests: no interface to point the OS at
 	}
 	iface := c.engine.Name()
-	how, err := dns.ConfigureOS(iface, dns.ReverseZones(networks))
+	how, err := dns.ConfigureOS(iface, resolver, dns.ReverseZones(networks))
 	if err != nil {
-		c.dns.status.Problem = err.Error() + "; query " + dns.ResolverAddr.String() + " directly"
+		c.dns.status.Problem = err.Error() + "; query " + resolver.String() + " directly"
 		slog.Warn("split dns not configured", "err", err)
 		return
 	}
 	c.dns.configuredIface = iface
 	c.dns.status.Configured = how
-	slog.Info("dns serving", "addr", dns.ResolverAddr, "domain", dns.Domain, "via", how)
+	slog.Info("dns serving", "addr", resolver, "domain", dns.Domain, "via", how)
 }
 
 // stopDNSLocked undoes the OS resolver settings; the server goes with the

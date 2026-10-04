@@ -12,27 +12,29 @@ const (
 	port          = 53
 )
 
-// HandlePacket takes an IP packet the OS sent into the TUN. Packets to
-// ResolverAddr are the server's (handled is true, so they don't go on to
-// peers); a UDP query on port 53 gets reply, the IP packet to hand back to
-// the OS. Only UDP is answered: the answers are small enough never to be
-// truncated, so resolvers have no reason to retry over TCP.
+// HandlePacket takes an IP packet the OS sent into the TUN. UDP to port 53
+// at Addr is the server's (handled is true, so it doesn't go on to peers),
+// and reply is the IP packet to hand back to the OS. Anything else, even to
+// that address, is left alone. Only UDP: the answers are small enough never
+// to be truncated, so resolvers have no reason to retry over TCP.
 func (s *Server) HandlePacket(packet []byte) (reply []byte, handled bool) {
-	if len(packet) < ipv4HeaderLen || packet[0]>>4 != 4 {
+	if len(packet) < ipv4HeaderLen || packet[0]>>4 != 4 || packet[9] != protoUDP {
 		return nil, false
 	}
-	if netip.AddrFrom4([4]byte(packet[16:20])) != ResolverAddr {
+	addr := s.Addr()
+	if !addr.IsValid() || netip.AddrFrom4([4]byte(packet[16:20])) != addr {
 		return nil, false
 	}
 	ihl := int(packet[0]&0xf) * 4
 	total := int(binary.BigEndian.Uint16(packet[2:4]))
-	fragmented := binary.BigEndian.Uint16(packet[6:8])&0x3fff != 0 // MF or an offset
-	if ihl < ipv4HeaderLen || total > len(packet) || total < ihl+udpHeaderLen ||
-		packet[9] != protoUDP || fragmented {
-		return nil, true
+	if ihl < ipv4HeaderLen || total > len(packet) || total < ihl+udpHeaderLen {
+		return nil, false
 	}
 	udp := packet[ihl:total]
 	if binary.BigEndian.Uint16(udp[2:4]) != port {
+		return nil, false
+	}
+	if binary.BigEndian.Uint16(packet[6:8])&0x3fff != 0 { // a fragment: MF or an offset
 		return nil, true
 	}
 	length := int(binary.BigEndian.Uint16(udp[4:6]))
@@ -44,7 +46,7 @@ func (s *Server) HandlePacket(packet []byte) (reply []byte, handled bool) {
 		return nil, true
 	}
 	from := netip.AddrPortFrom(netip.AddrFrom4([4]byte(packet[12:16])), binary.BigEndian.Uint16(udp[0:2]))
-	return udpPacket(netip.AddrPortFrom(ResolverAddr, port), from, res), true
+	return udpPacket(netip.AddrPortFrom(addr, port), from, res), true
 }
 
 // udpPacket builds an IPv4 UDP packet with valid checksums.

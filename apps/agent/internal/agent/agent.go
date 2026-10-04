@@ -245,7 +245,6 @@ func (a *Agent) engineConfig(st *state.State) (wireguard.Config, error) {
 		ListenPort:    a.listenPort(),
 		PrivateKey:    keys.WireGuard,
 		Addresses:     addresses,
-		Routes:        []netip.Prefix{netip.PrefixFrom(dns.ResolverAddr, 32)},
 	}, nil
 }
 

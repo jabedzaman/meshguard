@@ -83,14 +83,14 @@ func TestFilteredTUNLetsRepliesIn(t *testing.T) {
 }
 
 func TestFilteredTUNAnswersLocalPackets(t *testing.T) {
-	local := udp4("10.77.0.2", "100.100.100.53", 4000, 53)
+	local := udp4("10.77.0.2", "10.77.0.53", 4000, 53)
 	toPeer := udp4("10.77.0.2", "10.77.0.1", 4000, 53)
 	inner := &fakeTUN{toRead: [][]byte{toPeer, local}}
 	filter := acl.NewFilter(acl.Policy{})
 	ft := &filteredTUN{Device: inner, filter: filter}
 	answer := []byte("reply")
 	h := LocalHandler(func(p []byte) ([]byte, bool) {
-		if netip.AddrFrom4([4]byte(p[16:20])) != netip.MustParseAddr("100.100.100.53") {
+		if netip.AddrFrom4([4]byte(p[16:20])) != netip.MustParseAddr("10.77.0.53") {
 			return nil, false
 		}
 		return answer, true

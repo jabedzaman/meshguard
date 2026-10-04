@@ -119,17 +119,30 @@ func TestReverseZones(t *testing.T) {
 
 // queryPacket is a query as the OS sends it into the TUN.
 func queryPacket(t *testing.T, name string, qtype dnsmessage.Type) []byte {
-	return udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.AddrPortFrom(ResolverAddr, 53), query(t, name, qtype))
+	return udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.MustParseAddrPort("10.77.0.53:53"), query(t, name, qtype))
+}
+
+func TestResolverAddr(t *testing.T) {
+	assert.Equal(t, "10.77.0.53", ResolverAddr(netip.MustParsePrefix("10.77.0.0/16")).String())
+	assert.Equal(t, "10.0.0.53", ResolverAddr(netip.MustParsePrefix("10.0.0.0/8")).String())
+	assert.Equal(t, "192.168.7.53", ResolverAddr(netip.MustParsePrefix("192.168.7.0/24")).String())
+	assert.Equal(t, "10.1.2.245", ResolverAddr(netip.MustParsePrefix("10.1.2.192/26")).String())
+	assert.False(t, ResolverAddr(netip.MustParsePrefix("10.1.2.0/27")).IsValid(), "no room")
+	assert.False(t, ResolverAddr(netip.MustParsePrefix("fd00:1:2::/48")).IsValid())
 }
 
 func TestHandlesPacketsForTheResolver(t *testing.T) {
 	s := testServer()
+	_, handled := s.HandlePacket(queryPacket(t, "laptop.internal.", dnsmessage.TypeA))
+	assert.False(t, handled, "no address until SetNetworks")
+	s.SetNetworks([]netip.Prefix{netip.MustParsePrefix("10.77.0.0/16")})
+	assert.Equal(t, "10.77.0.53", s.Addr().String())
 
 	reply, handled := s.HandlePacket(queryPacket(t, "laptop.internal.", dnsmessage.TypeA))
 	require.True(t, handled)
 	require.NotNil(t, reply)
 	assert.Equal(t, uint16(0), fold(sum(0, reply[:ipv4HeaderLen]))^0xffff, "IP checksum")
-	assert.Equal(t, ResolverAddr, netip.AddrFrom4([4]byte(reply[12:16])))
+	assert.Equal(t, netip.MustParseAddr("10.77.0.53"), netip.AddrFrom4([4]byte(reply[12:16])))
 	assert.Equal(t, netip.MustParseAddr("10.77.0.2"), netip.AddrFrom4([4]byte(reply[16:20])))
 	udp := reply[ipv4HeaderLen:]
 	assert.Equal(t, uint16(53), binary.BigEndian.Uint16(udp[0:2]))
@@ -146,11 +159,10 @@ func TestHandlesPacketsForTheResolver(t *testing.T) {
 	_, handled = s.HandlePacket(other)
 	assert.False(t, handled)
 
-	// To the resolver but not a UDP query on 53: dropped, no reply.
-	wrongPort := udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.AddrPortFrom(ResolverAddr, 54), query(t, "laptop.internal.", dnsmessage.TypeA))
-	reply, handled = s.HandlePacket(wrongPort)
-	assert.True(t, handled)
-	assert.Nil(t, reply)
+	// To the resolver's address but another port: not ours either.
+	wrongPort := udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.MustParseAddrPort("10.77.0.53:54"), query(t, "laptop.internal.", dnsmessage.TypeA))
+	_, handled = s.HandlePacket(wrongPort)
+	assert.False(t, handled)
 	_, handled = s.HandlePacket([]byte{0x60, 0, 0, 0})
 	assert.False(t, handled, "IPv6")
 }

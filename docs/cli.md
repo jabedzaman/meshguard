@@ -129,7 +129,7 @@ thinkpad in home (connected)
   mesh IPv6  fda3:ad78:5bac:0:6a19:fb37:e6f8:60e3
   server     http://localhost:4000
   interface  meshguard0
-  dns        thinkpad.internal (resolver 100.100.100.53, via systemd-resolved)
+  dns        thinkpad.internal (resolver 10.77.0.53, via systemd-resolved)
   access     only by 2 rules (13 packets refused)
   public     203.0.113.7:51820
   relay      ws://localhost:3340/relay (connected)
@@ -157,11 +157,13 @@ on it, then `meshguard up --token <new token>`.
 
 Mesh addresses resolve back to names too (`dig -x 10.77.0.214`).
 
-The agent answers DNS at `100.100.100.53` on every device. Queries to it are
-routed into the WireGuard interface, where the agent answers them itself; they
-never leave the machine. The OS sends only `.internal` and the mesh's reverse
-zones (e.g. `77.10.in-addr.arpa`) there; other lookups never touch it. Test it
-with `dig @100.100.100.53 <name>.internal`.
+The agent answers DNS at the network's address + 53, e.g. `10.77.0.53` in
+`10.77.0.0/16` (`meshguard status` shows it); no device is ever given that
+address. Queries to it go into the WireGuard interface like any mesh traffic,
+and the agent answers them itself; they never leave the machine. The OS sends
+only `.internal` and the mesh's reverse zones (e.g. `77.10.in-addr.arpa`)
+there; other lookups never touch it. Test it with
+`dig @10.77.0.53 <name>.internal`.
 
 | | |
 | --- | --- |
@@ -281,8 +283,8 @@ below and prints a fix for each problem.
 | `! WireGuard is not running … needs root` | The agent isn't running as root. Use the service, or `sudo meshguard-agent`. |
 | Peer stays `relay` | Expected behind symmetric NATs, or when both peers are behind home routers (see [architecture.md](architecture.md#hole-punching)). `meshguard netcheck` on both ends shows the NAT types. |
 | Peers drop after sleep or a Wi-Fi change | They should come back within ~15s (relay first, then direct). The agent log shows `rebinding reason=wake` or `reason="network change"`; if it doesn't, report it with the log. |
-| `dns … not set up in the OS` | No systemd-resolved (common in containers and WSL), or a file in `/etc/resolver` exists and isn't meshguard's. Use `dig @100.100.100.53`, or install systemd-resolved. |
-| `.internal` names don't resolve but `dig @100.100.100.53 <name>.internal` answers | macOS: `scutil --dns` should list `100.100.100.53` for `internal`. Linux: `resolvectl status meshguard0` should show `100.100.100.53` and the `internal` domain. |
+| `dns … not set up in the OS` | No systemd-resolved (common in containers and WSL), or a file in `/etc/resolver` exists and isn't meshguard's. Use `dig @<resolver>` (from `meshguard status`), or install systemd-resolved. |
+| `.internal` names don't resolve but `dig @<resolver> <name>.internal` answers | macOS: `scutil --dns` should list the resolver for `internal`. Linux: `resolvectl status meshguard0` should show the resolver and the `internal` domain. |
 | Peer handshake `never` | The peer is offline or down (`meshguard status` on it), or the relay is unreachable from one side. |
 
 ## Testing the service

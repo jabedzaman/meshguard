@@ -1,11 +1,13 @@
 // Package dns answers private mesh names: every device in the network
 // resolves as <name>.internal (".internal" is reserved by ICANN for private
 // use), and its mesh addresses resolve back to that name. The agent answers
-// queries the OS sends to ResolverAddr inside its TUN, so no socket is bound,
-// and points the OS resolver there for those zones only.
+// queries the OS sends to the network's resolver address (ResolverAddr) inside
+// its TUN, so no socket is bound, and points the OS resolver there for those
+// zones only.
 package dns
 
 import (
+	"encoding/binary"
 	"errors"
 	"net/netip"
 	"slices"
@@ -21,12 +23,23 @@ const Domain = "internal"
 // TTL of answers. Short: names follow devices that come and go.
 const TTL = 30
 
-// ResolverAddr is where the OS sends queries: the same on every device and
-// routed into the TUN, where the agent answers instead of a peer. Shared
-// address space (100.64.0.0/10) is rare on LANs and outside every mesh
-// network; next to MagicDNS's 100.100.100.100, not on it. A Tailscale node
-// could in theory hold this address, and its /32 route would shadow that node.
-var ResolverAddr = netip.MustParseAddr("100.100.100.53")
+// resolverOffset places the resolver in a network: base + 53, e.g. 10.77.0.53
+// in 10.77.0.0/16. The control plane never gives it to a device
+// (DNS_RESOLVER_OFFSET in server-core). Networks are /8 to /24, so it fits.
+const resolverOffset = 53
+
+// ResolverAddr is where the OS sends queries for an IPv4 mesh network. It's
+// inside the network, so the network's route already takes it into the TUN,
+// where the agent answers instead of a peer. Invalid if network is too small.
+func ResolverAddr(network netip.Prefix) netip.Addr {
+	network = network.Masked()
+	if !network.Addr().Is4() || network.Bits() > 26 { // a /26 is the smallest with a .53
+		return netip.Addr{}
+	}
+	b := network.Addr().As4()
+	n := binary.BigEndian.Uint32(b[:]) + resolverOffset
+	return netip.AddrFrom4([4]byte(binary.BigEndian.AppendUint32(nil, n)))
+}
 
 // Record is one device's addresses. Either may be invalid (not assigned).
 type Record struct {
@@ -42,6 +55,7 @@ type Server struct {
 	records map[string]Record
 	names   map[netip.Addr]string // reverse of records
 	reverse []string              // reverse zones, see SetNetworks
+	addr    netip.Addr            // where queries arrive, see SetNetworks
 }
 
 // SetRecords replaces the records, keyed by device name (a DNS label).
@@ -62,12 +76,26 @@ func (s *Server) SetRecords(records map[string]Record) {
 	s.mu.Unlock()
 }
 
-// SetNetworks sets the mesh's prefixes, whose reverse zones the server answers.
+// SetNetworks sets the mesh's prefixes: queries arrive at the IPv4 network's
+// ResolverAddr, and the server answers their reverse zones.
 func (s *Server) SetNetworks(prefixes []netip.Prefix) {
 	zones := ReverseZones(prefixes)
+	var addr netip.Addr
+	for _, p := range prefixes {
+		if a := ResolverAddr(p); a.IsValid() {
+			addr = a
+		}
+	}
 	s.mu.Lock()
-	s.reverse = zones
+	s.reverse, s.addr = zones, addr
 	s.mu.Unlock()
+}
+
+// Addr is where the server takes queries; invalid until SetNetworks.
+func (s *Server) Addr() netip.Addr {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.addr
 }
 
 // Name returns the fully qualified name for a device, e.g. "laptop.internal".

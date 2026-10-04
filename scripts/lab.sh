@@ -30,6 +30,7 @@ doctor_detail() {
     (JSON.parse(require('fs').readFileSync(0, 'utf8')).findLast(c => c.name === '$name') || {}).detail"
 }
 dns_name() { docker exec "meshguard-$1" meshguard status --json | json .dns.name; }
+dns_resolver() { docker exec "meshguard-$1" meshguard status --json | json .dns.resolver; }
 
 echo "==> migrating the e2e database"
 DATABASE_URL=${E2E_DATABASE_URL:-postgres://meshguard:meshguard@localhost:5432/meshguard_test} \
@@ -96,11 +97,11 @@ run_pair() {
   check_ping "$b" "$a4"
   check_ping "$a" "$b6"
   # The lab has no systemd-resolved, so ask the agent's resolver directly.
-  local b_name resolved
-  b_name=$(dns_name "$b")
-  resolved=$(docker exec "meshguard-$a" dig +short +time=2 +tries=1 @100.100.100.53 "$b_name" A)
+  local b_name resolver resolved
+  b_name=$(dns_name "$b"); resolver=$(dns_resolver "$a")
+  resolved=$(docker exec "meshguard-$a" dig +short +time=2 +tries=1 @"$resolver" "$b_name" A)
   if [ "$resolved" = "$b4" ]; then ok "$a resolves $b_name -> $b4"; else fail "$a resolves $b_name to '${resolved}', want $b4"; fi
-  resolved=$(docker exec "meshguard-$a" dig +short +time=2 +tries=1 @100.100.100.53 -x "$b4")
+  resolved=$(docker exec "meshguard-$a" dig +short +time=2 +tries=1 @"$resolver" -x "$b4")
   if [ "$resolved" = "$b_name." ]; then ok "$a resolves $b4 -> $b_name"; else fail "$a resolves $b4 to '${resolved}', want $b_name."; fi
   if [ "$path" = "$want" ]; then ok "path: $(peer_line "$a" | awk '{$1=$1; print}')"; else fail "path is ${path:-unknown}, want $want: $(peer_line "$a")"; fi
 }

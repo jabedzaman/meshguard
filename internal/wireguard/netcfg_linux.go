@@ -7,9 +7,8 @@ import (
 )
 
 // configureInterface assigns addresses (with the network's prefix length, which
-// also installs the route for the whole network), brings the link up and adds
-// routes.
-func configureInterface(name string, addresses, routes []netip.Prefix) error {
+// also installs the route for the whole network) and brings the link up.
+func configureInterface(name string, addresses []netip.Prefix) error {
 	for _, addr := range addresses {
 		family := "-4"
 		if addr.Addr().Is6() {
@@ -19,15 +18,7 @@ func configureInterface(name string, addresses, routes []netip.Prefix) error {
 			return err
 		}
 	}
-	if err := run("ip", "link", "set", "dev", name, "mtu", fmt.Sprint(MTU), "up"); err != nil {
-		return err
-	}
-	for _, route := range routes {
-		if err := run("ip", "route", "replace", route.String(), "dev", name); err != nil {
-			return err
-		}
-	}
-	return nil
+	return run("ip", "link", "set", "dev", name, "mtu", fmt.Sprint(MTU), "up")
 }
 
 func run(name string, args ...string) error {

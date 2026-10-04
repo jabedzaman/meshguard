@@ -19,7 +19,6 @@ import (
 
 	"github.com/jabedzaman/meshguard/internal/acl"
 	"github.com/jabedzaman/meshguard/internal/coordination"
-	"github.com/jabedzaman/meshguard/internal/dns"
 	"github.com/jabedzaman/meshguard/internal/ipc"
 	"github.com/jabedzaman/meshguard/internal/relay"
 	"github.com/jabedzaman/meshguard/internal/wireguard"
@@ -168,12 +167,7 @@ func TestServesPeersOverDNS(t *testing.T) {
 		Version:      "test",
 		StateDir:     t.TempDir(),
 		SyncInterval: 50 * time.Millisecond,
-		StartEngine: func(cfg wireguard.Config) (Engine, error) {
-			engine.mu.Lock()
-			defer engine.mu.Unlock()
-			engine.cfg = cfg
-			return engine, nil
-		},
+		StartEngine:  func(wireguard.Config) (Engine, error) { return engine, nil },
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -200,10 +194,9 @@ func TestServesPeersOverDNS(t *testing.T) {
 	_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
 	require.NotNil(t, status.DNS)
 	assert.Equal(t, "laptop.internal", status.DNS.Name)
-	assert.Equal(t, dns.ResolverAddr.String(), status.DNS.Resolver)
+	assert.Equal(t, "10.77.0.53", status.DNS.Resolver)
 	assert.Empty(t, status.DNS.Configured, "tests leave the OS resolver alone")
 	assert.Equal(t, "server.internal", status.Peers[0].DNSName)
-	assert.Equal(t, []netip.Prefix{netip.MustParsePrefix("100.100.100.53/32")}, engine.Config().Routes)
 }
 
 func TestRenameFromControlPlaneIsSaved(t *testing.T) {
@@ -330,8 +323,7 @@ func (e *fakeEngine) lookup(t *testing.T, name string, qtype dnsmessage.Type) []
 	packet[0], packet[9] = 0x45, 17 // IPv4, UDP
 	binary.BigEndian.PutUint16(packet[2:], uint16(len(packet)))
 	copy(packet[12:], []byte{10, 77, 0, 2})
-	resolver := dns.ResolverAddr.As4()
-	copy(packet[16:], resolver[:])
+	copy(packet[16:], []byte{10, 77, 0, 53}) // the resolver in 10.77.0.0/16
 	binary.BigEndian.PutUint16(packet[20:], 40000)
 	binary.BigEndian.PutUint16(packet[22:], 53)
 	binary.BigEndian.PutUint16(packet[24:], uint16(8+len(q)))

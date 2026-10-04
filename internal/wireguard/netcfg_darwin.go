@@ -7,8 +7,8 @@ import (
 )
 
 // configureInterface assigns each mesh address to the utun interface and
-// routes the network's range and routes through it.
-func configureInterface(name string, addresses, routes []netip.Prefix) error {
+// routes the network's range through it.
+func configureInterface(name string, addresses []netip.Prefix) error {
 	for _, addr := range addresses {
 		ip := addr.Addr().String()
 		network := addr.Masked().String()
@@ -26,15 +26,6 @@ func configureInterface(name string, addresses, routes []netip.Prefix) error {
 			if err := run("route", "-q", "-n", "add", "-inet6", network, "-interface", name); err != nil {
 				return err
 			}
-		}
-	}
-	for _, route := range routes {
-		family := "-inet"
-		if route.Addr().Is6() {
-			family = "-inet6"
-		}
-		if err := run("route", "-q", "-n", "add", family, route.String(), "-interface", name); err != nil {
-			return err
 		}
 	}
 	return nil

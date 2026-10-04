@@ -32,8 +32,6 @@ type Config struct {
 	// 10.77.4.9/16 and fd12:3456:789a:0:..../48, so the whole network routes
 	// through the interface.
 	Addresses []netip.Prefix
-	// More prefixes routed into the interface, e.g. the DNS resolver's address.
-	Routes []netip.Prefix
 }
 
 // Engine is a running WireGuard interface.
@@ -77,7 +75,7 @@ func Start(cfg Config) (*Engine, error) {
 		dev.Close()
 		return nil, fmt.Errorf("bring up wireguard: %w", err)
 	}
-	if err := configureInterface(name, cfg.Addresses, cfg.Routes); err != nil {
+	if err := configureInterface(name, cfg.Addresses); err != nil {
 		dev.Close()
 		return nil, fmt.Errorf("configure %s: %w", name, err)
 	}
