@@ -41,6 +41,9 @@ func (o *options) call(method, path string, body, out any) error {
 		if json.NewDecoder(res.Body).Decode(&e) == nil && e.Message != "" {
 			return errors.New(e.Message)
 		}
+		if res.StatusCode == http.StatusNotFound {
+			return errors.New("the agent doesn't support this: it's older than this CLI, reinstall it")
+		}
 		return fmt.Errorf("agent returned %s", res.Status)
 	}
 	if out == nil {
