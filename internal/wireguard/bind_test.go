@@ -166,3 +166,30 @@ func TestBindInterceptsBeforeWireGuard(t *testing.T) {
 	assert.Equal(t, "wireguard", receiveOne(t, b, fns))
 	assert.Equal(t, []string{"127.0.0.1"}, seen)
 }
+
+func TestBindFilterKeepsPacketsInWireGuardsBuffers(t *testing.T) {
+	b := NewBind(nil)
+	b.SetInterceptor(func(packet []byte, from netip.AddrPort) bool { return string(packet) == "disco" })
+	from := &conn.StdNetEndpoint{AddrPort: netip.MustParseAddrPort("192.168.1.5:51820")}
+	receive := b.filter(func(packets [][]byte, sizes []int, eps []conn.Endpoint) (int, error) {
+		for i, p := range []string{"disco", "wireguard"} {
+			sizes[i] = copy(packets[i], p)
+			eps[i] = from
+		}
+		return 2, nil
+	})
+
+	// wireguard-go reads packet i from its own buffer i, not from the
+	// slice it passed in.
+	bufs := [2][16]byte{}
+	packets := [][]byte{bufs[0][:], bufs[1][:]}
+	sizes := make([]int, 2)
+	eps := make([]conn.Endpoint, 2)
+	for range 2 { // the slices are reused across calls
+		n, err := receive(packets, sizes, eps)
+		require.NoError(t, err)
+		require.Equal(t, 1, n)
+		assert.Equal(t, "wireguard", string(bufs[0][:sizes[0]]))
+		assert.Same(t, &bufs[0][0], &packets[0][0])
+	}
+}

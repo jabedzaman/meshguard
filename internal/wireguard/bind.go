@@ -100,8 +100,10 @@ func (b *Bind) filter(receive conn.ReceiveFunc) conn.ReceiveFunc {
 					continue
 				}
 				if kept != i {
-					packets[kept], packets[i] = packets[i], packets[kept]
-					sizes[kept], eps[kept] = sizes[i], eps[i]
+					// Move the bytes, not the slices: wireguard-go reads
+					// each packet from the buffer it passed at that index.
+					sizes[kept] = copy(packets[kept], packets[i][:sizes[i]])
+					eps[kept] = eps[i]
 				}
 				kept++
 			}
