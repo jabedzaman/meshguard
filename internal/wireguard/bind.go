@@ -13,37 +13,45 @@ import (
 	"github.com/jabedzaman/meshguard/internal/relay"
 )
 
-// RelayEndpointPrefix marks a peer endpoint that goes through the relay:
-// "relay/<hex public key>".
-const RelayEndpointPrefix = "relay/"
+// PeerEndpointPrefix marks a peer endpoint the bind routes itself:
+// "peer/<hex public key>". WireGuard always sends to the peer; the bind picks
+// the path per packet (a confirmed direct address, else the relay), so path
+// changes never touch WireGuard's config or its handshakes.
+const PeerEndpointPrefix = "peer/"
 
-// RelayEndpoint addresses a peer through the relay by its public key.
-type RelayEndpoint struct{ Key relay.Key }
+// PeerEndpoint addresses a peer by its public key.
+type PeerEndpoint struct{ Key relay.Key }
 
-func (e *RelayEndpoint) ClearSrc()           {}
-func (e *RelayEndpoint) SrcToString() string { return "" }
-func (e *RelayEndpoint) DstToString() string { return RelayEndpointString(e.Key) }
-func (e *RelayEndpoint) DstToBytes() []byte  { return e.Key[:] }
-func (e *RelayEndpoint) DstIP() netip.Addr   { return netip.Addr{} }
-func (e *RelayEndpoint) SrcIP() netip.Addr   { return netip.Addr{} }
+func (e *PeerEndpoint) ClearSrc()           {}
+func (e *PeerEndpoint) SrcToString() string { return "" }
+func (e *PeerEndpoint) DstToString() string { return PeerEndpointString(e.Key) }
+func (e *PeerEndpoint) DstToBytes() []byte  { return e.Key[:] }
+func (e *PeerEndpoint) DstIP() netip.Addr   { return netip.Addr{} }
+func (e *PeerEndpoint) SrcIP() netip.Addr   { return netip.Addr{} }
 
-// RelayEndpointString is the UAPI endpoint for reaching key via the relay.
-func RelayEndpointString(key relay.Key) string {
-	return RelayEndpointPrefix + hex.EncodeToString(key[:])
+// PeerEndpointString is the UAPI endpoint for reaching key.
+func PeerEndpointString(key relay.Key) string {
+	return PeerEndpointPrefix + hex.EncodeToString(key[:])
 }
+
+// Router picks the UDP address for a peer's packets. direct means the path
+// is confirmed; otherwise the relay is used if there is one, and addr (if
+// valid) is only a guess to try without it.
+type Router func(key relay.Key) (addr netip.AddrPort, direct bool)
 
 // RelaySender sends a packet to a peer through the relay.
 type RelaySender func(dst relay.Key, packet []byte) error
 
 var errNoRelay = errors.New("no relay connected")
 
-// Bind is WireGuard's transport: normal UDP, plus the relay for endpoints
-// written as relay/<key>.
+// Bind is WireGuard's transport: normal UDP, plus peer/<key> endpoints sent
+// directly or through the relay as the Router decides.
 type Bind struct {
 	std conn.Bind
 
 	mu        sync.Mutex
 	send      RelaySender
+	route     Router
 	intercept Interceptor
 	incoming  chan relay.Packet
 	closed    chan struct{}
@@ -111,6 +119,14 @@ func NewBind(std conn.Bind) *Bind {
 	return &Bind{std: std, incoming: make(chan relay.Packet, 256)}
 }
 
+// SetRouter sets how peer/<key> endpoints map to UDP addresses; nil sends
+// them all through the relay.
+func (b *Bind) SetRouter(r Router) {
+	b.mu.Lock()
+	b.route = r
+	b.mu.Unlock()
+}
+
 // SetRelay sets how relay packets are sent; nil disables the relay.
 func (b *Bind) SetRelay(send RelaySender) {
 	b.mu.Lock()
@@ -144,7 +160,7 @@ func (b *Bind) Open(port uint16) ([]conn.ReceiveFunc, uint16, error) {
 		select {
 		case p := <-b.incoming:
 			sizes[0] = copy(packets[0], p.Data)
-			eps[0] = &RelayEndpoint{Key: p.From}
+			eps[0] = &PeerEndpoint{Key: p.From}
 			return 1, nil
 		case <-closed:
 			return 0, net.ErrClosed
@@ -168,18 +184,30 @@ func (b *Bind) SetMark(mark uint32) error { return b.std.SetMark(mark) }
 func (b *Bind) BatchSize() int { return b.std.BatchSize() }
 
 func (b *Bind) Send(bufs [][]byte, ep conn.Endpoint) error {
-	re, ok := ep.(*RelayEndpoint)
+	pe, ok := ep.(*PeerEndpoint)
 	if !ok {
 		return b.std.Send(bufs, ep)
 	}
 	b.mu.Lock()
-	send := b.send
+	send, route := b.send, b.route
 	b.mu.Unlock()
+	var addr netip.AddrPort
+	var direct bool
+	if route != nil {
+		addr, direct = route(pe.Key)
+	}
+	if direct || (send == nil && addr.IsValid()) {
+		udp, err := b.std.ParseEndpoint(addr.String())
+		if err != nil {
+			return err
+		}
+		return b.std.Send(bufs, udp)
+	}
 	if send == nil {
 		return errNoRelay
 	}
 	for _, buf := range bufs {
-		if err := send(re.Key, buf); err != nil {
+		if err := send(pe.Key, buf); err != nil {
 			return err
 		}
 	}
@@ -187,12 +215,12 @@ func (b *Bind) Send(bufs [][]byte, ep conn.Endpoint) error {
 }
 
 func (b *Bind) ParseEndpoint(s string) (conn.Endpoint, error) {
-	if hexKey, ok := strings.CutPrefix(s, RelayEndpointPrefix); ok {
+	if hexKey, ok := strings.CutPrefix(s, PeerEndpointPrefix); ok {
 		raw, err := hex.DecodeString(hexKey)
 		if err != nil || len(raw) != relay.KeyLen {
-			return nil, errors.New("invalid relay endpoint")
+			return nil, errors.New("invalid peer endpoint")
 		}
-		return &RelayEndpoint{Key: relay.Key(raw)}, nil
+		return &PeerEndpoint{Key: relay.Key(raw)}, nil
 	}
 	return b.std.ParseEndpoint(s)
 }

@@ -2,7 +2,8 @@
 // only reachable through the relay, both agents ping each other's candidate
 // endpoints (LAN and STUN-discovered addresses) from WireGuard's socket; the
 // outbound packets open NAT mappings ("hole punching"). A pong over a direct
-// address proves the path works both ways, and WireGuard is pointed at it.
+// address proves the path works both ways, and WireGuard's packets to that peer
+// take it (Route) until pongs stop.
 //
 // Packets: "MSHDSC" + sender public key (32) + nonce (24) + NaCl box of
 // type (1) + transaction id (12), sealed with the WireGuard keys, so answers
@@ -112,13 +113,29 @@ func (m *Manager) Reset() {
 
 // Direct returns the confirmed direct path to a peer, if any.
 func (m *Manager) Direct(key Key) (netip.AddrPort, bool) {
+	if addr, direct := m.Route(key); direct {
+		return addr, true
+	}
+	return netip.AddrPort{}, false
+}
+
+// Route returns where to send a peer's WireGuard packets: its confirmed
+// direct path (direct is true), else its first candidate as a guess for
+// when there is no relay.
+func (m *Manager) Route(key Key) (addr netip.AddrPort, direct bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	p, ok := m.peers[key]
-	if !ok || !p.best.IsValid() || m.now().Sub(p.lastPong) > FreshFor {
+	if !ok {
 		return netip.AddrPort{}, false
 	}
-	return p.best, true
+	if p.best.IsValid() && m.now().Sub(p.lastPong) <= FreshFor {
+		return p.best, true
+	}
+	if len(p.candidates) > 0 {
+		return p.candidates[0], false
+	}
+	return netip.AddrPort{}, false
 }
 
 // Tick sends due pings. Call it every second or so.

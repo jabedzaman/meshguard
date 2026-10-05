@@ -78,7 +78,7 @@ type Peer struct {
 	DNSName  string `json:"dnsName"`
 	MeshIPv4 string `json:"meshIpv4"`
 	MeshIPv6 string `json:"meshIpv6"`
-	// "ip:port" when direct, "relay/..." when through the relay.
+	// "ip:port" when direct; empty (ViaRelay) when through the relay.
 	Endpoint      string     `json:"endpoint,omitempty"`
 	ViaRelay      bool       `json:"viaRelay,omitempty"`
 	LastHandshake *time.Time `json:"lastHandshake,omitempty"`

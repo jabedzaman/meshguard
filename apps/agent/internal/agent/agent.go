@@ -33,6 +33,8 @@ type Engine interface {
 	SetPeers([]wireguard.Peer) (changed bool, err error)
 	Stats() (map[string]wireguard.PeerStats, error)
 	SetRelay(wireguard.RelaySender)
+	// SetRouter picks the direct address, if any, each peer's packets use.
+	SetRouter(wireguard.Router)
 	DeliverRelay(relay.Packet)
 	SetInterceptor(wireguard.Interceptor)
 	SendTo(netip.AddrPort, []byte) error
@@ -161,8 +163,10 @@ func (a *Agent) stopLocked() {
 // current reports whether c is still the live connection. Caller holds a.mu.
 func (a *Agent) current(c *connection) bool { return a.conn == c && c.ctx.Err() == nil }
 
-// startHolePunching routes STUN and disco packets out of WireGuard's socket
-// and pings peers' candidate endpoints every second.
+// startHolePunching routes STUN and disco packets out of WireGuard's socket,
+// pings peers' candidate endpoints every second, and sends each peer's
+// packets over its confirmed direct path (else the relay) as soon as disco
+// finds or loses one.
 func (a *Agent) startHolePunching(c *connection, st *state.State) {
 	keys, err := st.Keys()
 	if err != nil {
@@ -174,6 +178,7 @@ func (a *Agent) startHolePunching(c *connection, st *state.State) {
 	}
 	d := disco.NewManager(keys.WireGuard, disco.Key(public), c.engine.SendTo)
 	c.disco = d
+	c.engine.SetRouter(func(key relay.Key) (netip.AddrPort, bool) { return d.Route(disco.Key(key)) })
 	c.engine.SetInterceptor(func(packet []byte, from netip.AddrPort) bool {
 		if stun.Is(packet) {
 			a.nat.handle(packet)
@@ -331,12 +336,11 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 
 	var applyErr error
 	if engine != nil {
-		relayOn := a.ensureRelay(c, nm.Relay, wgPrivate)
+		a.ensureRelay(c, nm.Relay, wgPrivate)
 		a.probeStun(engine, nm.Stun)
 		if d != nil {
 			d.SetPeers(discoCandidates(nm.Peers))
 		}
-		local := discovery.LocalPrefixes(engine.Name())
 		peers := make([]wireguard.Peer, 0, len(nm.Peers))
 		for _, p := range nm.Peers {
 			peer := wireguard.Peer{PublicKey: p.WireGuardPublicKey}
@@ -345,7 +349,11 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 					peer.AllowedIPs = append(peer.AllowedIPs, prefix)
 				}
 			}
-			peer.Endpoint = chooseEndpoint(p, local, punched(d, p), relayOn)
+			// The bind picks direct or relay per packet; WireGuard
+			// only ever sees the peer.
+			if key, err := peerKey(p.WireGuardPublicKey); err == nil {
+				peer.Endpoint = wireguard.PeerEndpointString(key)
+			}
 			peers = append(peers, peer)
 		}
 		changed, err := engine.SetPeers(peers)
@@ -395,42 +403,6 @@ func discoCandidates(peers []coordination.Peer) map[disco.Key][]netip.AddrPort {
 		candidates[disco.Key(key)] = eps
 	}
 	return candidates
-}
-
-// punched returns the hole-punched direct path to p confirmed by disco, if any.
-func punched(d *disco.Manager, p coordination.Peer) string {
-	if d == nil {
-		return ""
-	}
-	key, err := peerKey(p.WireGuardPublicKey)
-	if err != nil {
-		return ""
-	}
-	if addr, ok := d.Direct(disco.Key(key)); ok {
-		return addr.String()
-	}
-	return ""
-}
-
-// chooseEndpoint picks how to reach a peer: an address on a network we're
-// attached to, then a hole-punched path confirmed by disco, then the relay,
-// and as a last resort its first advertised endpoint.
-func chooseEndpoint(p coordination.Peer, local []netip.Prefix, punched string, relayOn bool) string {
-	if direct := discovery.DirectEndpoint(p.Endpoints, local); direct != "" {
-		return direct
-	}
-	if punched != "" {
-		return punched
-	}
-	if relayOn {
-		if key, err := peerKey(p.WireGuardPublicKey); err == nil {
-			return wireguard.RelayEndpointString(key)
-		}
-	}
-	if len(p.Endpoints) > 0 {
-		return p.Endpoints[0]
-	}
-	return ""
 }
 
 func peerKey(b64 string) (relay.Key, error) {
@@ -523,6 +495,23 @@ func (a *Agent) saveNameLocked(name string) {
 	slog.Info("device renamed", "from", old, "to", name)
 }
 
+// pathLocked reports the path a peer's packets take now: its direct address,
+// or the relay. Caller holds a.mu.
+func (a *Agent) pathLocked(c *connection, p coordination.Peer, endpoint string) (string, bool) {
+	if !strings.HasPrefix(endpoint, wireguard.PeerEndpointPrefix) || c.disco == nil {
+		return endpoint, false
+	}
+	key, err := peerKey(p.WireGuardPublicKey)
+	if err != nil {
+		return "", false
+	}
+	addr, direct := c.disco.Route(disco.Key(key))
+	if direct || (c.relayClient == nil && addr.IsValid()) {
+		return addr.String(), false
+	}
+	return "", c.relayClient != nil
+}
+
 func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	s := ipc.Status{
 		Version: a.Version,
@@ -567,8 +556,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		peer := ipc.Peer{Name: p.Name, DNSName: dns.Name(p.Name), MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6}
 		if hexKey, err := wireguard.KeyToHex(p.WireGuardPublicKey); err == nil {
 			if ps, ok := stats[hexKey]; ok {
-				peer.Endpoint = ps.Endpoint
-				peer.ViaRelay = strings.HasPrefix(ps.Endpoint, wireguard.RelayEndpointPrefix)
+				peer.Endpoint, peer.ViaRelay = a.pathLocked(c, p, ps.Endpoint)
 				if !ps.LastHandshake.IsZero() {
 					hs := ps.LastHandshake
 					peer.LastHandshake = &hs

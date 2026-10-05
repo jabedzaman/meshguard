@@ -55,7 +55,7 @@ allowed_ip=10.77.0.3/32
 func TestPeersUAPIUpdatesInPlace(t *testing.T) {
 	ips := func(s string) []netip.Prefix { return []netip.Prefix{netip.MustParsePrefix(s)} }
 	prev := []Peer{
-		{PublicKey: key(1), Endpoint: "relay/aa", AllowedIPs: ips("10.77.0.2/32")},
+		{PublicKey: key(1), Endpoint: "peer/aa", AllowedIPs: ips("10.77.0.2/32")},
 		{PublicKey: key(2), Endpoint: "10.0.0.3:51820", AllowedIPs: ips("10.77.0.3/32")},
 		{PublicKey: key(3), Endpoint: "10.0.0.4:51820", AllowedIPs: ips("10.77.0.4/32")},
 	}

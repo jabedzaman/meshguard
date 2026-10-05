@@ -118,10 +118,13 @@ connect, an agent proves it owns the key it claims: it answers a random
 challenge with a NaCl box sealed by its WireGuard private key.
 
 The sync response includes `relay.url` (API env `RELAY_URL`). The agent's
-WireGuard transport (`wireguard.Bind`) wraps UDP and sends endpoints written
-as `relay/<hex key>` through the relay client. Per peer, the agent uses a
-direct endpoint if the peer advertises an address on a network it is attached
-to (same LAN), a hole-punched path (below), and the relay otherwise.
+WireGuard transport (`wireguard.Bind`) wraps UDP and the relay client. Every
+peer's WireGuard endpoint is `peer/<hex key>` and never changes (roaming is
+off); the bind picks the path per packet: the peer's disco-confirmed direct
+address (same LAN or hole-punched, below) if there is one, else the relay.
+Paths switch the moment disco confirms or loses one, without reconfiguring
+WireGuard, so handshakes in flight are never sent to a stale address and a
+new peer is reachable over the relay from its first packet.
 
 ## Hole punching
 
@@ -132,7 +135,7 @@ to (same LAN), a hole-punched path (below), and the relay otherwise.
   "disco" pings to each other's candidate endpoints every 2s, from WireGuard's
   socket, which opens NAT mappings. Pings and pongs are NaCl boxes sealed with
   the WireGuard keys, so they can't be forged to redirect traffic. A pong
-  confirms the address it came from; the agent points WireGuard at it and
+  confirms the address it came from; the bind sends that peer's packets there and
   re-checks every 5s, falling back to the relay after 20s without a pong.
 - **Learning from pings.** A valid ping's source address is the peer's real
   NAT mapping toward us (it can differ from the STUN result after a port

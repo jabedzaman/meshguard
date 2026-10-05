@@ -40,7 +40,7 @@ func TestFindPeer(t *testing.T) {
 }
 
 func TestPath(t *testing.T) {
-	assert.Equal(t, "relay", path(ipc.Peer{ViaRelay: true, Endpoint: "relay/ab"}))
+	assert.Equal(t, "relay", path(ipc.Peer{ViaRelay: true, Endpoint: "peer/ab"}))
 	assert.Equal(t, "direct 1.2.3.4:51820", path(ipc.Peer{Endpoint: "1.2.3.4:51820"}))
 	assert.Equal(t, "-", path(ipc.Peer{}))
 }

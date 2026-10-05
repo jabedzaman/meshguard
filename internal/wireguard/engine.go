@@ -66,6 +66,9 @@ func Start(cfg Config) (*Engine, error) {
 	filter := acl.NewFilter(acl.Policy{})
 	ft := &filteredTUN{Device: t, filter: filter}
 	dev := device.NewDevice(ft, bind, logger)
+	// Peers are peer/<key> endpoints routed by the bind; never let WireGuard
+	// swap one for the raw address a packet arrived from.
+	dev.DisableSomeRoamingForBrokenMobileSemantics()
 	base := fmt.Sprintf("private_key=%s\nlisten_port=%d\n", hex.EncodeToString(cfg.PrivateKey[:]), cfg.ListenPort)
 	if err := dev.IpcSet(base); err != nil {
 		dev.Close()
@@ -83,8 +86,11 @@ func Start(cfg Config) (*Engine, error) {
 	return &Engine{name: name, tun: ft, dev: dev, bind: bind, filter: filter}, nil
 }
 
-// SetRelay sets how packets for relay/<key> endpoints are sent.
+// SetRelay sets how packets for peer/<key> endpoints go through the relay.
 func (e *Engine) SetRelay(send RelaySender) { e.bind.SetRelay(send) }
+
+// SetRouter sets which direct address, if any, peer/<key> packets use.
+func (e *Engine) SetRouter(r Router) { e.bind.SetRouter(r) }
 
 // SetInterceptor sees UDP packets before WireGuard (STUN, disco).
 func (e *Engine) SetInterceptor(i Interceptor) { e.bind.SetInterceptor(i) }

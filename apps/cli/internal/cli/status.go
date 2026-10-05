@@ -140,7 +140,7 @@ func path(p ipc.Peer) string {
 	switch {
 	case p.ViaRelay:
 		return "relay"
-	case p.Endpoint != "" && !strings.HasPrefix(p.Endpoint, "relay/"):
+	case p.Endpoint != "" && !strings.HasPrefix(p.Endpoint, "peer/"):
 		return "direct " + p.Endpoint
 	default:
 		return "-"

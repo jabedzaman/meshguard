@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -34,6 +35,7 @@ type fakeEngine struct {
 	acl     *acl.Policy
 	rebinds atomic.Int32
 	local   wireguard.LocalHandler
+	router  wireguard.Router
 }
 
 func (e *fakeEngine) Name() string { return "meshguard-test0" }
@@ -47,6 +49,16 @@ func (e *fakeEngine) SetPeers(p []wireguard.Peer) (bool, error) {
 func (e *fakeEngine) Stats() (map[string]wireguard.PeerStats, error) { return nil, nil }
 func (e *fakeEngine) SetRelay(wireguard.RelaySender)                 {}
 func (e *fakeEngine) DeliverRelay(relay.Packet)                      {}
+func (e *fakeEngine) SetRouter(r wireguard.Router) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.router = r
+}
+func (e *fakeEngine) Router() wireguard.Router {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.router
+}
 func (e *fakeEngine) Config() wireguard.Config {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -141,9 +153,17 @@ func TestUpStartsWireGuardAndSyncsPeers(t *testing.T) {
 	assert.Equal(t, "fd00:1:2::2/48", cfg.Addresses[1].String())
 	assert.Equal(t, 51820, cfg.ListenPort)
 
-	// Peer: first endpoint, host routes for both mesh addresses.
+	// Peer: addressed by key for the bind to route, host routes for both
+	// mesh addresses.
 	peer := engine.Peers()[0]
-	assert.Equal(t, "192.168.1.9:51820", peer.Endpoint)
+	hexKey, ok := strings.CutPrefix(peer.Endpoint, wireguard.PeerEndpointPrefix)
+	require.True(t, ok, peer.Endpoint)
+	raw, err := hex.DecodeString(hexKey)
+	require.NoError(t, err)
+	// Nothing confirmed and no relay: try the first advertised endpoint.
+	addr, direct := engine.Router()(relay.Key(raw))
+	assert.False(t, direct)
+	assert.Equal(t, "192.168.1.9:51820", addr.String())
 	require.Len(t, peer.AllowedIPs, 2)
 	assert.Equal(t, "10.77.0.3/32", peer.AllowedIPs[0].String())
 	assert.Equal(t, "fd00:1:2::3/128", peer.AllowedIPs[1].String())
@@ -277,22 +297,6 @@ func TestTypedNilEngineDoesNotCrash(t *testing.T) {
 	_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
 	assert.Equal(t, "enrolled", status.State)
 	assert.Contains(t, status.Problem, "WireGuard is not running")
-}
-
-func TestChooseEndpoint(t *testing.T) {
-	key := base64.StdEncoding.EncodeToString(make([]byte, 32))
-	local := []netip.Prefix{netip.MustParsePrefix("192.168.1.0/24")}
-
-	sameLAN := coordination.Peer{WireGuardPublicKey: key, Endpoints: []string{"10.9.9.9:51820", "192.168.1.7:51820"}}
-	assert.Equal(t, "192.168.1.7:51820", chooseEndpoint(sameLAN, local, "203.0.113.9:4000", true), "LAN beats everything")
-
-	elsewhere := coordination.Peer{WireGuardPublicKey: key, Endpoints: []string{"10.9.9.9:51820"}}
-	assert.Equal(t, "203.0.113.9:4000", chooseEndpoint(elsewhere, local, "203.0.113.9:4000", true), "punched path beats the relay")
-	assert.Equal(t, "relay/"+strings.Repeat("00", 32), chooseEndpoint(elsewhere, local, "", true), "relay when nothing direct works")
-	assert.Equal(t, "10.9.9.9:51820", chooseEndpoint(elsewhere, local, "", false), "no relay: try what the peer advertised")
-
-	unknown := coordination.Peer{WireGuardPublicKey: key}
-	assert.Equal(t, "", chooseEndpoint(unknown, local, "", false))
 }
 
 func (e *fakeEngine) SetInterceptor(wireguard.Interceptor) {}

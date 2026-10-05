@@ -14,14 +14,14 @@ import (
 	"github.com/jabedzaman/meshguard/internal/relay"
 )
 
-func TestBindRoutesRelayEndpointsThroughRelay(t *testing.T) {
+func TestBindSendsPeerEndpointsThroughRelayWithoutDirectPath(t *testing.T) {
 	b := NewBind(conn.NewDefaultBind())
 	var key relay.Key
 	key[0] = 0xaa
 
-	ep, err := b.ParseEndpoint(RelayEndpointString(key))
+	ep, err := b.ParseEndpoint(PeerEndpointString(key))
 	require.NoError(t, err)
-	assert.Equal(t, "relay/aa"+strings.Repeat("00", 31), ep.DstToString())
+	assert.Equal(t, "peer/aa"+strings.Repeat("00", 31), ep.DstToString())
 
 	// No relay yet.
 	assert.ErrorIs(t, b.Send([][]byte{{1}}, ep), errNoRelay)
@@ -36,6 +36,80 @@ func TestBindRoutesRelayEndpointsThroughRelay(t *testing.T) {
 	require.NoError(t, b.Send([][]byte{{1, 2}, {3}}, ep))
 	assert.Equal(t, key, sentTo)
 	assert.Equal(t, [][]byte{{1, 2}, {3}}, sent)
+
+	// An unconfirmed guess doesn't beat the relay.
+	b.SetRouter(func(relay.Key) (netip.AddrPort, bool) {
+		return netip.MustParseAddrPort("192.0.2.1:51820"), false
+	})
+	sent = nil
+	require.NoError(t, b.Send([][]byte{{4}}, ep))
+	assert.Equal(t, [][]byte{{4}}, sent)
+}
+
+// udpPair opens two binds on localhost and returns b's receive functions and
+// address. Reading from them yields what a sent.
+func udpPair(t *testing.T) (a, b *Bind, fns []conn.ReceiveFunc, bAddr netip.AddrPort) {
+	t.Helper()
+	a = NewBind(conn.NewDefaultBind())
+	b = NewBind(conn.NewDefaultBind())
+	_, _, err := a.Open(0)
+	require.NoError(t, err)
+	t.Cleanup(func() { a.Close() })
+	fns, port, err := b.Open(0)
+	require.NoError(t, err)
+	t.Cleanup(func() { b.Close() })
+	return a, b, fns[:len(fns)-1], netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), port)
+}
+
+// receiveOne reads the first packet from any of fns.
+func receiveOne(t *testing.T, b *Bind, fns []conn.ReceiveFunc) string {
+	t.Helper()
+	results := make(chan string, len(fns))
+	for _, fn := range fns {
+		go func(fn conn.ReceiveFunc) {
+			bs := b.BatchSize()
+			packets := make([][]byte, bs)
+			for i := range packets {
+				packets[i] = make([]byte, 1500)
+			}
+			sizes := make([]int, bs)
+			eps := make([]conn.Endpoint, bs)
+			if n, err := fn(packets, sizes, eps); err == nil && n > 0 {
+				results <- string(packets[0][:sizes[0]])
+			}
+		}(fn)
+	}
+	select {
+	case got := <-results:
+		return got
+	case <-time.After(2 * time.Second):
+		t.Fatal("nothing received")
+		return ""
+	}
+}
+
+func TestBindSendsPeerEndpointsDirectWhenConfirmed(t *testing.T) {
+	a, b, fns, bAddr := udpPair(t)
+	var key relay.Key
+	key[0] = 0xbb
+	relayed := 0
+	a.SetRelay(func(relay.Key, []byte) error { relayed++; return nil })
+	a.SetRouter(func(k relay.Key) (netip.AddrPort, bool) {
+		assert.Equal(t, key, k)
+		return bAddr, true
+	})
+
+	require.NoError(t, a.Send([][]byte{[]byte("direct")}, &PeerEndpoint{Key: key}))
+	assert.Equal(t, "direct", receiveOne(t, b, fns))
+	assert.Zero(t, relayed, "a confirmed path skips the relay")
+}
+
+func TestBindTriesGuessWithoutRelay(t *testing.T) {
+	a, b, fns, bAddr := udpPair(t)
+	a.SetRouter(func(relay.Key) (netip.AddrPort, bool) { return bAddr, false })
+
+	require.NoError(t, a.Send([][]byte{[]byte("guess")}, &PeerEndpoint{}))
+	assert.Equal(t, "guess", receiveOne(t, b, fns))
 }
 
 func TestBindParsesNormalEndpoints(t *testing.T) {
@@ -44,7 +118,7 @@ func TestBindParsesNormalEndpoints(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "192.168.1.9:51820", ep.DstToString())
 
-	_, err = b.ParseEndpoint("relay/zz")
+	_, err = b.ParseEndpoint("peer/zz")
 	assert.Error(t, err)
 }
 
@@ -65,7 +139,7 @@ func TestBindReceivesRelayPackets(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 	assert.Equal(t, "hello", string(packets[0][:sizes[0]]))
-	assert.Equal(t, RelayEndpointString(from), eps[0].DstToString(), "replies go back via the relay")
+	assert.Equal(t, PeerEndpointString(from), eps[0].DstToString(), "replies go back via the relay")
 
 	// Close unblocks the receiver.
 	done := make(chan error)
@@ -75,16 +149,7 @@ func TestBindReceivesRelayPackets(t *testing.T) {
 }
 
 func TestBindInterceptsBeforeWireGuard(t *testing.T) {
-	// Two binds on localhost: a sends raw packets to b's UDP port.
-	a := NewBind(conn.NewDefaultBind())
-	b := NewBind(conn.NewDefaultBind())
-	_, _, err := a.Open(0)
-	require.NoError(t, err)
-	defer a.Close()
-	fns, port, err := b.Open(0)
-	require.NoError(t, err)
-	defer b.Close()
-
+	a, b, fns, to := udpPair(t)
 	var seen []string
 	b.SetInterceptor(func(packet []byte, from netip.AddrPort) bool {
 		if string(packet) == "disco" {
@@ -94,34 +159,10 @@ func TestBindInterceptsBeforeWireGuard(t *testing.T) {
 		return false
 	})
 
-	to := netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), port)
 	require.NoError(t, a.SendTo(to, []byte("disco")))
 	require.NoError(t, a.SendTo(to, []byte("wireguard")))
 
-	// Read from all of b's UDP receivers at once (batch-sized buffers, as
-	// WireGuard provides): the disco packet is consumed, the other reaches
-	// "WireGuard".
-	results := make(chan string, len(fns))
-	for _, fn := range fns[:len(fns)-1] { // skip the relay receiver
-		go func(fn conn.ReceiveFunc) {
-			bs := b.BatchSize()
-			packets := make([][]byte, bs)
-			for i := range packets {
-				packets[i] = make([]byte, 1500)
-			}
-			sizes := make([]int, bs)
-			eps := make([]conn.Endpoint, bs)
-			if n, err := fn(packets, sizes, eps); err == nil && n > 0 {
-				results <- string(packets[0][:sizes[0]])
-			}
-		}(fn)
-	}
-	var got string
-	select {
-	case got = <-results:
-	case <-time.After(2 * time.Second):
-		t.Fatal("nothing reached WireGuard")
-	}
-	assert.Equal(t, "wireguard", got)
+	// The disco packet is consumed, the other reaches "WireGuard".
+	assert.Equal(t, "wireguard", receiveOne(t, b, fns))
 	assert.Equal(t, []string{"127.0.0.1"}, seen)
 }

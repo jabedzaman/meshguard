@@ -80,6 +80,27 @@ func TestPingPongConfirmsDirectPath(t *testing.T) {
 	assert.Equal(t, "203.0.113.2:40002", got.String(), "the address the pong came from")
 }
 
+func TestRouteFallsBackToFirstCandidate(t *testing.T) {
+	a, b, aKey, bKey, _, _ := pair(t)
+	lan := netip.MustParseAddrPort("10.0.0.9:51820")
+	a.SetPeers(map[Key][]netip.AddrPort{bKey: {lan, netip.MustParseAddrPort("203.0.113.2:40002")}})
+	b.SetPeers(map[Key][]netip.AddrPort{aKey: nil})
+
+	addr, direct := a.Route(bKey)
+	assert.False(t, direct)
+	assert.Equal(t, lan, addr, "an unconfirmed guess for when there is no relay")
+
+	a.Tick()
+	addr, direct = a.Route(bKey)
+	assert.True(t, direct)
+	assert.Equal(t, "203.0.113.2:40002", addr.String())
+
+	_, unknownKey := keypair(t)
+	addr, direct = a.Route(unknownKey)
+	assert.False(t, direct)
+	assert.False(t, addr.IsValid())
+}
+
 func TestPathExpiresWithoutPongs(t *testing.T) {
 	a, b, aKey, bKey, n, c := pair(t)
 	a.SetPeers(map[Key][]netip.AddrPort{bKey: {netip.MustParseAddrPort("203.0.113.2:40002")}})
