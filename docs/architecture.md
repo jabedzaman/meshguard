@@ -136,7 +136,11 @@ new peer is reachable over the relay from its first packet.
   socket, which opens NAT mappings. Pings and pongs are NaCl boxes sealed with
   the WireGuard keys, so they can't be forged to redirect traffic. A pong
   confirms the address it came from; the bind sends that peer's packets there and
-  re-checks every 5s, falling back to the relay after 20s without a pong.
+  re-checks every 5s, falling back to the relay after 20s without a pong. A
+  working path is only replaced by one at least a third faster (by round
+  trip), or once it misses a check: when searching, every candidate answers,
+  and a slow one (e.g. hairpinned through the router via a public address)
+  must not win by answering last. Each switch is logged ("direct path").
 - **Learning from pings.** A valid ping's source address is the peer's real
   NAT mapping toward us (it can differ from the STUN result after a port
   clash), so it is pinged back too.

@@ -13,6 +13,8 @@ package disco
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
+	"log/slog"
 	"net/netip"
 	"sync"
 	"time"
@@ -39,6 +41,12 @@ const (
 // Key is a WireGuard (Curve25519) public key.
 type Key [32]byte
 
+// short abbreviates the key the way wireguard-go's logs do.
+func (k Key) short() string {
+	b := base64.StdEncoding.EncodeToString(k[:])
+	return b[:4] + "…" + b[len(b)-5:len(b)-1]
+}
+
 type txID [12]byte
 
 // Is reports whether b is a disco packet (not WireGuard or STUN).
@@ -63,8 +71,14 @@ type peer struct {
 	observed map[netip.AddrPort]time.Time
 	pending  map[txID]sentPing
 	best     netip.AddrPort
+	bestRTT  time.Duration
 	lastPong time.Time
 	lastPing time.Time
+}
+
+// healthy reports whether the confirmed path answered its last check.
+func (p *peer) healthy(now time.Time) bool {
+	return p.best.IsValid() && now.Sub(p.lastPong) <= keepEvery+pingEvery
 }
 
 type sentPing struct {
@@ -168,9 +182,8 @@ func (m *Manager) Tick() {
 		}
 		// A confirmed path that missed a keepalive may be dead (the
 		// peer moved): look for a new one while still using it.
-		healthy := confirmed && now.Sub(p.lastPong) <= keepEvery+pingEvery
 		every := pingEvery
-		if healthy {
+		if confirmed && p.healthy(now) {
 			// Keep the confirmed path alive, and follow the peer if it
 			// pinged us from somewhere new since (its network changed).
 			targets, every = []netip.AddrPort{p.best}, keepEvery
@@ -232,12 +245,24 @@ func (m *Manager) Handle(b []byte, from netip.AddrPort) bool {
 		}
 		return true
 	case typePong:
-		if _, ok := p.pending[tx]; ok {
-			delete(p.pending, tx)
-			// The address the pong came from is the one that works,
-			// whatever we sent to (NATs can rewrite ports).
-			p.best = from
-			p.lastPong = m.now()
+		sent, ok := p.pending[tx]
+		if !ok {
+			break
+		}
+		delete(p.pending, tx)
+		now := m.now()
+		rtt := now.Sub(sent.at)
+		// The address the pong came from is the one that works, whatever
+		// we sent to (NATs can rewrite ports). Keep a working path unless
+		// the new one is clearly faster: when searching, every candidate
+		// answers, and the slowest (e.g. hairpinned through the router via
+		// the public address) must not win just by answering last.
+		switch {
+		case from == p.best:
+			p.lastPong, p.bestRTT = now, rtt
+		case !p.healthy(now) || rtt < p.bestRTT*2/3:
+			slog.Info("direct path", "peer", sender.short(), "addr", from, "rtt", rtt.Round(time.Microsecond), "was", p.best)
+			p.best, p.lastPong, p.bestRTT = from, now, rtt
 		}
 	}
 	m.mu.Unlock()
