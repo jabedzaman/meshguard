@@ -33,6 +33,7 @@ const app = createApp({
   auth,
   corsOrigins: [env.WEB_URL],
   relayUrl: env.RELAY_URL,
+  relayTokenKey: env.RELAY_TOKEN_KEY,
   stunServers: env.STUN_SERVERS,
 });
 

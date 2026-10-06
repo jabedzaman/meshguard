@@ -1,3 +1,4 @@
+import type { KeyObject } from "node:crypto";
 import { and, desc, eq, gt, inArray, isNull, ne, schema, type Db, type SQL } from "@meshguard/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import type { DeviceEvents } from "~/events/device-events";
@@ -5,6 +6,7 @@ import { isUniqueViolation } from "~/lib/db-errors";
 import { deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
 import type { PresenceStore } from "~/lib/presence";
+import { relayTokenExpiry, signRelayToken } from "~/lib/relay-token";
 import { hashToken } from "~/lib/tokens";
 import type { AclService } from "~/services/acl/acl.service";
 
@@ -29,7 +31,11 @@ export class DevicesService {
     private readonly presence: PresenceStore,
     private readonly events: DeviceEvents,
     private readonly acl: AclService,
-    private readonly options: { relayUrl?: string; stunServers?: string[] } = {},
+    private readonly options: {
+      relayUrl?: string;
+      relayTokenKey?: KeyObject;
+      stunServers?: string[];
+    } = {},
   ) {}
 
   /**
@@ -169,6 +175,7 @@ export class DevicesService {
         name: devices.name,
         meshIpv4: devices.meshIpv4,
         meshIpv6: devices.meshIpv6,
+        wireguardPublicKey: devices.wireguardPublicKey,
         endpoints: devices.endpoints,
       })
       .from(devices)
@@ -235,9 +242,20 @@ export class DevicesService {
       /** Traffic from peers the agent lets in. */
       acl: await this.acl.policyFor(self.networkId, self.id),
       /** Where to relay WireGuard packets for peers that can't be reached directly. */
-      relay: this.options.relayUrl ? { url: this.options.relayUrl } : null,
+      relay: this.relayFor(self.wireguardPublicKey, now),
       /** STUN servers for discovering this device's public address. */
       stun: this.options.stunServers ?? [],
+    };
+  }
+
+  /** The relay and, with a token key, this device's permission to use it. */
+  private relayFor(wireguardPublicKey: string, now: Date) {
+    const { relayUrl, relayTokenKey } = this.options;
+    if (!relayUrl) return null;
+    if (!relayTokenKey) return { url: relayUrl };
+    return {
+      url: relayUrl,
+      token: signRelayToken(relayTokenKey, wireguardPublicKey, relayTokenExpiry(now)),
     };
   }
 

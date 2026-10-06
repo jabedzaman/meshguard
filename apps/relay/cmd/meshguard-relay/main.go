@@ -2,13 +2,20 @@
 // each other directly, and runs a STUN server so agents can learn their public
 // address for hole punching. Agents connect out over WebSocket, so relaying
 // works behind any NAT; it only ever sees WireGuard ciphertext.
+//
+// With RELAY_TRUST_KEY set, it only serves agents holding a relay token from
+// the control plane. `meshguard-relay -gen-key` prints a matching pair:
+// RELAY_TOKEN_KEY for the API, RELAY_TRUST_KEY for the relay.
 package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,15 +32,37 @@ import (
 func main() {
 	addr := flag.String("addr", envOr("RELAY_ADDR", ":3340"), "relay (WebSocket) listen address")
 	stunAddr := flag.String("stun-addr", envOr("STUN_ADDR", ":3478"), `STUN (UDP) listen addresses, comma-separated; "" to disable`)
+	trustKey := flag.String("trust-key", os.Getenv("RELAY_TRUST_KEY"), "base64 Ed25519 public key of the control plane's relay tokens; empty serves any agent")
+	genKey := flag.Bool("gen-key", false, "print a new RELAY_TOKEN_KEY (API) and RELAY_TRUST_KEY (relay) pair and exit")
 	flag.Parse()
 
-	if err := run(*addr, *stunAddr); err != nil {
+	if *genKey {
+		public, private, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			slog.Error("generating key", "err", err)
+			os.Exit(1)
+		}
+		fmt.Printf("RELAY_TOKEN_KEY=%s\nRELAY_TRUST_KEY=%s\n",
+			base64.StdEncoding.EncodeToString(private.Seed()), base64.StdEncoding.EncodeToString(public))
+		return
+	}
+	var trust ed25519.PublicKey
+	if *trustKey != "" {
+		raw, err := base64.StdEncoding.DecodeString(*trustKey)
+		if err != nil || len(raw) != ed25519.PublicKeySize {
+			slog.Error("RELAY_TRUST_KEY must be a base64 Ed25519 public key")
+			os.Exit(1)
+		}
+		trust = raw
+	}
+
+	if err := run(*addr, *stunAddr, trust); err != nil {
 		slog.Error("relay exited", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr, stunAddr string) error {
+func run(addr, stunAddr string, trust ed25519.PublicKey) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -58,6 +87,10 @@ func run(addr, stunAddr string) error {
 	srv, err := relay.NewServer()
 	if err != nil {
 		return err
+	}
+	srv.Trust = trust
+	if trust == nil {
+		slog.Warn("no RELAY_TRUST_KEY: serving any agent")
 	}
 	mux := http.NewServeMux()
 	mux.Handle("GET /relay", srv)

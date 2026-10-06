@@ -4,10 +4,15 @@
 //
 // Handshake (JSON text messages):
 //
-//	client → hello     {publicKey}
+//	client → hello     {publicKey, token}
 //	server → challenge {serverKey, challenge}
 //	client → proof     {nonce, sealed}   NaCl box of challenge, client→server keys
 //	server → welcome   {}
+//
+// The token (see token.go) is the control plane's permission to use the
+// relay; a relay with a trust key refuses clients without a valid one, and
+// closes the connection when the token expires. The client sends a fresh one
+// as {token} (text) while connected.
 //
 // Data (binary messages): 32-byte key + WireGuard packet. Client → server the
 // key is the destination; server → client it is the sender.
@@ -32,6 +37,12 @@ const MaxPacket = 64 * 1024
 
 type hello struct {
 	PublicKey []byte `json:"publicKey"`
+	Token     string `json:"token,omitempty"`
+}
+
+// refresh replaces the token of an open connection.
+type refresh struct {
+	Token string `json:"token"`
 }
 
 type challenge struct {

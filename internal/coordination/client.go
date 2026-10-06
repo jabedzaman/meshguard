@@ -74,6 +74,9 @@ type Peer struct {
 // Relay is where to send packets for peers that can't be reached directly.
 type Relay struct {
 	URL string `json:"url"`
+	// Token lets this device use the relay (relay.VerifyToken); empty from a
+	// control plane without a relay token key.
+	Token string `json:"token,omitempty"`
 }
 
 // ACL is what may reach this device from its peers.

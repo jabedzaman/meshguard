@@ -125,6 +125,8 @@ services:
       dockerfile: apps/relay/Dockerfile.dev
     environment:
       - STUN_ADDR=:3478,:3479
+      # Pair of RELAY_TOKEN_KEY (api, from .env); empty serves any agent.
+      - RELAY_TRUST_KEY=${RELAY_TRUST_KEY:-}
     ports:
       - "${RELAY_HOST_PORT:-3340}:3340"
     # Also on the lab's "internet", where lab devices reach it (relay + STUN).

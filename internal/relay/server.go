@@ -2,11 +2,13 @@ package relay
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -14,6 +16,10 @@ import (
 
 // Server forwards packets between connected clients by public key.
 type Server struct {
+	// Trust is the control plane's relay token key. When set, only clients
+	// with a valid token for their key are served, until it expires.
+	Trust ed25519.PublicKey
+
 	private [32]byte
 	public  Key
 
@@ -25,6 +31,8 @@ type serverClient struct {
 	key  Key
 	out  chan []byte
 	conn *websocket.Conn
+	// expires is the token's expiry (unix seconds); unused without Trust.
+	expires atomic.Int64
 }
 
 // NewServer creates a relay with a fresh key, used only for handshakes.
@@ -59,16 +67,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	defer conn.CloseNow()
 
-	key, err := s.handshake(ctx, conn)
+	key, expires, err := s.handshake(ctx, conn)
 	if err != nil {
 		slog.Debug("relay handshake failed", "err", err)
-		conn.Close(websocket.StatusPolicyViolation, "handshake failed")
+		reason := "handshake failed"
+		if err == errToken {
+			reason = "relay token missing or invalid"
+		}
+		conn.Close(websocket.StatusPolicyViolation, reason)
 		return
 	}
 
 	c := &serverClient{key: key, out: make(chan []byte, 256), conn: conn}
+	c.expires.Store(expires.Unix())
 	s.register(c)
 	defer s.unregister(c)
+	if s.Trust != nil {
+		go s.expire(ctx, cancel, c)
+	}
 
 	go func() {
 		for {
@@ -93,6 +109,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if typ != websocket.MessageBinary {
+			s.refresh(c, data)
 			continue
 		}
 		dst, packet, err := DecodeFrame(data)
@@ -103,34 +120,74 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handshake(ctx context.Context, conn *websocket.Conn) (Key, error) {
+// refresh takes a fresh token from an open connection; invalid ones are ignored.
+func (s *Server) refresh(c *serverClient, data []byte) {
+	var r refresh
+	if s.Trust == nil || json.Unmarshal(data, &r) != nil {
+		return
+	}
+	if exp, ok := VerifyToken(s.Trust, r.Token, c.key, time.Now()); ok && exp.Unix() > c.expires.Load() {
+		c.expires.Store(exp.Unix())
+	}
+}
+
+// expire closes c's connection once its token expires without a refresh.
+func (s *Server) expire(ctx context.Context, cancel context.CancelFunc, c *serverClient) {
+	for {
+		wait := time.Until(time.Unix(c.expires.Load(), 0))
+		if wait <= 0 {
+			slog.Debug("relay token expired", "key", c.key)
+			c.conn.Close(websocket.StatusPolicyViolation, "relay token expired")
+			cancel()
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+	}
+}
+
+// handshake authenticates a client: it proves it holds its key's private
+// key, and with Trust set, that the control plane let it use the relay (the
+// token's expiry is returned).
+func (s *Server) handshake(ctx context.Context, conn *websocket.Conn) (Key, time.Time, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var h hello
 	if err := readJSON(ctx, conn, &h); err != nil {
-		return Key{}, err
+		return Key{}, time.Time{}, err
 	}
 	if len(h.PublicKey) != KeyLen {
-		return Key{}, errInvalid
+		return Key{}, time.Time{}, errInvalid
 	}
 	key := Key(h.PublicKey)
+	var expires time.Time
+	if s.Trust != nil {
+		exp, ok := VerifyToken(s.Trust, h.Token, key, time.Now())
+		if !ok {
+			return Key{}, time.Time{}, errToken
+		}
+		expires = exp
+	}
 
 	nonce := make([]byte, 32)
 	if _, err := rand.Read(nonce); err != nil {
-		return Key{}, err
+		return Key{}, time.Time{}, err
 	}
 	if err := writeJSON(ctx, conn, challenge{ServerKey: s.public[:], Challenge: nonce}); err != nil {
-		return Key{}, err
+		return Key{}, time.Time{}, err
 	}
 	var p proof
 	if err := readJSON(ctx, conn, &p); err != nil {
-		return Key{}, err
+		return Key{}, time.Time{}, err
 	}
 	if !openProof(p, nonce, key, s.private) {
-		return Key{}, errInvalid
+		return Key{}, time.Time{}, errInvalid
 	}
-	return key, writeJSON(ctx, conn, welcome{})
+	return key, expires, writeJSON(ctx, conn, welcome{})
 }
 
 func (s *Server) register(c *serverClient) {

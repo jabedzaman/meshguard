@@ -85,7 +85,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M2.13 Full DNS: forward other names to the OS's own resolvers, admin split DNS (domain → nameserver over the mesh), override local DNS, NetworkManager / resolvconf fallbacks, Windows NRPT. Waits for exit nodes or a customer that needs it
 - ⬜ M2.14 Network map pruned by access rules: a device gets only the peers it may reach or that may reach it (today every device gets every peer's key, addresses and endpoints, even under deny)
 - ⬜ M2.15 Streaming network map: a long-lived request (long-poll or WebSocket) with deltas instead of a full map every 10s; rule, name and peer changes arrive at once. Covers the "push" half of M2.11; keep a slow poll as a fallback
-- ⬜ M2.16 Relay auth: the relay only serves keys the control plane vouches for (a short-lived signed relay token in the network map); today any key that proves possession can use it
+- ✅ M2.16 Relay auth: the API signs each device's relay token (`RELAY_TOKEN_KEY`, expiry 30–60 min, refreshed on sync over the open connection); a relay with `RELAY_TRUST_KEY` refuses agents without one and drops expired ones. Enforcement is off until `RELAY_TRUST_KEY` is set, so agents can be updated first
 - ⬜ M2.17 Relay regions: several relays, each agent picks the lowest-latency home relay, the network map carries each peer's home relay, relays forward between regions
 - ⬜ M2.18 DNS over TCP, and SRV / TXT / CNAME records (service discovery, M6.4)
 - ⬜ M2.19 IPv6 resolver address (the network's IPv6 prefix + `::53`) for IPv6-only clients

@@ -12,6 +12,7 @@ import (
 
 var (
 	errInvalid      = errors.New("invalid relay message")
+	errToken        = errors.New("relay token missing or invalid")
 	errNotConnected = errors.New("relay not connected")
 )
 
@@ -36,8 +37,9 @@ type Client struct {
 
 	kick chan struct{} // Reconnect: redial now, skipping the backoff
 
-	mu   sync.Mutex
-	conn *websocket.Conn
+	mu    sync.Mutex
+	conn  *websocket.Conn
+	token string // see SetToken
 }
 
 // NewClient returns a client that authenticates as the WireGuard private key.
@@ -54,6 +56,29 @@ func (c *Client) Connected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn != nil
+}
+
+// SetToken sets the control plane's relay token, sent when connecting and,
+// when it changes, on the open connection so the relay keeps serving it.
+func (c *Client) SetToken(token string) {
+	c.mu.Lock()
+	if token == c.token {
+		c.mu.Unlock()
+		return
+	}
+	c.token = token
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil || token == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := writeJSON(ctx, conn, refresh{Token: token}); err != nil {
+			slog.Debug("relay token refresh failed", "err", err)
+		}
+	}()
 }
 
 // Send forwards a packet to dst through the relay.
@@ -118,12 +143,18 @@ func (c *Client) session(ctx context.Context) (connected bool, err error) {
 	conn.SetReadLimit(KeyLen + MaxPacket + 1024)
 	defer conn.CloseNow()
 
-	if err := c.handshake(ctx, conn); err != nil {
+	sent, err := c.handshake(ctx, conn)
+	if err != nil {
 		return false, err
 	}
 	c.mu.Lock()
 	c.conn = conn
+	token := c.token
 	c.mu.Unlock()
+	if token != sent {
+		// SetToken ran during the handshake, before there was a connection to send it on.
+		_ = writeJSON(ctx, conn, refresh{Token: token})
+	}
 	defer func() {
 		c.mu.Lock()
 		c.conn = nil
@@ -179,26 +210,30 @@ func (c *Client) keepalive(ctx context.Context, conn *websocket.Conn) {
 	}
 }
 
-func (c *Client) handshake(ctx context.Context, conn *websocket.Conn) error {
+// handshake authenticates to the relay and returns the token it sent.
+func (c *Client) handshake(ctx context.Context, conn *websocket.Conn) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	if err := writeJSON(ctx, conn, hello{PublicKey: c.public[:]}); err != nil {
-		return err
+	c.mu.Lock()
+	token := c.token
+	c.mu.Unlock()
+	if err := writeJSON(ctx, conn, hello{PublicKey: c.public[:], Token: token}); err != nil {
+		return "", err
 	}
 	var ch challenge
 	if err := readJSON(ctx, conn, &ch); err != nil {
-		return err
+		return "", err
 	}
 	if len(ch.ServerKey) != KeyLen {
-		return errInvalid
+		return "", errInvalid
 	}
 	p, err := sealProof(ch.Challenge, Key(ch.ServerKey), c.private)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := writeJSON(ctx, conn, p); err != nil {
-		return err
+		return "", err
 	}
 	var w welcome
-	return readJSON(ctx, conn, &w)
+	return token, readJSON(ctx, conn, &w)
 }

@@ -425,11 +425,14 @@ func (a *Agent) ensureRelay(c *connection, cfg *coordination.Relay, wgPrivate [3
 		return false
 	}
 
-	url := ""
+	url, token := "", ""
 	if cfg != nil {
-		url = cfg.URL
+		url, token = cfg.URL, cfg.Token
 	}
 	if url == c.relayURL {
+		if c.relayClient != nil {
+			c.relayClient.SetToken(token)
+		}
 		return url != ""
 	}
 	if c.stopRelay != nil {
@@ -448,6 +451,7 @@ func (a *Agent) ensureRelay(c *connection, cfg *coordination.Relay, wgPrivate [3
 		return false
 	}
 	rc.Deliver = c.engine.DeliverRelay
+	rc.SetToken(token)
 	relayCtx, cancel := context.WithCancel(c.ctx)
 	c.engine.SetRelay(func(dst relay.Key, packet []byte) error {
 		return rc.Send(relayCtx, dst, packet)

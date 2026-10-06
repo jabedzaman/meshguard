@@ -21,6 +21,8 @@ export interface AppDeps {
   corsOrigins: string[];
   /** Relay URL handed to agents. */
   relayUrl?: string;
+  /** Base64 Ed25519 seed signing agents' relay tokens. */
+  relayTokenKey?: string;
   /** STUN servers handed to agents. */
   stunServers?: string[];
 }
@@ -34,9 +36,13 @@ export function createApp({
   auth,
   corsOrigins,
   relayUrl,
+  relayTokenKey,
   stunServers,
 }: AppDeps) {
-  const services = createServices({ db, redis, deviceEvents }, { relayUrl, stunServers });
+  const services = createServices(
+    { db, redis, deviceEvents },
+    { relayUrl, relayTokenKey, stunServers },
+  );
 
   return new Hono<AppEnv>()
     .onError(errorHandler)

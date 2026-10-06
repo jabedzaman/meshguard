@@ -8,6 +8,7 @@ export * from "./lib/mailer";
 export * from "./lib/nats";
 export * from "./lib/presence";
 export * from "./lib/redis";
+export * from "./lib/relay-token";
 export * from "./lib/tokens";
 export * from "./processors/email.processor";
 export * from "./queues";

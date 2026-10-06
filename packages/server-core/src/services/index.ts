@@ -3,6 +3,7 @@ import type { Redis } from "ioredis";
 import type { DeviceEvents } from "~/events/device-events";
 import { DeviceNonces } from "~/lib/device-nonces";
 import { PresenceStore } from "~/lib/presence";
+import { relayTokenKey } from "~/lib/relay-token";
 import { AclService } from "~/services/acl/acl.service";
 import { DevicesService } from "~/services/devices/devices.service";
 import { EnrollmentTokensService } from "~/services/enrollment-tokens/enrollment-tokens.service";
@@ -16,6 +17,8 @@ export * from "~/services/enrollment-tokens/enrollment-tokens.service";
 export interface ServicesOptions {
   /** Relay URL handed to agents in their network map. */
   relayUrl?: string;
+  /** Base64 Ed25519 seed that signs devices' relay tokens (RELAY_TOKEN_KEY). */
+  relayTokenKey?: string;
   /** STUN servers ("host:port") handed to agents for hole punching. */
   stunServers?: string[];
 }
@@ -40,6 +43,7 @@ export function createServices(
     deviceNonces: new DeviceNonces(redis),
     devices: new DevicesService(db, new PresenceStore(redis), deviceEvents, acl, {
       relayUrl: options.relayUrl,
+      relayTokenKey: options.relayTokenKey ? relayTokenKey(options.relayTokenKey) : undefined,
       stunServers: options.stunServers,
     }),
   };

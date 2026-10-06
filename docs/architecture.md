@@ -122,6 +122,18 @@ it, so it works behind any NAT; it forwards frames of
 connect, an agent proves it owns the key it claims: it answers a random
 challenge with a NaCl box sealed by its WireGuard private key.
 
+The relay also needs the control plane's permission. With `RELAY_TOKEN_KEY`
+set on the API, every sync's `relay.token` is an Ed25519 signature over the
+device's WireGuard key and an expiry (`packages/server-core/src/lib/relay-token.ts`,
+`internal/relay/token.go`; both test the same vector). The expiry is the end
+of the next 30-minute period, so the token only changes twice an hour. The
+agent sends it in its hello, and a new one on the open connection when it
+changes. A relay with `RELAY_TRUST_KEY` (the public half) refuses agents
+without a valid token and closes a connection whose token expires, so a
+removed device loses the relay within an hour and a stranger never gets it.
+Without `RELAY_TRUST_KEY` the relay serves any key, as before; set it once
+every agent sends tokens. `meshguard-relay -gen-key` prints a pair.
+
 The sync response includes `relay.url` (API env `RELAY_URL`). The agent's
 WireGuard transport (`wireguard.Bind`) wraps UDP and the relay client. Every
 peer's WireGuard endpoint is `peer/<hex key>` and never changes (roaming is
