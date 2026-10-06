@@ -108,7 +108,7 @@ func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 			w.WriteHeader(http.StatusUnauthorized)
 		case "/v1/devices/self/sync":
 			sig, _ := base64.StdEncoding.DecodeString(r.Header.Get(coordination.HeaderSignature))
-			msg := coordination.SigningString(r.Method, r.URL.Path, r.Header.Get(coordination.HeaderTimestamp), body)
+			msg := coordination.SigningString(r.Method, r.URL.Path, r.Header.Get(coordination.HeaderTimestamp), r.Header.Get(coordination.HeaderNonce), body)
 			if r.Header.Get(coordination.HeaderDevice) != "d1" || !ed25519.Verify(identityKey, []byte(msg), sig) {
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write([]byte(`{"error":{"code":"invalid_device_signature","message":"Invalid device signature"}}`))

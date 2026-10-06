@@ -1,6 +1,7 @@
 import type { Db } from "@meshguard/db";
 import type { Redis } from "ioredis";
 import type { DeviceEvents } from "~/events/device-events";
+import { DeviceNonces } from "~/lib/device-nonces";
 import { PresenceStore } from "~/lib/presence";
 import { AclService } from "~/services/acl/acl.service";
 import { DevicesService } from "~/services/devices/devices.service";
@@ -21,7 +22,7 @@ export interface ServicesOptions {
 
 export interface ServicesDeps {
   db: Db;
-  /** Device presence. */
+  /** Device presence and request nonces. */
   redis: Redis;
   /** Publishes device changes for live listeners (the web). */
   deviceEvents: DeviceEvents;
@@ -36,6 +37,7 @@ export function createServices(
     networks: new NetworksService(db),
     enrollmentTokens: new EnrollmentTokensService(db),
     acl,
+    deviceNonces: new DeviceNonces(redis),
     devices: new DevicesService(db, new PresenceStore(redis), deviceEvents, acl, {
       relayUrl: options.relayUrl,
       stunServers: options.stunServers,

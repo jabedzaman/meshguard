@@ -79,10 +79,15 @@ retrying on the per-network unique constraints.
 ## Coordination and WireGuard
 
 Once enrolled, the agent signs every control plane request with its identity
-key: `X-MeshGuard-Device`, `X-MeshGuard-Timestamp` (unix ms, ±2 min) and
-`X-MeshGuard-Signature` = Ed25519 over `METHOD\npath\ntimestamp\nsha256(body)`
+key: `X-MeshGuard-Device`, `X-MeshGuard-Timestamp` (unix ms, ±2 min),
+`X-MeshGuard-Nonce` (16 random bytes, base64url) and `X-MeshGuard-Signature` =
+Ed25519 over `METHOD\npath\ntimestamp\nnonce\nsha256(body)`
 (`packages/server-core/src/lib/device-auth.ts`, `internal/coordination/sign.go`;
-both test the same vector).
+both test the same vector). The API keeps each device's nonces in Redis for
+twice the clock window and refuses one it has seen, so a captured request
+can't be replayed. Agents from before the nonce sign without it
+(`METHOD\npath\ntimestamp\nsha256(body)`) and are still accepted; drop that
+once every agent is updated.
 
 Every 10s the agent calls `POST /v1/devices/self/sync` with its endpoints
 (local interface addresses on the WireGuard port) and gets back the network

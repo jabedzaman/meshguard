@@ -7,10 +7,12 @@ function device() {
   const raw = publicKey.export({ format: "der", type: "spki" }).subarray(-32).toString("base64");
   return {
     publicKey: raw,
-    sign: (method: string, path: string, timestamp: string, body: string) =>
-      sign(null, Buffer.from(signingString(method, path, timestamp, body)), privateKey).toString(
-        "base64",
-      ),
+    sign: (method: string, path: string, timestamp: string, body: string, nonce?: string) =>
+      sign(
+        null,
+        Buffer.from(signingString(method, path, timestamp, body, nonce)),
+        privateKey,
+      ).toString("base64"),
   };
 }
 
@@ -53,6 +55,42 @@ describe("verifyDeviceSignature", () => {
         body,
         now,
         ...change,
+      }),
+    ).toBe(false);
+  });
+
+  it("accepts a valid signature with a nonce, and rejects a changed nonce", () => {
+    const d = device();
+    const nonce = "AAECAwQFBgcICQoLDA0ODw";
+    const signature = d.sign("POST", "/p", ts, body, nonce);
+    const input = {
+      publicKey: d.publicKey,
+      signature,
+      method: "POST",
+      path: "/p",
+      timestamp: ts,
+      body,
+      now,
+    };
+    expect(verifyDeviceSignature({ ...input, nonce })).toBe(true);
+    expect(verifyDeviceSignature({ ...input, nonce: "BAECAwQFBgcICQoLDA0ODw" })).toBe(false);
+    expect(verifyDeviceSignature(input)).toBe(false);
+  });
+
+  it("rejects a malformed nonce", () => {
+    const d = device();
+    const nonce = "short";
+    const signature = d.sign("POST", "/p", ts, body, nonce);
+    expect(
+      verifyDeviceSignature({
+        publicKey: d.publicKey,
+        signature,
+        method: "POST",
+        path: "/p",
+        timestamp: ts,
+        body,
+        nonce,
+        now,
       }),
     ).toBe(false);
   });
@@ -106,6 +144,20 @@ describe("verifyDeviceSignature", () => {
 
   it("matches the Go agent's signing string", () => {
     // Same vector as TestSigningString in internal/coordination/sign_test.go.
+    expect(
+      signingString(
+        "post",
+        "/v1/devices/self/sync",
+        "1800000000000",
+        "{}",
+        "AAECAwQFBgcICQoLDA0ODw",
+      ),
+    ).toBe(
+      "POST\n/v1/devices/self/sync\n1800000000000\nAAECAwQFBgcICQoLDA0ODw\n44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    );
+  });
+
+  it("keeps the pre-nonce signing string for older agents", () => {
     expect(signingString("post", "/v1/devices/self/sync", "1800000000000", "{}")).toBe(
       "POST\n/v1/devices/self/sync\n1800000000000\n44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
     );
