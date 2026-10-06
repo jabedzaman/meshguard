@@ -17,7 +17,7 @@ Networking should disappear into the workflow.
 ### M0 — Repo bootstrap ✅
 
 - ✅ M0.1 pnpm + Turborepo monorepo, `~/*` import alias
-- ✅ M0.2 Apps: `api` (Hono), `web` (Next.js), `desktop` (Tauri 2), `mcp`, `agent`, `cli`, `relay`, `dns` (Go)
+- ✅ M0.2 Apps: `api` (Hono), `web` (Next.js), `desktop` (Tauri 2), `mcp`, `agent`, `cli`, `relay` (Go); the `dns` stub was removed (M2.21)
 - ✅ M0.3 Packages: `config`, `db`, `auth`, `api-client`, `mcp-sdk`, `ui` (shadcn), `proto`
 - ✅ M0.4 TS packages built with tsup, apps run with `tsx watch`
 - ✅ M0.5 Go workspace (`go.work`) with shared `internal/` module
@@ -90,7 +90,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M2.18 DNS over TCP, and SRV / TXT / CNAME records (service discovery, M6.4)
 - ⬜ M2.19 IPv6 resolver address (the network's IPv6 prefix + `::53`) for IPv6-only clients
 - ⬜ M2.20 Short names on macOS (`ssh laptop`): `/etc/resolver` ignores search domains, so this needs the system DNS config (`scutil`) or a Network Extension
-- ⬜ M2.21 Decide `apps/dns`: delete the stub, or make it the upstream forwarder for M2.13
+- ✅ M2.21 Removed the `apps/dns` stub: each agent answers DNS itself; a central forwarder, if M2.13 ever needs one, starts fresh
 - ⬜ M2.22 Access rules by user (M1.27), CIDR destinations (subnet routes, M6.1) and services (M6.4); the whole policy viewable as a file in the web, with tests ("a may reach b:22")
 - ⬜ M2.23 Lazy peers: configure a peer in WireGuard only when traffic goes to it (or it handshakes), so big networks don't hold hundreds of idle peers
 - ✅ M2.24 Keep the device name in memory instead of reading `state.json` on every sync (`saveNameLocked`)

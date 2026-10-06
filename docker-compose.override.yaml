@@ -5,7 +5,6 @@ x-go-volumes: &go-volumes
     - ./apps/agent:/app/apps/agent
     - ./apps/cli:/app/apps/cli
     - ./apps/relay:/app/apps/relay
-    - ./apps/dns:/app/apps/dns
     - go_mod_cache:/go/pkg/mod
     - go_build_cache:/root/.cache/go-build
 
@@ -133,13 +132,6 @@ services:
       default: {}
       lab_inet:
         ipv4_address: 10.200.0.11
-
-  dns:
-    <<: *go-volumes
-    container_name: meshguard-dns
-    build:
-      context: .
-      dockerfile: apps/dns/Dockerfile.dev
 
   # ---------------------------------------------------------------------------
   # E2E stack (`pnpm e2e:up`): same images, separate meshguard_test database and

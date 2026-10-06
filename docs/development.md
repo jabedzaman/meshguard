@@ -13,7 +13,7 @@
 ```sh
 pnpm install
 cp .env.example .env
-pnpm docker:up       # postgres, redis, nats, mailpit, api, web, www, workers, relay, dns
+pnpm docker:up       # postgres, redis, nats, mailpit, api, web, www, workers, relay
 pnpm docker:down
 ```
 

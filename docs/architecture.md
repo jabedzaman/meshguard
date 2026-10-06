@@ -12,7 +12,7 @@
 | `apps/mcp` | MCP server |
 | `apps/agent` | Device daemon (Go) |
 | `apps/cli` | `meshguard` CLI (Go) |
-| `apps/relay`, `apps/dns` | Relay and DNS services (Go) |
+| `apps/relay` | Relay and STUN server (Go) |
 | `internal/` | Shared Go packages |
 | `packages/server-core` | Business logic: services, domain errors, queues |
 | `packages/auth` | Better Auth setup; `@meshguard/auth/permissions` holds the roles |
@@ -199,7 +199,7 @@ the same answer as an unknown device, so ids can't be probed.
   Nothing else on the machine changes, and without systemd-resolved the agent
   leaves resolv.conf alone and says so in `meshguard status`.
 - Names are answered locally, so lookups work offline and never reach the
-  control plane. No `meshguard-dns` service is involved yet.
+  control plane; there is no central DNS service.
 
 ## Access rules
 
