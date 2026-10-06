@@ -10,9 +10,6 @@ import { createHash, createPublicKey, verify } from "node:crypto";
  *   X-MeshGuard-Timestamp: unix milliseconds
  *   X-MeshGuard-Nonce:     random, used once (see DeviceNonces)
  *   X-MeshGuard-Signature: base64 Ed25519 signature of signingString(...)
- *
- * Agents from before the nonce sign without one; their requests are still
- * accepted but can be replayed within the clock window.
  */
 export const DEVICE_HEADERS = {
   device: "x-meshguard-device",
@@ -32,11 +29,10 @@ export function signingString(
   path: string,
   timestamp: string,
   body: string,
-  nonce?: string,
+  nonce: string,
 ) {
   const bodyHash = createHash("sha256").update(body).digest("hex");
-  const head = `${method.toUpperCase()}\n${path}\n${timestamp}\n`;
-  return nonce === undefined ? `${head}${bodyHash}` : `${head}${nonce}\n${bodyHash}`;
+  return `${method.toUpperCase()}\n${path}\n${timestamp}\n${nonce}\n${bodyHash}`;
 }
 
 // DER prefix that turns a raw 32-byte Ed25519 public key into SPKI.
@@ -49,13 +45,13 @@ export function verifyDeviceSignature(input: {
   path: string;
   timestamp: string;
   body: string;
-  nonce?: string;
+  nonce: string;
   now?: number;
 }): boolean {
   const ts = Number(input.timestamp);
   const now = input.now ?? Date.now();
   if (!Number.isSafeInteger(ts) || Math.abs(now - ts) > MAX_CLOCK_SKEW_MS) return false;
-  if (input.nonce !== undefined && !NONCE_PATTERN.test(input.nonce)) return false;
+  if (!NONCE_PATTERN.test(input.nonce)) return false;
 
   const raw = Buffer.from(input.publicKey, "base64");
   const signature = Buffer.from(input.signature, "base64");

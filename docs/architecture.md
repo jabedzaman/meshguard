@@ -85,9 +85,8 @@ Ed25519 over `METHOD\npath\ntimestamp\nnonce\nsha256(body)`
 (`packages/server-core/src/lib/device-auth.ts`, `internal/coordination/sign.go`;
 both test the same vector). The API keeps each device's nonces in Redis for
 twice the clock window and refuses one it has seen, so a captured request
-can't be replayed. Agents from before the nonce sign without it
-(`METHOD\npath\ntimestamp\nsha256(body)`) and are still accepted; drop that
-once every agent is updated.
+can't be replayed. Requests without a nonce (agents older than 3fe6897)
+are refused.
 
 Every 10s the agent calls `POST /v1/devices/self/sync` with its endpoints
 (local interface addresses on the WireGuard port) and gets back the network

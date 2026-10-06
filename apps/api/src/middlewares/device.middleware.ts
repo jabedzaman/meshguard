@@ -22,7 +22,9 @@ export const requireDevice = createMiddleware<
   const timestamp = c.req.header(DEVICE_HEADERS.timestamp);
   const signature = c.req.header(DEVICE_HEADERS.signature);
   const nonce = c.req.header(DEVICE_HEADERS.nonce);
-  if (!deviceId || !timestamp || !signature) throw rejected("Device signature required");
+  if (!deviceId || !timestamp || !nonce || !signature) {
+    throw rejected("Device signature required");
+  }
 
   const device = /^[0-9a-f-]{36}$/i.test(deviceId)
     ? await c.var.services.devices.findForAuth(deviceId)
@@ -43,7 +45,7 @@ export const requireDevice = createMiddleware<
   });
   if (!valid) throw rejected("Invalid device signature");
   // Checked after the signature, so only the device itself can use up its nonces.
-  if (nonce !== undefined && !(await c.var.services.deviceNonces.claim(device.id, nonce))) {
+  if (!(await c.var.services.deviceNonces.claim(device.id, nonce))) {
     throw rejected("Device request was already used");
   }
 

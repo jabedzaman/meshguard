@@ -65,7 +65,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M1.29 Auth keys beyond single-use tokens: reusable, ephemeral (device deleted after being offline a while), pre-approved and tagged; for servers, CI and containers
 - ⬜ M1.30 Device approval (optional per network) and key expiry (e.g. 180 days, renewed by browser login, can be turned off per device), so a copied `state.json` stops working
 - ⬜ M1.31 Rate limits on `POST /v1/devices/enroll`, device sync and auth routes (Redis)
-- ✅ M1.32 Replay protection for signed device requests: a nonce in the signature, seen nonces kept in Redis for twice the clock window (`DeviceNonces`). Requests without a nonce (older agents) are still accepted; refuse them once every agent is updated
+- ✅ M1.32 Replay protection for signed device requests: a nonce in the signature, seen nonces kept in Redis for twice the clock window (`DeviceNonces`); requests without one are refused
 - ⬜ M1.33 Change a network's IPv4 range after creation (renumbers devices); `10.77.0.0/16` clashes with corporate `10.0.0.0/8` more often than a CGNAT range would
 
 ### M2 — Reachability and naming 🚧

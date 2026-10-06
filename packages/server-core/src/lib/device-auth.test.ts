@@ -2,12 +2,14 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { signingString, verifyDeviceSignature } from "~/lib/device-auth";
 
+const NONCE = "AAECAwQFBgcICQoLDA0ODw";
+
 function device() {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const raw = publicKey.export({ format: "der", type: "spki" }).subarray(-32).toString("base64");
   return {
     publicKey: raw,
-    sign: (method: string, path: string, timestamp: string, body: string, nonce?: string) =>
+    sign: (method: string, path: string, timestamp: string, body: string, nonce = NONCE) =>
       sign(
         null,
         Buffer.from(signingString(method, path, timestamp, body, nonce)),
@@ -32,6 +34,7 @@ describe("verifyDeviceSignature", () => {
         path: "/v1/devices/self/sync",
         timestamp: ts,
         body,
+        nonce: NONCE,
         now,
       }),
     ).toBe(true);
@@ -42,6 +45,7 @@ describe("verifyDeviceSignature", () => {
     ["path", { path: "/v1/devices/self/other" }],
     ["method", { method: "GET" }],
     ["timestamp", { timestamp: String(now + 1) }],
+    ["nonce", { nonce: "BAECAwQFBgcICQoLDA0ODw" }],
   ])("rejects a tampered %s", (_, change) => {
     const d = device();
     const signature = d.sign("POST", "/v1/devices/self/sync", ts, body);
@@ -53,28 +57,11 @@ describe("verifyDeviceSignature", () => {
         path: "/v1/devices/self/sync",
         timestamp: ts,
         body,
+        nonce: NONCE,
         now,
         ...change,
       }),
     ).toBe(false);
-  });
-
-  it("accepts a valid signature with a nonce, and rejects a changed nonce", () => {
-    const d = device();
-    const nonce = "AAECAwQFBgcICQoLDA0ODw";
-    const signature = d.sign("POST", "/p", ts, body, nonce);
-    const input = {
-      publicKey: d.publicKey,
-      signature,
-      method: "POST",
-      path: "/p",
-      timestamp: ts,
-      body,
-      now,
-    };
-    expect(verifyDeviceSignature({ ...input, nonce })).toBe(true);
-    expect(verifyDeviceSignature({ ...input, nonce: "BAECAwQFBgcICQoLDA0ODw" })).toBe(false);
-    expect(verifyDeviceSignature(input)).toBe(false);
   });
 
   it("rejects a malformed nonce", () => {
@@ -107,6 +94,7 @@ describe("verifyDeviceSignature", () => {
         path: "/p",
         timestamp: ts,
         body: "",
+        nonce: NONCE,
         now,
       }),
     ).toBe(false);
@@ -124,6 +112,7 @@ describe("verifyDeviceSignature", () => {
         path: "/p",
         timestamp: stale,
         body: "",
+        nonce: NONCE,
         now,
       }),
     ).toBe(false);
@@ -138,6 +127,7 @@ describe("verifyDeviceSignature", () => {
         path: "/p",
         timestamp: "nope",
         body: "",
+        nonce: NONCE,
       }),
     ).toBe(false);
   });
@@ -154,12 +144,6 @@ describe("verifyDeviceSignature", () => {
       ),
     ).toBe(
       "POST\n/v1/devices/self/sync\n1800000000000\nAAECAwQFBgcICQoLDA0ODw\n44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-    );
-  });
-
-  it("keeps the pre-nonce signing string for older agents", () => {
-    expect(signingString("post", "/v1/devices/self/sync", "1800000000000", "{}")).toBe(
-      "POST\n/v1/devices/self/sync\n1800000000000\n44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
     );
   });
 });
