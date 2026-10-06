@@ -93,6 +93,9 @@ type connection struct {
 	peers    []coordination.Peer
 	stun     []string
 	acl      *coordination.ACL
+	// savedName is the device name in the state file, so a sync only
+	// touches the file when the control plane renamed the device.
+	savedName string
 
 	relayClient *relay.Client
 	relayURL    string
@@ -124,7 +127,7 @@ func (a *Agent) startLocked(st *state.State) {
 		return
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
-	c := &connection{ctx: ctx, cancel: cancel, syncNow: make(chan struct{}, 1)}
+	c := &connection{ctx: ctx, cancel: cancel, syncNow: make(chan struct{}, 1), savedName: st.Device.Name}
 	a.conn = c
 
 	cfg, err := a.engineConfig(st)
@@ -378,7 +381,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	}
 	c.acl = nm.ACL
 	a.updateDNSLocked(c, nm)
-	a.saveNameLocked(nm.Self.Name)
+	a.saveNameLocked(c, nm.Self.Name)
 	switch {
 	case applyErr != nil:
 		c.problem = "cannot apply peers: " + applyErr.Error()
@@ -478,21 +481,24 @@ func syncProblem(err error) string {
 
 // saveNameLocked keeps the saved device name in step with the control plane,
 // where it can be renamed. Caller holds a.mu.
-func (a *Agent) saveNameLocked(name string) {
-	if name == "" {
+func (a *Agent) saveNameLocked(c *connection, name string) {
+	if name == "" || name == c.savedName {
 		return
 	}
 	st, err := state.Load(a.StateDir)
-	if err != nil || st.Device.Name == name {
+	if err != nil {
 		return
 	}
 	old := st.Device.Name
-	st.Device.Name = name
-	if err := state.Save(a.StateDir, st); err != nil {
-		slog.Warn("cannot save renamed device", "err", err)
-		return
+	if old != name {
+		st.Device.Name = name
+		if err := state.Save(a.StateDir, st); err != nil {
+			slog.Warn("cannot save renamed device", "err", err)
+			return
+		}
+		slog.Info("device renamed", "from", old, "to", name)
 	}
-	slog.Info("device renamed", "from", old, "to", name)
+	c.savedName = name
 }
 
 // pathLocked reports the path a peer's packets take now: its direct address,

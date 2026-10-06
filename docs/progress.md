@@ -93,7 +93,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M2.21 Decide `apps/dns`: delete the stub, or make it the upstream forwarder for M2.13
 - ⬜ M2.22 Access rules by user (M1.27), CIDR destinations (subnet routes, M6.1) and services (M6.4); the whole policy viewable as a file in the web, with tests ("a may reach b:22")
 - ⬜ M2.23 Lazy peers: configure a peer in WireGuard only when traffic goes to it (or it handshakes), so big networks don't hold hundreds of idle peers
-- ⬜ M2.24 Keep the device name in memory instead of reading `state.json` on every sync (`saveNameLocked`)
+- ✅ M2.24 Keep the device name in memory instead of reading `state.json` on every sync (`saveNameLocked`)
 - ⬜ M2.25 One device in several networks: profiles and `meshguard switch`
 - ⬜ M2.26 Signed node keys (like Tailnet Lock): agents only accept peer keys signed by trusted admin keys, so a compromised control plane can't add peers
 
