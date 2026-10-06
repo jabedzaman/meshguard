@@ -1,8 +1,14 @@
+import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import { factory } from "~/lib/factory";
 import { logger } from "~/lib/logger";
 import { validate } from "~/lib/validator";
-import { requireOrganization, requirePermission } from "~/middlewares/auth.middleware";
+import { ForbiddenError } from "@meshguard/server-core";
+import {
+  hasPermission,
+  requireOrganization,
+  requirePermission,
+} from "~/middlewares/auth.middleware";
 import { requireDevice } from "~/middlewares/device.middleware";
 import {
   enrollDeviceBody,
@@ -10,6 +16,7 @@ import {
   syncDeviceBody,
 } from "~/modules/devices/devices.schema";
 import { idParams, networkIdParams } from "~/schemas/params.schema";
+import type { AppEnv } from "~/types";
 
 /** Called by the agent (`meshguard up --token ...`); authenticated by the enrollment token. */
 export const enroll = factory.createHandlers(validate("json", enrollDeviceBody), async (c) => {
@@ -30,11 +37,30 @@ export const listForNetwork = factory.createHandlers(
   },
 );
 
-/** Renames a device; its DNS name changes with it. */
+/**
+ * Lets the request through if the caller's role grants `action` on devices,
+ * or the device is theirs.
+ */
+const ownDeviceOr = (action: "update" | "delete") =>
+  createMiddleware<AppEnv & { Variables: { organizationId: string } }>(async (c, next) => {
+    const allowed =
+      (await hasPermission(c, { device: [action] })) ||
+      (await c.var.services.devices.ownerOf(c.var.organizationId, c.req.param("id")!)) ===
+        c.var.user?.id;
+    if (!allowed) {
+      throw new ForbiddenError(
+        "insufficient_permissions",
+        "Your role in this organization doesn't allow this",
+      );
+    }
+    await next();
+  });
+
+/** Renames a device; its DNS name changes with it. Owners/admins, or the device's owner. */
 export const rename = factory.createHandlers(
   requireOrganization,
-  requirePermission({ device: ["update"] }),
   validate("param", idParams),
+  ownDeviceOr("update"),
   validate("json", renameDeviceBody),
   async (c) => {
     const device = await c.var.services.devices.rename(
@@ -46,11 +72,14 @@ export const rename = factory.createHandlers(
   },
 );
 
-/** Removes a device from its network; its agent is refused from then on. */
+/**
+ * Removes a device from its network; its agent is refused from then on.
+ * Owners/admins, or the device's owner.
+ */
 export const remove = factory.createHandlers(
   requireOrganization,
-  requirePermission({ device: ["delete"] }),
   validate("param", idParams),
+  ownDeviceOr("delete"),
   async (c) => {
     await c.var.services.devices.remove(c.var.organizationId, c.req.valid("param").id);
     return c.body(null, 204);

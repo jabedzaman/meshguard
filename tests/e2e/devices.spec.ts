@@ -213,6 +213,79 @@ test.describe("devices", () => {
     await expect(remove()).rejects.toMatchObject({ status: 404 });
   });
 
+  test("devices belong to whoever made their token and go when that member leaves", async ({
+    createUser,
+    createOrganization,
+    addToOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    const org = await createOrganization(owner, "Owners Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const alice = await createUser("Alice");
+    const bob = await createUser("Bob");
+    await addToOrganization(owner, alice, "member");
+    await addToOrganization(owner, bob, "member");
+    const enrollAs = async (user: { page: typeof owner.page }, hostname: string) => {
+      const { token } = await api<{ token: string }>(
+        user.page,
+        `/v1/networks/${network.id}/enrollment-tokens`,
+        {},
+      );
+      const res = await enroll({ token, hostname, platform: "linux", ...deviceKeys() });
+      expect(res.status).toBe(201);
+      return res.body.device.id as string;
+    };
+    const ownerBox = await enrollAs(owner, "owner-box");
+    const aliceBox = await enrollAs(alice, "alice-box");
+    const alicePi = await enrollAs(alice, "alice-pi");
+    const bobBox = await enrollAs(bob, "bob-box");
+
+    const list = await api<{ name: string; owner: { email: string } | null }[]>(
+      owner.page,
+      `/v1/networks/${network.id}/devices`,
+    );
+    expect(Object.fromEntries(list.map((d) => [d.name, d.owner?.email]))).toEqual({
+      "owner-box": owner.email,
+      "alice-box": alice.email,
+      "alice-pi": alice.email,
+      "bob-box": bob.email,
+    });
+
+    // Members rename and remove their own devices, not anyone else's.
+    const device = (id: string) => `/v1/devices/${id}`;
+    await expect(
+      api(alice.page, device(aliceBox), { name: "alice-laptop" }, { method: "PATCH" }),
+    ).resolves.toMatchObject({ name: "alice-laptop" });
+    await expect(
+      api(alice.page, device(bobBox), { name: "mine-now" }, { method: "PATCH" }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      api(alice.page, device(ownerBox), undefined, { method: "DELETE" }),
+    ).rejects.toMatchObject({ status: 403 });
+
+    await alice.page.goto(`/networks/${network.id}`);
+    const rows = alice.page.locator("li");
+    await expect(rows.filter({ hasText: "alice-laptop" })).toContainText("yours");
+    await expect(rows.filter({ hasText: "bob-box" })).toContainText("Bob");
+    await expect(
+      rows.filter({ hasText: "bob-box" }).getByRole("button", { name: /^Remove/ }),
+    ).toHaveCount(0);
+    await alice.page.getByRole("button", { name: "Mine" }).click();
+    await expect(rows).toHaveCount(2);
+    await alice.page.getByRole("button", { name: "Remove alice-pi" }).click();
+    await alice.page.getByRole("button", { name: "Remove device" }).click();
+    await expect(rows).toHaveCount(1);
+
+    // Leaving takes Alice's devices with her; removing Bob takes his.
+    await api(alice.page, "/api/auth/organization/leave", { organizationId: org.id });
+    await api(owner.page, "/api/auth/organization/remove-member", {
+      memberIdOrEmail: bob.email,
+      organizationId: org.id,
+    });
+    const left = await api<{ id: string }[]>(owner.page, `/v1/networks/${network.id}/devices`);
+    expect(left.map((d) => d.id)).toEqual([ownerBox]);
+  });
+
   test("tokens are single-use, revocable and keys can't enroll twice", async ({
     createUser,
     createOrganization,

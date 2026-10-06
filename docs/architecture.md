@@ -76,6 +76,15 @@ the public keys to `POST /v1/devices/enroll`, and saves its state (0600) in
 creates the device in one transaction, picking random free addresses and
 retrying on the per-network unique constraints.
 
+A device belongs to a user: whoever created its enrollment token
+(`devices.user_id`), until devices can sign in themselves (M1.28). The network
+page shows each device's owner and filters to your own. Members rename and
+remove their own devices; owners and admins manage every device. When a user
+stops being a member, by removal or by leaving, the API removes their devices
+in that organization (`onMemberRemoved` in `@meshguard/auth`: Better Auth's
+`afterRemoveMember` hook, plus an after-hook on `/organization/leave`, which
+doesn't run it). Deleting the user deletes their devices everywhere.
+
 ## Coordination and WireGuard
 
 Once enrolled, the agent signs every control plane request with its identity

@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { organization } from "better-auth/plugins";
 import { ac, roles } from "./permissions";
 import type { AuthEnv } from "@meshguard/config";
@@ -19,6 +20,11 @@ export interface AuthOptions {
    * it; other instances, like the web app's session reader, can omit it.
    */
   sendInvitationEmail?: (invitation: InvitationEmailData) => Promise<void>;
+  /**
+   * Runs after a user stops being a member of an organization, whether removed
+   * or leaving (the API removes their devices). Only the API needs it.
+   */
+  onMemberRemoved?: (member: { userId: string; organizationId: string }) => Promise<void>;
 }
 
 export interface InvitationEmailData {
@@ -83,6 +89,10 @@ export function createAuth(db: Db, options: AuthOptions) {
               .where(eq(schema.session.activeOrganizationId, organization.id));
           },
           afterRemoveMember: async ({ member, organization }) => {
+            await options.onMemberRemoved?.({
+              userId: member.userId,
+              organizationId: organization.id,
+            });
             await db
               .update(schema.session)
               .set({ activeOrganizationId: null })
@@ -96,6 +106,17 @@ export function createAuth(db: Db, options: AuthOptions) {
         },
       }),
     ],
+    hooks: {
+      // Leaving an organization doesn't run the organization plugin's
+      // afterRemoveMember (better-auth 1.7), so catch it here.
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/organization/leave") return;
+        const left = ctx.context.returned;
+        if (!left || isAPIError(left) || left instanceof Response) return;
+        const { userId, organizationId } = left as { userId: string; organizationId: string };
+        await options.onMemberRemoved?.({ userId, organizationId });
+      }),
+    },
     databaseHooks: {
       session: {
         create: {

@@ -63,6 +63,12 @@ export const devices = pgTable(
       .references(() => networks.id, { onDelete: "cascade" }),
     /** Unique in the network and a DNS label: the device resolves as `<name>.internal`. */
     name: text("name").notNull(),
+    /**
+     * The user the device belongs to: whoever created its enrollment token.
+     * Removing them from the organization removes their devices. Null for
+     * devices that belong to no one (none yet; tagged devices later).
+     */
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     hostname: text("hostname").notNull(),
     platform: platform("platform").notNull(),
     // Device identity: the agent's long-lived signing key, separate from its WireGuard key.
@@ -79,6 +85,7 @@ export const devices = pgTable(
   },
   (t) => [
     index("devices_network_id_idx").on(t.networkId),
+    index("devices_user_id_idx").on(t.userId),
     // Lets concurrent enrollments pick random addresses and retry on conflict
     // instead of coordinating through a central allocator.
     unique("devices_network_id_mesh_ipv4_unique").on(t.networkId, t.meshIpv4),

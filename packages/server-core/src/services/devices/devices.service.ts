@@ -10,7 +10,7 @@ import { relayTokenExpiry, signRelayToken } from "~/lib/relay-token";
 import { hashToken } from "~/lib/tokens";
 import type { AclService } from "~/services/acl/acl.service";
 
-const { devices, enrollmentTokens, networks } = schema;
+const { devices, enrollmentTokens, networks, user } = schema;
 
 /** Address picks before giving up; collisions only matter in nearly full networks. */
 const MAX_ADDRESS_ATTEMPTS = 20;
@@ -41,8 +41,8 @@ export class DevicesService {
   /**
    * Redeems an enrollment token and registers the device with random free
    * mesh addresses and a name unique in its network (`laptop`, `laptop-2`, …),
-   * which is also its DNS label. The token is consumed in the same
-   * transaction, so it can enroll at most one device.
+   * which is also its DNS label, owned by the token's creator. The token is
+   * consumed in the same transaction, so it can enroll at most one device.
    */
   async enroll(input: EnrollDeviceInput) {
     const enrolled = await this.db.transaction(async (tx) => {
@@ -57,7 +57,11 @@ export class DevicesService {
             gt(enrollmentTokens.expiresAt, new Date()),
           ),
         )
-        .returning({ id: enrollmentTokens.id, networkId: enrollmentTokens.networkId });
+        .returning({
+          id: enrollmentTokens.id,
+          networkId: enrollmentTokens.networkId,
+          createdBy: enrollmentTokens.createdBy,
+        });
       if (!token) {
         throw new AppError(
           401,
@@ -94,6 +98,8 @@ export class DevicesService {
               .values({
                 networkId: network.id,
                 name,
+                // Until users sign in from the device, it belongs to whoever made its token.
+                userId: token.createdBy,
                 hostname: input.hostname,
                 platform: input.platform,
                 identityPublicKey: input.identityPublicKey,
@@ -261,7 +267,7 @@ export class DevicesService {
 
   /** A device leaving its network (`meshguard logout`). */
   async deleteSelf(deviceId: string) {
-    await this.removeWhere(eq(devices.id, deviceId));
+    await this.removeOne(eq(devices.id, deviceId));
   }
 
   /**
@@ -269,19 +275,45 @@ export class DevicesService {
    * their next sync; the device's own syncs are refused from then on.
    */
   async remove(organizationId: string, deviceId: string) {
-    await this.removeWhere(
+    await this.removeOne(
       and(eq(devices.id, deviceId), inArray(devices.networkId, this.networksIn(organizationId))),
     );
   }
 
+  /** Removes every device a user owns in the organization, e.g. when they leave it. */
+  async removeOwnedBy(organizationId: string, userId: string) {
+    return this.removeWhere(
+      and(eq(devices.userId, userId), inArray(devices.networkId, this.networksIn(organizationId))),
+    );
+  }
+
+  /** Who owns a device in the organization (null: no one). */
+  async ownerOf(organizationId: string, deviceId: string) {
+    const [device] = await this.db
+      .select({ userId: devices.userId })
+      .from(devices)
+      .where(
+        and(eq(devices.id, deviceId), inArray(devices.networkId, this.networksIn(organizationId))),
+      );
+    if (!device) throw new NotFoundError("device");
+    return device.userId;
+  }
+
+  private async removeOne(where: SQL | undefined) {
+    const [deleted] = await this.removeWhere(where);
+    if (!deleted) throw new NotFoundError("device");
+  }
+
   private async removeWhere(where: SQL | undefined) {
-    const [deleted] = await this.db
+    const deleted = await this.db
       .delete(devices)
       .where(where)
       .returning({ id: devices.id, networkId: devices.networkId });
-    if (!deleted) throw new NotFoundError("device");
-    await this.presence.clear(deleted.networkId, deleted.id);
-    this.events.publish({ type: "removed", networkId: deleted.networkId, deviceId: deleted.id });
+    for (const device of deleted) {
+      await this.presence.clear(device.networkId, device.id);
+      this.events.publish({ type: "removed", networkId: device.networkId, deviceId: device.id });
+    }
+    return deleted;
   }
 
   /**
@@ -335,8 +367,12 @@ export class DevicesService {
         endpoints: devices.endpoints,
         lastSeenAt: devices.lastSeenAt,
         createdAt: devices.createdAt,
+        ownerId: user.id,
+        ownerName: user.name,
+        ownerEmail: user.email,
       })
       .from(devices)
+      .leftJoin(user, eq(devices.userId, user.id))
       .where(eq(devices.networkId, networkId))
       .orderBy(desc(devices.createdAt));
 
@@ -346,9 +382,14 @@ export class DevicesService {
       networkId,
       rows.map((row) => row.id),
     );
-    return rows.map((row) => {
+    return rows.map(({ ownerId, ownerName, ownerEmail, ...row }) => {
       const lastSeenAt = seen.get(row.id);
-      return { ...row, lastSeenAt: lastSeenAt ?? row.lastSeenAt, online: lastSeenAt !== undefined };
+      return {
+        ...row,
+        owner: ownerId ? { id: ownerId, name: ownerName!, email: ownerEmail! } : null,
+        lastSeenAt: lastSeenAt ?? row.lastSeenAt,
+        online: lastSeenAt !== undefined,
+      };
     });
   }
 

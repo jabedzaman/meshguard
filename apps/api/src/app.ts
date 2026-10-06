@@ -2,8 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import type { Auth } from "@meshguard/auth";
-import type { Db } from "@meshguard/db";
-import { createServices, type DeviceEvents, type Redis } from "@meshguard/server-core";
+import type { Services } from "@meshguard/server-core";
 import { sessionMiddleware } from "~/middlewares/auth.middleware";
 import { errorHandler, notFoundHandler } from "~/middlewares/error.middleware";
 import { loggingMiddleware } from "~/middlewares/logging.middleware";
@@ -11,39 +10,16 @@ import { v1Routes } from "~/routes/v1";
 import type { AppEnv } from "~/types";
 
 export interface AppDeps {
-  db: Db;
-  /** Device presence. */
-  redis: Redis;
-  /** Device changes, streamed to the web. */
-  deviceEvents: DeviceEvents;
+  /** Built by the caller: auth hooks use them too (removing a leaver's devices). */
+  services: Services;
   auth: Auth;
   /** Browser origins allowed to call the API with cookies. */
   corsOrigins: string[];
-  /** Relay URL handed to agents. */
-  relayUrl?: string;
-  /** Base64 Ed25519 seed signing agents' relay tokens. */
-  relayTokenKey?: string;
-  /** STUN servers handed to agents. */
-  stunServers?: string[];
 }
 
 // Routes must be chained so their types accumulate into AppType, which
 // @meshguard/api-client uses to type every request and response.
-export function createApp({
-  db,
-  redis,
-  deviceEvents,
-  auth,
-  corsOrigins,
-  relayUrl,
-  relayTokenKey,
-  stunServers,
-}: AppDeps) {
-  const services = createServices(
-    { db, redis, deviceEvents },
-    { relayUrl, relayTokenKey, stunServers },
-  );
-
+export function createApp({ services, auth, corsOrigins }: AppDeps) {
   return new Hono<AppEnv>()
     .onError(errorHandler)
     .notFound(notFoundHandler)

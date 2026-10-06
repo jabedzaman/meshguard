@@ -60,7 +60,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.24 Reconnect: agent restart reconnects from saved state; network changes and wake from sleep rebind sockets, reset NAT/disco state, redial the relay and resync (lab: peer changes address → direct again in ~13s; verified on the MacBook, 2026-10-02)
 - ✅ M1.25 CLI (cobra): `meshguard up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
 - ✅ M1.26 Agent local API auth: peer credentials on the Unix socket (`SO_PEERCRED` / `LOCAL_PEERCRED`); only root, the agent's user and the socket owner are answered, unknown callers refused
-- ⬜ M1.27 Devices owned by a user (`devices.user_id`, null for tagged devices): "my devices" in the web; removing a member removes (or reassigns) their devices
+- ✅ M1.27 Devices owned by a user (`devices.user_id`, the enrollment token's creator; existing devices backfilled the same way): owner and an All / Mine filter on the network page; members rename and remove their own devices; removing a member or leaving removes their devices in that organization
 - ⬜ M1.28 Browser login: `meshguard up` without a token prints a URL, the user approves the device in the web, and it enrolls as theirs (the north star's "Sign in"); tokens stay for headless machines
 - ⬜ M1.29 Auth keys beyond single-use tokens: reusable, ephemeral (device deleted after being offline a while), pre-approved and tagged; for servers, CI and containers
 - ⬜ M1.30 Device approval (optional per network) and key expiry (e.g. 180 days, renewed by browser login, can be turned off per device), so a copied `state.json` stops working
