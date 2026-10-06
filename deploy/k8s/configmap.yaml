@@ -20,6 +20,6 @@ data:
   # No relay on this cluster yet: peers connect directly or not at all.
   RELAY_URL: "wss://meshguard-relay.jabed.dev/relay"
   STUN_SERVERS: "stun.l.google.com:19302,stun.cloudflare.com:3478"
-  # Public half of RELAY_TOKEN_KEY (secret.yaml). Set it only once every agent
-  # sends relay tokens: then the relay serves enrolled devices only.
-  RELAY_TRUST_KEY: ""
+  # Public half of RELAY_TOKEN_KEY (secret.yaml): the relay serves only devices
+  # holding a token from the API. Empty serves any agent.
+  RELAY_TRUST_KEY: "JUnnxNPDjzyPDxurVkH7r7VMA431CFQSSVOVOqVHg5c="
