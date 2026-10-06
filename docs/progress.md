@@ -60,6 +60,13 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.24 Reconnect: agent restart reconnects from saved state; network changes and wake from sleep rebind sockets, reset NAT/disco state, redial the relay and resync (lab: peer changes address → direct again in ~13s; verified on the MacBook, 2026-10-02)
 - ✅ M1.25 CLI (cobra): `meshguard up/down/logout/status/peers/ip/ping/netcheck/version`, JSON output, shell completion ([cli.md](cli.md))
 - ✅ M1.26 Agent local API auth: peer credentials on the Unix socket (`SO_PEERCRED` / `LOCAL_PEERCRED`); only root, the agent's user and the socket owner are answered, unknown callers refused
+- ⬜ M1.27 Devices owned by a user (`devices.user_id`, null for tagged devices): "my devices" in the web; removing a member removes (or reassigns) their devices
+- ⬜ M1.28 Browser login: `meshguard up` without a token prints a URL, the user approves the device in the web, and it enrolls as theirs (the north star's "Sign in"); tokens stay for headless machines
+- ⬜ M1.29 Auth keys beyond single-use tokens: reusable, ephemeral (device deleted after being offline a while), pre-approved and tagged; for servers, CI and containers
+- ⬜ M1.30 Device approval (optional per network) and key expiry (e.g. 180 days, renewed by browser login, can be turned off per device), so a copied `state.json` stops working
+- ⬜ M1.31 Rate limits on `POST /v1/devices/enroll`, device sync and auth routes (Redis)
+- ⬜ M1.32 Replay protection for signed device requests: a nonce in the signature, seen nonces kept in Redis for the 2 min window
+- ⬜ M1.33 Change a network's IPv4 range after creation (renumbers devices); `10.77.0.0/16` clashes with corporate `10.0.0.0/8` more often than a CGNAT range would
 
 ### M2 — Reachability and naming 🚧
 
@@ -76,6 +83,19 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M2.11 Access rules by tag or group (`tag:server`), and pushing rule changes to agents instead of waiting for the next sync
 - ✅ M2.12 DNS resolver on a reserved mesh address: the agent answers UDP queries to the network's address + 53 (`10.77.0.53`) inside its TUN, which the API never gives a device; no socket, so the macOS `127.0.0.1:53053` workaround is gone; short names (`ssh laptop`) through the `internal` search domain on Linux; reverse lookups (PTR) for mesh addresses (lab: names and reverse lookups for every pair; systemd-resolved settings checked in a container. Not yet on the MacBook)
 - ⬜ M2.13 Full DNS: forward other names to the OS's own resolvers, admin split DNS (domain → nameserver over the mesh), override local DNS, NetworkManager / resolvconf fallbacks, Windows NRPT. Waits for exit nodes or a customer that needs it
+- ⬜ M2.14 Network map pruned by access rules: a device gets only the peers it may reach or that may reach it (today every device gets every peer's key, addresses and endpoints, even under deny)
+- ⬜ M2.15 Streaming network map: a long-lived request (long-poll or WebSocket) with deltas instead of a full map every 10s; rule, name and peer changes arrive at once. Covers the "push" half of M2.11; keep a slow poll as a fallback
+- ⬜ M2.16 Relay auth: the relay only serves keys the control plane vouches for (a short-lived signed relay token in the network map); today any key that proves possession can use it
+- ⬜ M2.17 Relay regions: several relays, each agent picks the lowest-latency home relay, the network map carries each peer's home relay, relays forward between regions
+- ⬜ M2.18 DNS over TCP, and SRV / TXT / CNAME records (service discovery, M6.4)
+- ⬜ M2.19 IPv6 resolver address (the network's IPv6 prefix + `::53`) for IPv6-only clients
+- ⬜ M2.20 Short names on macOS (`ssh laptop`): `/etc/resolver` ignores search domains, so this needs the system DNS config (`scutil`) or a Network Extension
+- ⬜ M2.21 Decide `apps/dns`: delete the stub, or make it the upstream forwarder for M2.13
+- ⬜ M2.22 Access rules by user (M1.27), CIDR destinations (subnet routes, M6.1) and services (M6.4); the whole policy viewable as a file in the web, with tests ("a may reach b:22")
+- ⬜ M2.23 Lazy peers: configure a peer in WireGuard only when traffic goes to it (or it handshakes), so big networks don't hold hundreds of idle peers
+- ⬜ M2.24 Keep the device name in memory instead of reading `state.json` on every sync (`saveNameLocked`)
+- ⬜ M2.25 One device in several networks: profiles and `meshguard switch`
+- ⬜ M2.26 Signed node keys (like Tailnet Lock): agents only accept peer keys signed by trusted admin keys, so a compromised control plane can't add peers
 
 ### M3 — Desktop app ⬜
 
@@ -101,11 +121,52 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M5.3 MCP mutating tools behind explicit approval
 - ⬜ M5.4 AI network doctor built on `meshguard doctor`
 
+### M6 — Routes, services and apps ⬜
+
+What Tailscale calls subnet routers, exit nodes, Services, serve/funnel and app connectors. Each builds on the one before; M4 workspaces build on M6.4 and M6.5.
+
+- ⬜ M6.1 Subnet routers: `device_routes` (device, prefix, advertised, approved); `meshguard set --advertise-routes 192.168.1.0/24`; owners/admins approve on the device page; the router agent forwards and masquerades (SNAT in its TUN filter, so it doesn't depend on the host firewall)
+- ⬜ M6.2 Accepting routes: approved prefixes go into that peer's allowed IPs and the OS routes on clients that opt in (`--accept-routes`); overlapping routes are picked by priority and shown in the web
+- ⬜ M6.3 Exit nodes: a route for `0.0.0.0/0` and `::/0`; `meshguard set --exit-node <device>`; the agent's own traffic (control plane, relay, STUN, peer endpoints) stays off the tunnel (Linux policy routing with an fwmark, macOS `IP_BOUND_IF`). Needs DNS forwarding (M2.13)
+- ⬜ M6.4 Services: a name and a virtual IP from the network range (reserved like the DNS resolver) served by one or more devices; `<service>.svc.internal` resolves to it; clients send it to one online host (failover by presence); the host agent rewrites the destination in its TUN filter; access rules can name a service. `meshguard service advertise <name> --port N`, Services page in the web
+- ⬜ M6.5 `meshguard serve <port>`: the agent proxies its mesh address to a local port (fixes the `127.0.0.1` publish case `doctor` already detects)
+- ⬜ M6.6 HTTPS for mesh names: a public zone (`<device>.<network>.<domain>`) with certificates from ACME DNS-01, answered by the control plane for the agent's CSR; `meshguard cert`
+- ⬜ M6.7 Funnel: a public hostname that reaches a device's port through the relay (TLS passthrough, stream frames on the agent's relay WebSocket); off unless an admin enables it
+- ⬜ M6.8 App connectors: domains routed through a chosen device; client DNS forwards those domains to it, and it advertises the addresses they resolve to as routes. Needs M6.1, M2.13 and M2.15
+- ⬜ M6.9 `meshguard set` for device preferences (advertised routes, accept routes, exit node, accept DNS), saved by the agent and sent on sync
+
+### M7 — Platform and operations ⬜
+
+- ⬜ M7.1 Userspace networking: no TUN or root, a SOCKS5/HTTP proxy into the mesh (containers, CI, rootless machines)
+- ⬜ M7.2 Agent auto-update: signed releases, update channel, `meshguard update`
+- ⬜ M7.3 Admin API tokens (organization-scoped, with a role) so the API works from scripts and CI; Terraform provider later
+- ⬜ M7.4 Audit log: who changed access rules, devices, members, tokens and routes, with a page in the web
+- ⬜ M7.5 Webhooks for device and member events
+- ⬜ M7.6 Device page in the web: endpoints, path, agent version, OS, key age, routes, last seen
+- ⬜ M7.7 Agent metrics (Prometheus on the local API) and optional flow logs
+- ⬜ M7.8 Kubernetes: operator or sidecar (needs M7.1 and M1.29)
+- ⬜ M7.9 `meshguard whois <ip>`: which device and user a mesh address belongs to
+- ⬜ M7.10 File transfer between devices (`meshguard file cp`)
+- ⬜ M7.11 SSH by access policy (`meshguard ssh`, keys handed out by the control plane)
+
 ### Later ⬜
 
 - ⬜ L.1 Temporary access links (time-limited, audited)
 - ⬜ L.2 Windows and Linux agents
 - ⬜ L.3 Product name + domain
+- ⬜ L.4 iOS and Android apps
+
+## Pathway
+
+Order to work through the open items (from the 2026-10-06 comparison with Tailscale). Each phase leaves the mesh working; later phases depend on earlier ones.
+
+1. **Harden** (small, now): M2.24, M1.31, M1.32, M2.16, M2.21
+2. **Identity**: M1.27 → M1.28 → M1.29 → M1.30 → M7.3 → M7.4. Every later feature (user rules, approvals, tagged servers) needs devices to belong to someone
+3. **Control plane at scale**: M2.15 → M2.14 → M2.11 + M2.22 → M2.23
+4. **Reachability**: M2.3, M2.17, M7.1
+5. **DNS**: M2.13 (with M2.21) → M2.18 → M2.19 → M2.20
+6. **Routes and services**: M6.9 → M6.1 → M6.2 → M6.3 → M6.4 → M6.5 → M6.6 → M6.7 → M6.8; M4 workspaces after M6.5
+7. **Platform**: M7.2, M7.6, M2.9, M2.25, M2.26, M7.5, M7.7–M7.11, M1.33, L.2, L.4
 
 ## Open decisions
 
@@ -150,3 +211,4 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 | 2026-10-02 | Private DNS under `.internal` (ICANN-reserved), answered by each agent from its network map; only `.internal` is routed to it (split DNS), resolv.conf is never rewritten |
 | 2026-10-04 | `meshguard doctor` runs in the CLI as the calling user, so DNS, routes, ping and ports are checked the way that user's programs see them; the agent only adds what it alone knows (`/v1/access` evaluates the access rules). A peer's rules are checked by running doctor on that peer, since each agent only gets the rules naming it as destination |
 | 2026-10-04 | DNS moves to a resolver address the agent intercepts in its TUN, but stays split: only `.internal` and the mesh's reverse zones go to it. The address is the network's own base + 53, reserved by the API (like a cloud VPC's resolver): already routed into the TUN, no address space beyond the mesh range, and `.53` reads as DNS where `.1` would look like a gateway. Not a fixed address outside the mesh (e.g. in `100.64.0.0/10`), which adds a range that can clash with CGNAT or other VPNs. Forwarding and taking over all DNS (M2.13) wait until something needs them |
+| 2026-10-06 | Compared with Tailscale; open work recorded as M1.27–M1.33, M2.14–M2.26, M6 (routes, services, apps), M7 (platform) and L.4, ordered in the Pathway. Identity (devices owned by users, browser login, auth keys) comes before routes and services, which all need it |
