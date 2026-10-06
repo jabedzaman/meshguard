@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, type KeyObject, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, type KeyObject, randomBytes, sign } from "node:crypto";
 import { E2E } from "./env";
 
 // Talk to the API as an agent does: enroll with a token, then sign syncs.
@@ -27,16 +27,24 @@ export function signingDevice() {
   };
 }
 
-/** Signed POST /v1/devices/self/sync, as internal/coordination/sign.go does it. */
+/** Signed POST /v1/devices/self/sync with a fresh nonce, as internal/coordination/sign.go does it. */
 export async function sync(
   device: { id: string; privateKey: KeyObject },
   body: unknown,
-  { tamper = false, timestamp = Date.now() } = {},
+  {
+    tamper = false,
+    timestamp = Date.now(),
+    // null: sign the pre-nonce way, which the API refuses.
+    nonce = randomBytes(16).toString("base64url") as string | null,
+  } = {},
 ) {
   const path = "/v1/devices/self/sync";
   const json = JSON.stringify(body);
   const bodyHash = createHash("sha256").update(json).digest("hex");
-  const message = `POST\n${path}\n${timestamp}\n${bodyHash}`;
+  const message =
+    nonce === null
+      ? `POST\n${path}\n${timestamp}\n${bodyHash}`
+      : `POST\n${path}\n${timestamp}\n${nonce}\n${bodyHash}`;
   const signature = sign(null, Buffer.from(message), device.privateKey).toString("base64");
   const res = await fetch(`${E2E.apiUrl}${path}`, {
     method: "POST",
@@ -44,6 +52,7 @@ export async function sync(
       "Content-Type": "application/json",
       "X-MeshGuard-Device": device.id,
       "X-MeshGuard-Timestamp": String(timestamp),
+      ...(nonce !== null && { "X-MeshGuard-Nonce": nonce }),
       "X-MeshGuard-Signature": signature,
     },
     body: tamper ? JSON.stringify({ endpoints: ["6.6.6.6:51820"] }) : json,

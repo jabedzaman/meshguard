@@ -366,7 +366,7 @@ test.describe("devices", () => {
     await expect(owner.page.locator("li", { hasText: "server" })).toContainText("online");
   });
 
-  test("sync rejects unsigned, tampered, stale and malformed requests", async ({
+  test("sync rejects unsigned, tampered, stale, replayed and malformed requests", async ({
     createUser,
     createOrganization,
   }) => {
@@ -394,12 +394,22 @@ test.describe("devices", () => {
       await sync(device, { endpoints: [] }, { timestamp: Date.now() - 5 * 60 * 1000 }),
       await sync({ ...device, privateKey: signingDevice().privateKey }, { endpoints: [] }),
       await sync({ ...device, id: "00000000-0000-4000-8000-000000000000" }, { endpoints: [] }),
+      await sync(device, { endpoints: [] }, { nonce: null }),
     ]) {
       expect(res).toMatchObject({
         status: 401,
         body: { error: { code: "invalid_device_signature" } },
       });
     }
+
+    // A captured request can't be sent again: its nonce is used up.
+    const nonce = "AAECAwQFBgcICQoLDA0ODw";
+    const timestamp = Date.now();
+    expect((await sync(device, { endpoints: [] }, { nonce, timestamp })).status).toBe(200);
+    expect(await sync(device, { endpoints: [] }, { nonce, timestamp })).toMatchObject({
+      status: 401,
+      body: { error: { code: "invalid_device_signature" } },
+    });
 
     const malformed = await sync(device, { endpoints: ["not-an-endpoint"] });
     expect(malformed.status).toBe(400);
