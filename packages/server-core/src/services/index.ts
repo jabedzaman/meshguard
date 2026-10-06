@@ -35,7 +35,7 @@ export function createServices(
   { db, redis, deviceEvents }: ServicesDeps,
   options: ServicesOptions = {},
 ) {
-  const acl = new AclService(db);
+  const acl = new AclService(db, deviceEvents);
   return {
     networks: new NetworksService(db),
     enrollmentTokens: new EnrollmentTokensService(db),

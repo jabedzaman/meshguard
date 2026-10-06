@@ -1,5 +1,6 @@
 import { aliasedTable, and, eq, inArray, isNull, or, schema, type Db } from "@meshguard/db";
 import { NotFoundError, ValidationError } from "~/errors";
+import type { DeviceEvents } from "~/events/device-events";
 
 const { aclRules, devices, networks } = schema;
 
@@ -25,7 +26,11 @@ export interface CreateAclRuleInput {
  * rules on sync (see policyFor).
  */
 export class AclService {
-  constructor(private readonly db: Db) {}
+  constructor(
+    private readonly db: Db,
+    /** Wakes agents' watches when rules change, so they apply them at once. */
+    private readonly events: DeviceEvents,
+  ) {}
 
   async get(organizationId: string, networkId: string) {
     const network = await this.networkInOrganization(organizationId, networkId);
@@ -64,6 +69,7 @@ export class AclService {
       .update(networks)
       .set({ aclDefaultAction: action })
       .where(eq(networks.id, networkId));
+    this.events.publishAclChange(networkId);
     return { defaultAction: action };
   }
 
@@ -96,6 +102,7 @@ export class AclService {
         portTo: input.portFrom === undefined ? null : (input.portTo ?? input.portFrom),
       })
       .returning({ id: aclRules.id });
+    this.events.publishAclChange(networkId);
     return rule!;
   }
 
@@ -114,8 +121,9 @@ export class AclService {
           ),
         ),
       )
-      .returning({ id: aclRules.id });
+      .returning({ id: aclRules.id, networkId: aclRules.networkId });
     if (!deleted) throw new NotFoundError("acl_rule");
+    this.events.publishAclChange(deleted.networkId);
   }
 
   /**

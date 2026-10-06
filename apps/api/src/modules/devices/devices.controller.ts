@@ -14,6 +14,7 @@ import {
   enrollDeviceBody,
   renameDeviceBody,
   syncDeviceBody,
+  watchDeviceBody,
 } from "~/modules/devices/devices.schema";
 import { idParams, networkIdParams } from "~/schemas/params.schema";
 import type { AppEnv } from "~/types";
@@ -135,6 +136,22 @@ export const sync = factory.createHandlers(
   async (c) => {
     const map = await c.var.services.devices.sync(c.var.device.id, c.req.valid("json"));
     return c.json(map, 200);
+  },
+);
+
+/**
+ * Long poll for the agent: answers `changed: true` as soon as its network map
+ * differs from the revision it has (it then syncs), or `changed: false` after
+ * about 50s. Keeps the device online while it waits.
+ */
+export const watch = factory.createHandlers(
+  requireDevice,
+  validate("json", watchDeviceBody),
+  async (c) => {
+    const result = await c.var.services.devices.watch(c.var.device, c.req.valid("json").revision, {
+      signal: c.req.raw.signal,
+    });
+    return c.json(result, 200);
   },
 );
 

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -77,6 +78,11 @@ var deletes *atomic.Int32
 // selfName is the name the last signedControlPlane syncs for the device, so tests can rename it.
 var selfName *atomic.Value
 
+// watchable makes the last signedControlPlane send map revisions and answer
+// watches (a revision is the device's name); watches counts them.
+var watchable *atomic.Bool
+var watches *atomic.Int32
+
 func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 	t.Helper()
 	var mu sync.Mutex
@@ -85,6 +91,7 @@ func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 	deletes = &atomic.Int32{}
 	selfName = &atomic.Value{}
 	selfName.Store("laptop")
+	watchable, watches = &atomic.Bool{}, &atomic.Int32{}
 	peerKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +113,25 @@ func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 				return
 			}
 			w.WriteHeader(http.StatusUnauthorized)
+		case "/v1/devices/self/watch":
+			if !watchable.Load() {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var req struct{ Revision string }
+			require.NoError(t, json.Unmarshal(body, &req))
+			watches.Add(1)
+			mu.Unlock()
+			// Answer when the name changes, else after a short wait.
+			changed := false
+			for range 20 {
+				if changed = selfName.Load().(string) != req.Revision; changed {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			mu.Lock()
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"changed":%t}`, changed)))
 		case "/v1/devices/self/sync":
 			sig, _ := base64.StdEncoding.DecodeString(r.Header.Get(coordination.HeaderSignature))
 			msg := coordination.SigningString(r.Method, r.URL.Path, r.Header.Get(coordination.HeaderTimestamp), r.Header.Get(coordination.HeaderNonce), body)
@@ -115,7 +141,11 @@ func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 				return
 			}
 			count.Add(1)
-			_, _ = w.Write([]byte(`{"self":{"id":"d1","name":"` + selfName.Load().(string) + `","meshIpv4":"10.77.0.2"},"network":{"id":"n1","name":"home"},"peers":[{"id":"d2","name":"server","wireguardPublicKey":"` + peerKey + `","meshIpv4":"10.77.0.3","meshIpv6":"fd00:1:2:0::3","endpoints":["192.168.1.9:51820","[2001:db8::9]:51820"]}]}`))
+			revision := ""
+			if watchable.Load() {
+				revision = selfName.Load().(string)
+			}
+			_, _ = w.Write([]byte(`{"revision":"` + revision + `","self":{"id":"d1","name":"` + selfName.Load().(string) + `","meshIpv4":"10.77.0.2"},"network":{"id":"n1","name":"home"},"peers":[{"id":"d2","name":"server","wireguardPublicKey":"` + peerKey + `","meshIpv4":"10.77.0.3","meshIpv6":"fd00:1:2:0::3","endpoints":["192.168.1.9:51820","[2001:db8::9]:51820"]}]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -245,6 +275,45 @@ func TestRenameFromControlPlaneIsSaved(t *testing.T) {
 	st, err := stateLoad(a)
 	require.NoError(t, err)
 	assert.Equal(t, "workstation", st.Device.Name)
+}
+
+func TestWatchSyncsAsSoonAsTheMapChanges(t *testing.T) {
+	server, syncs := signedControlPlane(t)
+	watchable.Store(true)
+	engine := &fakeEngine{}
+	a := &Agent{
+		Version:  "test",
+		StateDir: t.TempDir(),
+		// Only the watch can bring the rename in time.
+		SyncInterval:      time.Hour,
+		WatchSyncInterval: time.Hour,
+		WatchRetry:        20 * time.Millisecond,
+		StartEngine:       func(wireguard.Config) (Engine, error) { return engine, nil },
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.Run(ctx)
+	require.Eventually(t, func() bool { a.mu.Lock(); defer a.mu.Unlock(); return a.ctx != nil }, time.Second, 10*time.Millisecond)
+	rec, _, _ := call(t, a.Handler(), http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	require.Eventually(t, func() bool {
+		_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
+		return status.Watching
+	}, 2*time.Second, 20*time.Millisecond)
+	before := syncs.Load()
+
+	selfName.Store("workstation")
+	require.Eventually(t, func() bool {
+		_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
+		return status.Device.Name == "workstation"
+	}, 2*time.Second, 20*time.Millisecond)
+	assert.Equal(t, before+1, syncs.Load(), "one sync for the change")
+
+	// Unchanged maps don't sync again; watches go on.
+	seen := watches.Load()
+	require.Eventually(t, func() bool { return watches.Load() > seen+2 }, 2*time.Second, 20*time.Millisecond)
+	assert.Equal(t, before+1, syncs.Load())
 }
 
 func TestWithoutWireGuardStillSyncsAndExplains(t *testing.T) {

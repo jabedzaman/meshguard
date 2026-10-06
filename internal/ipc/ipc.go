@@ -37,7 +37,11 @@ type Status struct {
 	// Public address as seen by STUN, if known.
 	PublicEndpoint string     `json:"publicEndpoint,omitempty"`
 	LastSyncAt     *time.Time `json:"lastSyncAt,omitempty"`
-	DNS            *DNSStatus `json:"dns,omitempty"`
+	// Watching: the control plane pushes changes, so syncs are rarer and
+	// LastSyncAt (or the last confirmation that nothing changed) can be up to
+	// a minute old.
+	Watching bool       `json:"watching,omitempty"`
+	DNS      *DNSStatus `json:"dns,omitempty"`
 	// Access rules for traffic from peers, once synced.
 	ACL   *ACLStatus `json:"acl,omitempty"`
 	Peers []Peer     `json:"peers,omitempty"`

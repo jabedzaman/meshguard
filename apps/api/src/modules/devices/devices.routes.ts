@@ -6,6 +6,7 @@ import type { AppEnv } from "~/types";
 export const devicesRoutes = new Hono<AppEnv>()
   .post("/enroll", ...controller.enroll)
   .post("/self/sync", ...controller.sync)
+  .post("/self/watch", ...controller.watch)
   .delete("/self", ...controller.deleteSelf)
   .patch("/:id", ...controller.rename)
   .delete("/:id", ...controller.remove);

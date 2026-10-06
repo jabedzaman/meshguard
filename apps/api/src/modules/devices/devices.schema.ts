@@ -40,3 +40,8 @@ export const renameDeviceBody = z.object({
       "Use 1–63 letters, digits and hyphens, not starting or ending with a hyphen",
     ),
 });
+
+export const watchDeviceBody = z.object({
+  /** The revision of the network map the agent has (from its last sync). */
+  revision: z.string().min(1).max(64),
+});

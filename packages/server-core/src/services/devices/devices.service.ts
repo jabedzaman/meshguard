@@ -1,4 +1,4 @@
-import type { KeyObject } from "node:crypto";
+import { createHash, type KeyObject } from "node:crypto";
 import { and, desc, eq, gt, inArray, isNull, ne, schema, type Db, type SQL } from "@meshguard/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import type { DeviceEvents } from "~/events/device-events";
@@ -169,11 +169,83 @@ export class DevicesService {
 
   /**
    * Records the device's presence and reachable endpoints and returns its
-   * network map: the device itself plus every peer's WireGuard key, mesh
-   * addresses and endpoints, and what may reach it. Presence goes to Redis; Postgres is only written
-   * when the endpoints change or lastSeenAt is due to be persisted.
+   * network map (see networkMap). Presence goes to Redis; Postgres is only
+   * written when the endpoints change or lastSeenAt is due to be persisted.
    */
   async sync(deviceId: string, input: { endpoints: string[] }) {
+    const [self] = await this.db
+      .select({ id: devices.id, networkId: devices.networkId, endpoints: devices.endpoints })
+      .from(devices)
+      .where(eq(devices.id, deviceId));
+    if (!self) throw new NotFoundError("device");
+
+    const endpointsChanged = !sameEndpoints(self.endpoints, input.endpoints);
+    if (endpointsChanged) {
+      await this.db
+        .update(devices)
+        .set({ endpoints: input.endpoints })
+        .where(eq(devices.id, self.id));
+    }
+    const { connected } = await this.recordPresence(self);
+    if (endpointsChanged && !connected) {
+      this.events.publish({ type: "updated", networkId: self.networkId, deviceId: self.id });
+    }
+    return this.networkMap(self.id);
+  }
+
+  /**
+   * Waits until the device's network map differs from `revision` (true), or
+   * `timeoutMs` passes (false), keeping the device online meanwhile. Any event
+   * in its network re-checks the map, so peers, names, endpoints and access
+   * rules reach the agent as they change instead of on its next sync.
+   */
+  async watch(
+    device: { id: string; networkId: string },
+    revision: string,
+    { signal, timeoutMs = WATCH_TIMEOUT_MS }: { signal?: AbortSignal; timeoutMs?: number } = {},
+  ) {
+    // Subscribe before reading the map, so a change in between isn't missed.
+    const changes = await this.events.watch(device.networkId);
+    try {
+      const deadline = Date.now() + timeoutMs;
+      let check = true;
+      while (!signal?.aborted) {
+        await this.recordPresence(device);
+        if (check && (await this.networkMap(device.id)).revision !== revision) {
+          return { changed: true };
+        }
+        const left = deadline - Date.now();
+        if (left <= 0) break;
+        check = await changes.next(Math.min(left, WATCH_PRESENCE_MS), signal);
+      }
+      return { changed: false };
+    } finally {
+      changes.close();
+    }
+  }
+
+  /**
+   * Marks the device online (publishing `connected` if it wasn't) and copies
+   * lastSeenAt to Postgres when due.
+   */
+  private async recordPresence(device: { id: string; networkId: string }) {
+    const now = new Date();
+    const presence = await this.presence.touch(device.networkId, device.id, now);
+    if (presence.persist) {
+      await this.db.update(devices).set({ lastSeenAt: now }).where(eq(devices.id, device.id));
+    }
+    if (presence.connected) {
+      this.events.publish({ type: "connected", networkId: device.networkId, deviceId: device.id });
+    }
+    return presence;
+  }
+
+  /**
+   * The device's network map: the device itself plus every peer's WireGuard
+   * key, mesh addresses and endpoints, what may reach it, and where to relay.
+   * `revision` changes whenever anything but peers' lastSeenAt does.
+   */
+  async networkMap(deviceId: string) {
     const [self] = await this.db
       .select({
         id: devices.id,
@@ -182,31 +254,10 @@ export class DevicesService {
         meshIpv4: devices.meshIpv4,
         meshIpv6: devices.meshIpv6,
         wireguardPublicKey: devices.wireguardPublicKey,
-        endpoints: devices.endpoints,
       })
       .from(devices)
       .where(eq(devices.id, deviceId));
     if (!self) throw new NotFoundError("device");
-
-    const now = new Date();
-    const presence = await this.presence.touch(self.networkId, self.id, now);
-    const endpointsChanged = !sameEndpoints(self.endpoints, input.endpoints);
-    if (endpointsChanged || presence.persist) {
-      await this.db
-        .update(devices)
-        .set({
-          ...(endpointsChanged && { endpoints: input.endpoints }),
-          ...(presence.persist && { lastSeenAt: now }),
-        })
-        .where(eq(devices.id, self.id));
-    }
-    if (presence.connected || endpointsChanged) {
-      this.events.publish({
-        type: presence.connected ? "connected" : "updated",
-        networkId: self.networkId,
-        deviceId: self.id,
-      });
-    }
 
     const [network] = await this.db
       .select({
@@ -236,22 +287,18 @@ export class DevicesService {
       peers.map((peer) => peer.id),
     );
 
-    return {
-      self: {
-        id: self.id,
-        name: self.name,
-        meshIpv4: self.meshIpv4,
-        meshIpv6: self.meshIpv6,
-      },
+    const map = {
+      self: { id: self.id, name: self.name, meshIpv4: self.meshIpv4, meshIpv6: self.meshIpv6 },
       network: network!,
       peers: peers.map((peer) => ({ ...peer, lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt })),
       /** Traffic from peers the agent lets in. */
       acl: await this.acl.policyFor(self.networkId, self.id),
       /** Where to relay WireGuard packets for peers that can't be reached directly. */
-      relay: this.relayFor(self.wireguardPublicKey, now),
+      relay: this.relayFor(self.wireguardPublicKey, new Date()),
       /** STUN servers for discovering this device's public address. */
       stun: this.options.stunServers ?? [],
     };
+    return { ...map, revision: mapRevision(map) };
   }
 
   /** The relay and, with a token key, this device's permission to use it. */
@@ -408,6 +455,18 @@ export class DevicesService {
       .where(and(eq(networks.id, networkId), eq(networks.organizationId, organizationId)));
     if (!network) throw new NotFoundError("network");
   }
+}
+
+/** How long a watch waits for a change before the agent asks again. */
+export const WATCH_TIMEOUT_MS = 50_000;
+
+/** How often a waiting watch refreshes the device's presence (ONLINE_WINDOW_MS is 30s). */
+const WATCH_PRESENCE_MS = 10_000;
+
+/** Hash of the map without peers' lastSeenAt, which changes on every sync. */
+function mapRevision(map: { peers: { lastSeenAt: unknown }[] }) {
+  const stable = { ...map, peers: map.peers.map(({ lastSeenAt: _, ...peer }) => peer) };
+  return createHash("sha256").update(JSON.stringify(stable)).digest("base64url").slice(0, 22);
 }
 
 function sameEndpoints(a: string[], b: string[]) {

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"log/slog"
+	"net/http"
 	"net/netip"
 	"reflect"
 	"runtime"
@@ -57,6 +58,11 @@ type Agent struct {
 	InterfaceName string
 	// How often to sync with the control plane. Default 10s.
 	SyncInterval time.Duration
+	// How often to sync while a watch on the control plane is working, which
+	// brings changes at once and keeps the device online. Default 60s.
+	WatchSyncInterval time.Duration
+	// Wait before retrying a failed watch. Default 5s.
+	WatchRetry time.Duration
 	// Creates the WireGuard engine. Default wireguard.Start.
 	StartEngine func(wireguard.Config) (Engine, error)
 	// How often to check for network changes and wake from sleep. Default 2s.
@@ -85,11 +91,18 @@ type connection struct {
 	cancel context.CancelFunc
 	// syncNow asks the loop to sync right away (after a network change).
 	syncNow chan struct{}
+	// synced is signaled after every sync attempt (for the watch loop).
+	synced chan struct{}
 
 	engine   Engine // nil if WireGuard couldn't start (problem says why)
 	disco    *disco.Manager
 	problem  string
 	lastSync time.Time
+	// revision of the last synced network map, for watching it; empty if
+	// the control plane can't watch.
+	revision string
+	// watching: the last watch succeeded, so changes arrive at once.
+	watching bool
 	peers    []coordination.Peer
 	stun     []string
 	acl      *coordination.ACL
@@ -127,7 +140,11 @@ func (a *Agent) startLocked(st *state.State) {
 		return
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
-	c := &connection{ctx: ctx, cancel: cancel, syncNow: make(chan struct{}, 1), savedName: st.Device.Name}
+	c := &connection{
+		ctx: ctx, cancel: cancel,
+		syncNow: make(chan struct{}, 1), synced: make(chan struct{}, 1),
+		savedName: st.Device.Name,
+	}
 	a.conn = c
 
 	cfg, err := a.engineConfig(st)
@@ -281,17 +298,120 @@ func (a *Agent) loop(c *connection, st *state.State) {
 	}
 
 	exclude := meshPrefixes(st)
+	go a.watchLoop(c, cl)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		a.syncOnce(c, cl, exclude, keys.wireguard)
 		select {
+		case c.synced <- struct{}{}:
+		default:
+		}
+	wait:
+		select {
 		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
+			// A working watch brings changes; sync now and then for endpoints.
+			a.mu.Lock()
+			skip := c.watching && time.Since(c.lastSync) < a.watchSyncInterval()
+			a.mu.Unlock()
+			if skip {
+				goto wait
+			}
 		case <-c.syncNow:
 			ticker.Reset(interval)
 		}
+	}
+}
+
+func (a *Agent) watchSyncInterval() time.Duration {
+	if a.WatchSyncInterval != 0 {
+		return a.WatchSyncInterval
+	}
+	return 60 * time.Second
+}
+
+// watchLoop holds a watch on the control plane and syncs as soon as it says
+// the network map changed, so peers, names and access rules apply at once
+// instead of on the next sync.
+func (a *Agent) watchLoop(c *connection, cl *coordination.Client) {
+	retry := a.WatchRetry
+	if retry == 0 {
+		retry = 5 * time.Second
+	}
+	pause := func() bool {
+		select {
+		case <-c.ctx.Done():
+			return false
+		case <-time.After(retry):
+			return true
+		}
+	}
+	for c.ctx.Err() == nil {
+		a.mu.Lock()
+		revision := c.revision
+		a.mu.Unlock()
+		if revision == "" { // not synced yet, or the control plane can't watch
+			if !pause() {
+				return
+			}
+			continue
+		}
+		changed, err := cl.Watch(c.ctx, revision)
+		if err != nil {
+			a.setWatching(c, false, false)
+			var apiErr *coordination.Error
+			if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+				slog.Info("control plane can't watch: syncing every interval")
+				return
+			}
+			if c.ctx.Err() == nil {
+				slog.Debug("watch failed", "err", err)
+			}
+			if !pause() {
+				return
+			}
+			continue
+		}
+		a.setWatching(c, true, !changed)
+		if !changed {
+			continue
+		}
+		// Sync, and wait for it so the next watch starts from the new map.
+		select {
+		case <-c.synced:
+		default:
+		}
+		select {
+		case c.syncNow <- struct{}{}:
+		default:
+		}
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-c.synced:
+		}
+		a.mu.Lock()
+		same := c.revision == revision
+		a.mu.Unlock()
+		if same && !pause() { // the sync failed: don't spin
+			return
+		}
+	}
+}
+
+// setWatching records whether watching works; current also means the map is
+// confirmed up to date, which counts as a sync.
+func (a *Agent) setWatching(c *connection, watching, current bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.current(c) {
+		return
+	}
+	c.watching = watching
+	if current {
+		c.lastSync = time.Now()
 	}
 }
 
@@ -373,6 +493,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 		return // disconnected while syncing
 	}
 	c.lastSync = time.Now()
+	c.revision = nm.Revision
 	c.peers = nm.Peers
 	c.stun = nm.Stun
 	if !reflect.DeepEqual(c.acl, nm.ACL) {
@@ -545,6 +666,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		at := c.lastSync
 		s.LastSyncAt = &at
 	}
+	s.Watching = c.watching
 	if c.relayClient != nil {
 		s.Relay = &ipc.RelayStatus{URL: c.relayURL, Connected: c.relayClient.Connected()}
 	}

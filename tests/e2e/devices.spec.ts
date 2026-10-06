@@ -1,5 +1,5 @@
 import { sql } from "./support/db";
-import { deviceKeys, enroll, signingDevice, sync } from "./support/devices";
+import { deviceKeys, enroll, signingDevice, sync, watch } from "./support/devices";
 import { E2E } from "./support/env";
 import { api, expect, test } from "./support/fixtures";
 import { redis } from "./support/redis";
@@ -486,6 +486,69 @@ test.describe("devices", () => {
 
     const malformed = await sync(device, { endpoints: ["not-an-endpoint"] });
     expect(malformed.status).toBe(400);
+  });
+
+  test("a watch answers as soon as the device's network map changes", async ({
+    createUser,
+    createOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Watch Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const enrollDevice = async (hostname: string) => {
+      const { token } = await api<{ token: string }>(
+        owner.page,
+        `/v1/networks/${network.id}/enrollment-tokens`,
+        {},
+      );
+      const keys = signingDevice();
+      const res = await enroll({ token, hostname, platform: "linux", ...keys.keys });
+      return { id: res.body.device.id as string, privateKey: keys.privateKey };
+    };
+    const laptop = await enrollDevice("laptop");
+    const server = await enrollDevice("server");
+
+    const first = await sync(laptop, { endpoints: [] });
+    const revision = first.body.revision as string;
+    expect(revision).toBeTruthy();
+    // Syncing again with nothing changed keeps the revision (peers' lastSeenAt doesn't count).
+    await sync(server, { endpoints: [] });
+    expect((await sync(laptop, { endpoints: [] })).body.revision).toBe(revision);
+
+    // An old revision answers at once.
+    expect(await watch(laptop, "stale")).toMatchObject({ status: 200, body: { changed: true } });
+
+    // A peer's rename wakes a waiting watch.
+    const timed = async (change: () => Promise<unknown>, current: string) => {
+      const started = Date.now();
+      const pending = watch(laptop, current);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await change();
+      const res = await pending;
+      return { res, ms: Date.now() - started };
+    };
+    const renamed = await timed(
+      () => api(owner.page, `/v1/devices/${server.id}`, { name: "db" }, { method: "PATCH" }),
+      revision,
+    );
+    expect(renamed.res).toMatchObject({ status: 200, body: { changed: true } });
+    expect(renamed.ms).toBeLessThan(5_000);
+
+    // So does a change to the access rules.
+    const current = (await sync(laptop, { endpoints: [] })).body.revision as string;
+    expect(current).not.toBe(revision);
+    const denied = await timed(
+      () =>
+        api(
+          owner.page,
+          `/v1/networks/${network.id}/acl`,
+          { defaultAction: "deny" },
+          { method: "PATCH" },
+        ),
+      current,
+    );
+    expect(denied.res).toMatchObject({ status: 200, body: { changed: true } });
+    expect(denied.ms).toBeLessThan(5_000);
   });
 
   test("presence changes reach the page without a reload", async ({

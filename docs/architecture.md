@@ -97,9 +97,24 @@ twice the clock window and refuses one it has seen, so a captured request
 can't be replayed. Requests without a nonce (agents older than 3fe6897)
 are refused.
 
-Every 10s the agent calls `POST /v1/devices/self/sync` with its endpoints
-(local interface addresses on the WireGuard port) and gets back the network
-map: every peer's WireGuard key, mesh addresses and endpoints. It runs an
+The agent calls `POST /v1/devices/self/sync` with its endpoints (local
+interface addresses on the WireGuard port) and gets back the network map:
+every peer's WireGuard key, mesh addresses and endpoints, plus a `revision`
+(a hash of the map without peers' `lastSeenAt`).
+
+Changes are pushed, not polled. Between syncs the agent holds
+`POST /v1/devices/self/watch {revision}` open. The API subscribes to the
+network's NATS subjects (`network.<id>.>`: device events and
+`network.<id>.acl.updated`), re-reads the map on each event, and answers
+`changed: true` as soon as its revision differs, or `changed: false` after
+50s. The agent then syncs right away, so a new peer, a rename, an endpoint
+change or an access rule reaches every agent in about a second. While it
+waits, the watch refreshes the device's presence every 10s, so a watching
+agent syncs only every 60s (for its endpoints); without a working watch (an
+older API answers 404, or errors) it syncs every 10s as before. The whole map
+is sent on each change; deltas wait until networks are big enough to need
+them. `meshguard status --json` reports `watching`, and `doctor` allows a
+90s-old sync while it is. It runs an
 embedded wireguard-go on a TUN interface (`meshguard0`, `utunN` on macOS), assigns
 its mesh addresses with the network prefix (so the whole range routes through
 the interface) and replaces the peer list when the map changes. Each peer gets

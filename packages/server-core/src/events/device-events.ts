@@ -36,6 +36,53 @@ export class DeviceEvents {
     }
   }
 
+  /** Tells listeners that the network's access rules changed (`network.<id>.acl.updated`). */
+  publishAclChange(networkId: string) {
+    try {
+      this.nc.publish(`network.${networkId}.acl.updated`, "{}");
+    } catch (err) {
+      logger.warn({ err, networkId }, "access rules event not published");
+    }
+  }
+
+  /**
+   * Any change in the network (devices, access rules). `next` resolves true
+   * once something happened since the last call, or false after `ms`.
+   */
+  async watch(networkId: string) {
+    let pending = false;
+    let wake: (() => void) | undefined;
+    const sub = this.nc.subscribe(`network.${networkId}.>`, {
+      callback: () => {
+        pending = true;
+        wake?.();
+      },
+    });
+    // The server has the subscription once flush returns: nothing after this is missed.
+    await this.nc.flush();
+    return {
+      async next(ms: number, signal?: AbortSignal) {
+        if (!pending) {
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(done, ms);
+            function done() {
+              clearTimeout(timer);
+              signal?.removeEventListener("abort", done);
+              wake = undefined;
+              resolve();
+            }
+            wake = done;
+            signal?.addEventListener("abort", done);
+          });
+        }
+        const happened = pending;
+        pending = false;
+        return happened;
+      },
+      close: () => sub.unsubscribe(),
+    };
+  }
+
   /** Every device event in the network until `close` is called. */
   subscribe(networkId: string) {
     const sub = this.nc.subscribe(deviceEventSubject(networkId));

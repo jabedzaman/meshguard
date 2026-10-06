@@ -29,6 +29,9 @@ const (
 const (
 	// The agent syncs every 10s; three missed syncs is a problem.
 	syncStaleAfter = 30 * time.Second
+	// While watching, a sync (or a watch confirming nothing changed) can be
+	// a minute old.
+	watchStaleAfter = 90 * time.Second
 	// WireGuard keepalives (25s) renew the handshake about every 2 minutes.
 	handshakeStaleAfter = 3 * time.Minute
 )
@@ -209,7 +212,11 @@ func (d *doctor) device() (ipc.Status, bool) {
 }
 
 func (d *doctor) controlPlane(s ipc.Status) {
-	if s.LastSyncAt == nil || d.now().Sub(*s.LastSyncAt) > syncStaleAfter {
+	staleAfter := syncStaleAfter
+	if s.Watching {
+		staleAfter = watchStaleAfter
+	}
+	if s.LastSyncAt == nil || d.now().Sub(*s.LastSyncAt) > staleAfter {
 		detail := "never synced"
 		if s.LastSyncAt != nil {
 			detail = "last synced " + d.ago(*s.LastSyncAt)
@@ -222,7 +229,11 @@ func (d *doctor) controlPlane(s ipc.Status) {
 		d.add(checkWarn, "control plane", s.Problem, "")
 		return
 	}
-	d.add(checkOK, "control plane", "synced "+d.ago(*s.LastSyncAt)+" with "+s.Server, "")
+	detail := "synced " + d.ago(*s.LastSyncAt) + " with " + s.Server
+	if s.Watching {
+		detail += ", changes pushed"
+	}
+	d.add(checkOK, "control plane", detail, "")
 }
 
 func (d *doctor) routeTo(s ipc.Status, p ipc.Peer) {

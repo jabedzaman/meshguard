@@ -106,6 +106,9 @@ type NetworkMap struct {
 	ACL *ACL `json:"acl"`
 	// STUN servers ("host:port") for discovering our public address.
 	Stun []string `json:"stun"`
+	// Revision identifies this map for Watch; empty from a control plane
+	// that can't watch.
+	Revision string `json:"revision"`
 }
 
 // SyncRequest reports where this device can be reached.
@@ -124,6 +127,29 @@ func (c *Client) Sync(ctx context.Context, req SyncRequest) (*NetworkMap, error)
 		return nil, err
 	}
 	return &res, nil
+}
+
+// WatchTimeout bounds one Watch call; the control plane answers within about 50s.
+const WatchTimeout = 75 * time.Second
+
+// Watch waits until the control plane has a network map other than revision
+// (true: sync now) or its wait ends (false: watch again). Requires Signer.
+func (c *Client) Watch(ctx context.Context, revision string) (bool, error) {
+	if c.Signer == nil {
+		return false, fmt.Errorf("watch requires a device signer")
+	}
+	ctx, cancel := context.WithTimeout(ctx, WatchTimeout)
+	defer cancel()
+	// The shared client's timeout is shorter than the wait.
+	long := *c
+	long.HTTP = &http.Client{Transport: c.HTTP.Transport}
+	var res struct {
+		Changed bool `json:"changed"`
+	}
+	if err := long.post(ctx, "/v1/devices/self/watch", map[string]string{"revision": revision}, &res); err != nil {
+		return false, err
+	}
+	return res.Changed, nil
 }
 
 // Enroll redeems an enrollment token for this device.

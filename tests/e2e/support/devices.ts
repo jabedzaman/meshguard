@@ -27,8 +27,9 @@ export function signingDevice() {
   };
 }
 
-/** Signed POST /v1/devices/self/sync with a fresh nonce, as internal/coordination/sign.go does it. */
-export async function sync(
+/** A signed POST as the agent sends it (internal/coordination/sign.go). */
+async function signedPost(
+  path: string,
   device: { id: string; privateKey: KeyObject },
   body: unknown,
   {
@@ -38,7 +39,6 @@ export async function sync(
     nonce = randomBytes(16).toString("base64url") as string | null,
   } = {},
 ) {
-  const path = "/v1/devices/self/sync";
   const json = JSON.stringify(body);
   const bodyHash = createHash("sha256").update(json).digest("hex");
   const message =
@@ -58,6 +58,20 @@ export async function sync(
     body: tamper ? JSON.stringify({ endpoints: ["6.6.6.6:51820"] }) : json,
   });
   return { status: res.status, body: (await res.json()) as any };
+}
+
+/** Signed POST /v1/devices/self/sync with a fresh nonce. */
+export function sync(
+  device: { id: string; privateKey: KeyObject },
+  body: unknown,
+  options?: Parameters<typeof signedPost>[3],
+) {
+  return signedPost("/v1/devices/self/sync", device, body, options);
+}
+
+/** Signed POST /v1/devices/self/watch: resolves when the map differs from `revision` (or ~50s). */
+export function watch(device: { id: string; privateKey: KeyObject }, revision: string) {
+  return signedPost("/v1/devices/self/watch", device, { revision });
 }
 
 /** What `meshguard up` sends. No session: the token is the credential. */
