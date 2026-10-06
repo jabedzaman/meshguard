@@ -160,13 +160,13 @@ What Tailscale calls subnet routers, exit nodes, Services, serve/funnel and app 
 
 Order to work through the open items (from the 2026-10-06 comparison with Tailscale). Each phase leaves the mesh working; later phases depend on earlier ones.
 
-1. **Harden** (small, now): M2.24, M1.31, M1.32, M2.16, M2.21
-2. **Identity**: M1.27 → M1.28 → M1.29 → M1.30 → M7.3 → M7.4. Every later feature (user rules, approvals, tagged servers) needs devices to belong to someone
+1. **Harden** ✅: M2.24, M1.32, M2.16, M2.21. M1.31 (rate limits) deferred to phase 7
+2. **Identity**: M1.27 (a device belongs to whoever created its enrollment token) → M1.29 → M1.30 (expiry extended from the web until browser login exists) → M7.3 → M7.4. Every later feature (user rules, approvals, tagged servers) needs devices to belong to someone. Browser login (M1.28) is deferred to phase 7
 3. **Control plane at scale**: M2.15 → M2.14 → M2.11 + M2.22 → M2.23
 4. **Reachability**: M2.3, M2.17, M7.1
 5. **DNS**: M2.13 (with M2.21) → M2.18 → M2.19 → M2.20
 6. **Routes and services**: M6.9 → M6.1 → M6.2 → M6.3 → M6.4 → M6.5 → M6.6 → M6.7 → M6.8; M4 workspaces after M6.5
-7. **Platform**: M7.2, M7.6, M2.9, M2.25, M2.26, M7.5, M7.7–M7.11, M1.33, L.2, L.4
+7. **Platform**: M1.28, M1.31, M7.2, M7.6, M2.9, M2.25, M2.26, M7.5, M7.7–M7.11, M1.33, L.2, L.4
 
 ## Open decisions
 
@@ -212,3 +212,4 @@ Order to work through the open items (from the 2026-10-06 comparison with Tailsc
 | 2026-10-04 | `meshguard doctor` runs in the CLI as the calling user, so DNS, routes, ping and ports are checked the way that user's programs see them; the agent only adds what it alone knows (`/v1/access` evaluates the access rules). A peer's rules are checked by running doctor on that peer, since each agent only gets the rules naming it as destination |
 | 2026-10-04 | DNS moves to a resolver address the agent intercepts in its TUN, but stays split: only `.internal` and the mesh's reverse zones go to it. The address is the network's own base + 53, reserved by the API (like a cloud VPC's resolver): already routed into the TUN, no address space beyond the mesh range, and `.53` reads as DNS where `.1` would look like a gateway. Not a fixed address outside the mesh (e.g. in `100.64.0.0/10`), which adds a range that can clash with CGNAT or other VPNs. Forwarding and taking over all DNS (M2.13) wait until something needs them |
 | 2026-10-06 | Compared with Tailscale; open work recorded as M1.27–M1.33, M2.14–M2.26, M6 (routes, services, apps), M7 (platform) and L.4, ordered in the Pathway. Identity (devices owned by users, browser login, auth keys) comes before routes and services, which all need it |
+| 2026-10-06 | Rate limits (M1.31) and browser login (M1.28) deferred; until browser login, a device belongs to the user who created its enrollment token |
