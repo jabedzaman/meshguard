@@ -3,7 +3,7 @@
 #
 #   (no flags)  remove the service; keep binaries, keys and enrollment
 #   --purge     also leave the network (meshguard logout), and delete the binaries,
-#               state, log and /etc/resolver/internal
+#               state, log and the /etc/resolver files it wrote
 set -euo pipefail
 
 purge=""
@@ -26,9 +26,9 @@ if [ -n "$purge" ]; then
   echo "==> deleting binaries, state and logs"
   sudo rm -f /usr/local/bin/meshguard /usr/local/bin/meshguard-agent /var/log/meshguard-agent.log
   sudo rm -rf "/Library/Application Support/MeshGuard" /var/run/meshguard
-  if head -1 /etc/resolver/internal 2>/dev/null | grep -q "Managed by meshguard-agent"; then
-    sudo rm -f /etc/resolver/internal
-  fi
+  for f in /etc/resolver/*; do
+    if head -1 "$f" 2>/dev/null | grep -q "Managed by meshguard-agent"; then sudo rm -f "$f"; fi
+  done
   echo "Done. A state dir passed with -state-dir (e.g. ~/.meshguard) was left alone."
 else
   echo "Done. Binaries and state kept; reinstall with ~/Downloads/meshguard/update.sh --no-fetch"

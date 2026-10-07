@@ -38,14 +38,14 @@ thinkpad in home (connected)
   mesh IPv6  fda3:ad78:5bac:0:6a19:fb37:e6f8:60e3
   server     http://localhost:4000
   interface  meshguard0
-  dns        thinkpad.internal (resolver 10.77.0.53, via systemd-resolved)
+  dns        thinkpad.brave-otter.lvh.me (resolver 10.77.0.53, via systemd-resolved)
   access     only by 2 rules (13 packets refused)
   public     203.0.113.7:51820
   relay      ws://localhost:3340/relay (connected)
 
 peers:
-  NAME                DNS                          IPv4         PATH     HANDSHAKE
-  jabeds-macbook-air  jabeds-macbook-air.internal  10.77.0.214  relay    6s ago
+  NAME                DNS                                     IPv4         PATH     HANDSHAKE
+  jabeds-macbook-air  jabeds-macbook-air.brave-otter.lvh.me  10.77.0.214  relay    6s ago
 ```
 
 States: `not_enrolled`, `connected`, `enrolled` (registered but not
@@ -62,7 +62,7 @@ exchanging traffic.
 ```sh
 meshguard ip            # this machine's mesh IPv4
 meshguard ip -6         # IPv6
-meshguard ip macbook    # a peer's (name, unique prefix, name.internal, or mesh IP)
+meshguard ip macbook    # a peer's (name, unique prefix, DNS name, or mesh IP)
 ```
 
 Handy in scripts: `ssh "$(meshguard ip macbook)"`.
@@ -106,7 +106,7 @@ this device
   ✓ relay          connected to wss://relay.example.com/relay
   ! nat            symmetric NAT (public 203.0.113.7:52286)
                    → direct connections are unlikely from this network: peers will use the relay
-  ✓ dns            thinkpad.internal → 10.77.86.29
+  ✓ dns            thinkpad.brave-otter.lvh.me → 10.77.86.29
   ✓ access         every peer may connect
 
 peers
@@ -127,7 +127,7 @@ meshguard doctor --port 8080        # can peers reach this machine's port 8080?
 | control plane | Synced in the last 30s; otherwise why not. |
 | route | The OS sends mesh traffic through the mesh interface, not another VPN that overlaps the range. |
 | relay, nat | Relay connected; NAT type from STUN (symmetric means peers use the relay). |
-| dns | `<name>.internal` resolves through the OS the way other programs resolve it, including the WSL case where systemd-resolved has the names but `/etc/resolv.conf` points elsewhere. |
+| dns | `<name>.<network domain>` resolves through the OS the way other programs resolve it, including the WSL case where systemd-resolved has the names but `/etc/resolv.conf` points elsewhere. |
 | access | This device's access rules; with `--port`, which peers may connect to it. |
 | peer | Handshake in the last 3 minutes and the path; with a peer, also ping (no reply with a live handshake usually means the peer's rules don't allow ICMP) and `--port` (refused: nothing listens there; no answer: its access rules or a firewall). |
 | listening (`--port` alone) | Something listens on the port on an address peers reach (`0.0.0.0` or the mesh IP), not only `127.0.0.1`, which is a common mistake with Docker's `-p 127.0.0.1:…`. |

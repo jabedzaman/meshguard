@@ -95,6 +95,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M2.23 Lazy peers: configure a peer in WireGuard only when traffic goes to it (or it handshakes), so big networks don't hold hundreds of idle peers
 - ✅ M2.24 Keep the device name in memory instead of reading `state.json` on every sync (`saveNameLocked`)
 - ⬜ M2.25 One device in several networks: profiles and `meshguard switch`
+- ✅ M2.27 Tailscale-style names: `<device>.<network domain>` instead of `<device>.internal`. Each network gets a random two-word label (`brave-otter`, unique across all networks) under the control plane's `DNS_BASE_DOMAIN` (`lvh.me` by default), shown on the network page and sent in enrollment and the network map; the agent saves it, re-points the OS when it changes, and `doctor` flags names answered by public DNS (lvh.me is all `127.0.0.1`) (lab: names and reverse lookups for every pair under their network's domain)
 - ⬜ M2.26 Signed node keys (like Tailnet Lock): agents only accept peer keys signed by trusted admin keys, so a compromised control plane can't add peers
 
 ### M3 — Desktop app ⬜
@@ -164,7 +165,7 @@ Order to work through the open items (from the 2026-10-06 comparison with Tailsc
 2. **Identity**: M1.27 (a device belongs to whoever created its enrollment token) → M1.29 → M1.30 (expiry extended from the web until browser login exists) → M7.3 → M7.4. Every later feature (user rules, approvals, tagged servers) needs devices to belong to someone. Browser login (M1.28) is deferred to phase 7
 3. **Control plane at scale**: M2.15 → M2.14 → M2.11 + M2.22 → M2.23
 4. **Reachability**: M2.3, M2.17, M7.1
-5. **DNS**: M2.13 (with M2.21) → M2.18 → M2.19 → M2.20
+5. **DNS**: M2.27 ✅ → M2.13 (with M2.21) → M2.18 → M2.19 → M2.20
 6. **Routes and services**: M6.9 → M6.1 → M6.2 → M6.3 → M6.4 → M6.5 → M6.6 → M6.7 → M6.8; M4 workspaces after M6.5
 7. **Platform**: M1.28, M1.31, M7.2, M7.6, M2.9, M2.25, M2.26, M7.5, M7.7–M7.11, M1.33, L.2, L.4
 
@@ -213,3 +214,4 @@ Order to work through the open items (from the 2026-10-06 comparison with Tailsc
 | 2026-10-04 | DNS moves to a resolver address the agent intercepts in its TUN, but stays split: only `.internal` and the mesh's reverse zones go to it. The address is the network's own base + 53, reserved by the API (like a cloud VPC's resolver): already routed into the TUN, no address space beyond the mesh range, and `.53` reads as DNS where `.1` would look like a gateway. Not a fixed address outside the mesh (e.g. in `100.64.0.0/10`), which adds a range that can clash with CGNAT or other VPNs. Forwarding and taking over all DNS (M2.13) wait until something needs them |
 | 2026-10-06 | Compared with Tailscale; open work recorded as M1.27–M1.33, M2.14–M2.26, M6 (routes, services, apps), M7 (platform) and L.4, ordered in the Pathway. Identity (devices owned by users, browser login, auth keys) comes before routes and services, which all need it |
 | 2026-10-06 | Rate limits (M1.31) and browser login (M1.28) deferred; until browser login, a device belongs to the user who created its enrollment token |
+| 2026-10-07 | Names move from `<device>.internal` to `<device>.<label>.<DNS_BASE_DOMAIN>`, like a tailnet's `ts.net` names: one device can later sit in several networks without clashes, and a real base domain allows HTTPS certificates (M6.6). The label is random (two words from `unique-names-generator`), so it leaks no organization or network names into certificate logs. Base domain `lvh.me` for now (public wildcard to `127.0.0.1`, owned by someone else, so no certificates); swap it for an owned domain with the product name (L.3) |

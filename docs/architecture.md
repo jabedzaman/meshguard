@@ -209,9 +209,17 @@ mappings. Without root the agent stays registered and syncing, and
 
 ## Private DNS
 
-Devices resolve as `<name>.internal` (`.internal` is reserved by ICANN for
-private use, so it never collides with a public name). Names are DNS labels,
-unique per network; the API picks `laptop`, `laptop-2`, … at enrollment.
+Devices resolve as `<name>.<network domain>`, like Tailscale's
+`<name>.<tailnet>.ts.net`. Each network gets a random label from two words
+when it's created (`networks.dns_label`, unique across all networks, e.g.
+`brave-otter`), and its domain is that label under the control plane's
+`DNS_BASE_DOMAIN` (`brave-otter.lvh.me`; `lvh.me` by default). The domain is
+computed when the API answers, so changing the base domain renames every
+network; it's sent in enrollment and in the network map, and the agent saves
+it in its state file. The label says nothing about the organization or
+network, so names can go into public certificate logs once HTTPS certificates
+exist (M6.6). Device names are DNS labels, unique per network; the API picks
+`laptop`, `laptop-2`, … at enrollment.
 Owners and admins rename devices (`PATCH /v1/devices/:id`, 409
 `device_name_taken` on a clash); the next sync carries the new name to every
 agent, and each agent saves its own in its state file. Removing a device
@@ -232,12 +240,16 @@ the same answer as an unknown device, so ids can't be probed.
   (`77.10.in-addr.arpa`; a prefix between octets becomes the longer zones
   inside it, never a shorter one). Unknown names in those zones get NXDOMAIN;
   anything else is refused, since the OS only sends those zones here.
-- Split DNS: macOS reads `/etc/resolver/internal` and a file per reverse zone;
-  on Linux the agent sets the resolver on `meshguard0` through
-  systemd-resolved, with `internal` as a search domain (short names) and the
-  reverse zones as routing-only domains, and never as the default route.
-  Nothing else on the machine changes, and without systemd-resolved the agent
-  leaves resolv.conf alone and says so in `meshguard status`.
+- Split DNS: macOS reads `/etc/resolver/<network domain>` and a file per
+  reverse zone; on Linux the agent sets the resolver on `meshguard0` through
+  systemd-resolved, with the network's domain as a search domain (short
+  names) and the reverse zones as routing-only domains, and never as the
+  default route. Nothing else on the machine changes, and without
+  systemd-resolved the agent leaves resolv.conf alone and says so in
+  `meshguard status`. A new domain from the network map re-points the OS.
+- `lvh.me` resolves every name to `127.0.0.1` publicly, so a machine whose OS
+  skips the agent reaches localhost rather than failing; `meshguard doctor`
+  says when a mesh name came back as a loopback address.
 - Names are answered locally, so lookups work offline and never reach the
   control plane; there is no central DNS service.
 

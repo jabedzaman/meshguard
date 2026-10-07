@@ -3,7 +3,7 @@ title: Introduction
 description: MeshGuard connects your machines into one private network, wherever they are.
 ---
 
-Every device you add gets a private address and a `.internal` name, and talks
+Every device you add gets a private address and a name like `laptop.brave-otter.lvh.me`, and talks
 to the others directly over WireGuard. When two devices can't reach each other
 directly, traffic falls back to a relay automatically.
 
@@ -27,6 +27,6 @@ Create a token on the network page and run `meshguard up --token ...`. See [Join
 
 ### Reach your devices
 
-Connect to any peer by name: `ssh laptop.internal`.
+Connect to any peer by name: `ssh laptop.brave-otter.lvh.me`.
 
 </Steps>

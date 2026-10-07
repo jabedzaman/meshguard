@@ -129,14 +129,14 @@ thinkpad in home (connected)
   mesh IPv6  fda3:ad78:5bac:0:6a19:fb37:e6f8:60e3
   server     http://localhost:4000
   interface  meshguard0
-  dns        thinkpad.internal (resolver 10.77.0.53, via systemd-resolved)
+  dns        thinkpad.brave-otter.lvh.me (resolver 10.77.0.53, via systemd-resolved)
   access     only by 2 rules (13 packets refused)
   public     203.0.113.7:51820
   relay      ws://localhost:3340/relay (connected)
 
 peers:
-  NAME                DNS                          IPv4         PATH     HANDSHAKE
-  jabeds-macbook-air  jabeds-macbook-air.internal  10.77.0.214  relay    6s ago
+  NAME                DNS                                     IPv4         PATH     HANDSHAKE
+  jabeds-macbook-air  jabeds-macbook-air.brave-otter.lvh.me  10.77.0.214  relay    6s ago
 ```
 
 States: `not_enrolled`, `connected`, `enrolled` (registered but not
@@ -144,7 +144,11 @@ connected — a `!` line says why, e.g. WireGuard needs root), `down`.
 
 ### Private DNS
 
-Every device resolves as `<name>.internal`, e.g. `ssh jabeds-macbook-air.internal`.
+Every device resolves as `<name>.<network domain>`, e.g.
+`ssh jabeds-macbook-air.brave-otter.lvh.me`, and as just `jabeds-macbook-air` where the OS
+supports search domains. Like a tailnet name, each network gets a random
+domain when it's created (`brave-otter.lvh.me`, shown on the network page); the
+control plane's `DNS_BASE_DOMAIN` sets the part after the label.
 Device names come from the hostname (lowercased, first label) and are unique
 in the network: a second `laptop` becomes `laptop-2`. Owners and admins can
 rename a device on its network page (Rename); peers resolve the new name, and
@@ -161,14 +165,14 @@ The agent answers DNS at the network's address + 53, e.g. `10.77.0.53` in
 `10.77.0.0/16` (`meshguard status` shows it); no device is ever given that
 address. Queries to it go into the WireGuard interface like any mesh traffic,
 and the agent answers them itself; they never leave the machine. The OS sends
-only `.internal` and the mesh's reverse zones (e.g. `77.10.in-addr.arpa`)
+only the network's domain and its reverse zones (e.g. `77.10.in-addr.arpa`)
 there; other lookups never touch it. Test it with
-`dig @10.77.0.53 <name>.internal`.
+`dig @10.77.0.53 <name>.<network domain>`.
 
 | | |
 | --- | --- |
-| macOS | writes `/etc/resolver/internal` and one file per reverse zone (removed on `meshguard down`). Short names don't resolve: macOS ignores search domains from these files |
-| Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0`: `internal` as a search domain, so short names work (`ssh laptop`), and the reverse zones as routing-only domains |
+| macOS | writes `/etc/resolver/<network domain>` and one file per reverse zone (removed on `meshguard down`). Short names don't resolve: macOS ignores search domains from these files |
+| Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0`: the network's domain as a search domain, so short names work (`ssh laptop`), and the reverse zones as routing-only domains |
 | Other Linux | not configured; `meshguard status` says so. Query the resolver directly |
 
 ### `meshguard peers`
@@ -182,7 +186,7 @@ exchanging traffic.
 ```sh
 meshguard ip            # this machine's mesh IPv4
 meshguard ip -6         # IPv6
-meshguard ip macbook    # a peer's (name, unique prefix, name.internal, or mesh IP)
+meshguard ip macbook    # a peer's (name, unique prefix, DNS name, or mesh IP)
 ```
 
 Handy in scripts: `ssh "$(meshguard ip macbook)"`.
@@ -229,7 +233,7 @@ this device
   ✓ relay          connected to wss://meshguard-relay.jabed.dev/relay
   ! nat            symmetric NAT (public 203.0.113.7:52286)
                    → direct connections are unlikely from this network: peers will use the relay
-  ✓ dns            thinkpad.internal → 10.77.86.29
+  ✓ dns            thinkpad.brave-otter.lvh.me → 10.77.86.29
   ✓ access         every peer may connect
 
 peers
@@ -250,7 +254,7 @@ meshguard doctor --port 8080        # can peers reach this machine's port 8080?
 | control plane | Synced in the last 30s; otherwise why not. |
 | route | The OS sends mesh traffic through the mesh interface, not another VPN that overlaps the range. |
 | relay, nat | Relay connected; NAT type from STUN (symmetric means peers use the relay). |
-| dns | `<name>.internal` resolves through the OS the way other programs resolve it, including the WSL case where systemd-resolved has the names but `/etc/resolv.conf` points elsewhere. |
+| dns | `<name>.<network domain>` resolves through the OS the way other programs resolve it, including the WSL case where systemd-resolved has the names but `/etc/resolv.conf` points elsewhere. |
 | access | This device's access rules; with `--port`, which peers may connect to it. |
 | peer | Handshake in the last 3 minutes and the path; with a peer, also ping (no reply with a live handshake usually means the peer's rules don't allow ICMP) and `--port` (refused: nothing listens there; no answer: its access rules or a firewall). |
 | listening (`--port` alone) | Something listens on the port on an address peers reach (`0.0.0.0` or the mesh IP), not only `127.0.0.1`, which is a common mistake with Docker's `-p 127.0.0.1:…`. |
@@ -284,7 +288,7 @@ below and prints a fix for each problem.
 | Peer stays `relay` | Expected behind symmetric NATs, or when both peers are behind home routers (see [architecture.md](architecture.md#hole-punching)). `meshguard netcheck` on both ends shows the NAT types. |
 | Peers drop after sleep or a Wi-Fi change | They should come back within ~15s (relay first, then direct). The agent log shows `rebinding reason=wake` or `reason="network change"`; if it doesn't, report it with the log. |
 | `dns … not set up in the OS` | No systemd-resolved (common in containers and WSL), or a file in `/etc/resolver` exists and isn't meshguard's. Use `dig @<resolver>` (from `meshguard status`), or install systemd-resolved. |
-| `.internal` names don't resolve but `dig @<resolver> <name>.internal` answers | macOS: `scutil --dns` should list the resolver for `internal`. Linux: `resolvectl status meshguard0` should show the resolver and the `internal` domain. |
+| Mesh names don't resolve (or resolve to 127.0.0.1, from public DNS) but `dig @<resolver> <name>.<network domain>` answers | macOS: `scutil --dns` should list the resolver for the network's domain. Linux: `resolvectl status meshguard0` should show the resolver and the domain. |
 | Peer handshake `never` | The peer is offline or down (`meshguard status` on it), or the relay is unreachable from one side. |
 
 ## Testing the service
