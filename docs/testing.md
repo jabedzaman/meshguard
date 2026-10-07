@@ -39,7 +39,7 @@ symmetric NAT. On the LAN pair it also turns on access rules and checks that
 pings and TCP ports are blocked and allowed as the rules say. A subnet router
 (`lab-r`, with a plain host `lab-s` on a LAN only it can reach) checks that a
 route waits for approval, carries traffic once approved and stops when revoked,
-when accept-routes is off or when access rules don't allow it.
+when accept-routes is off or when access rules don't allow it. The same router is an exit node for `lab-b`, whose own traffic to the control plane and relay must keep working around the tunnel.
 
 ## Agent service
 

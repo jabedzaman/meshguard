@@ -172,8 +172,9 @@ r4=$(ip_of lab-r IPv4); b4=$(ip_of lab-b IPv4)
 host=192.168.50.10
 docker exec -d meshguard-lab-s nc -lk 8080
 # Some Docker hosts (OrbStack) route between networks whatever "internal" says,
-# so say that lab-b is not on that LAN: a low-priority route the mesh route beats.
-docker exec meshguard-lab-b ip route add unreachable 192.168.50.0/24 metric 4000
+# so say that lab-b is not on that LAN: nothing may leave it that way except
+# through the mesh.
+docker exec meshguard-lab-b iptables -A OUTPUT -d 192.168.50.0/24 ! -o meshguard0 -j REJECT
 if can_ping lab-b "$host"; then fail "lab-b reaches $host outside the mesh; the routes test would be meaningless"
 else ok "lab-b cannot reach $host outside the mesh"; fi
 
@@ -217,6 +218,47 @@ for _ in $(seq 20); do
   docker exec meshguard-lab-r iptables -t nat -S POSTROUTING | grep -q 192.168.50.0 || break; sleep 1
 done
 if docker exec meshguard-lab-r iptables -t nat -S POSTROUTING | grep -q 192.168.50.0; then fail "lab-r still masquerades 192.168.50.0/24"; else ok "lab-r removed its NAT rule"; fi
+
+# Exit node: lab-b sends everything through lab-r, which can reach lab-s (the
+# "internet" for this test: 192.168.50.10 is not on lab-b's LAN and is not a
+# route). The agent's own traffic must keep working around the tunnel.
+echo
+echo "==> exit node (lab-b sends its traffic through lab-r)"
+docker exec meshguard-lab-r meshguard set --advertise-exit-node >/dev/null
+docker exec meshguard-lab-b meshguard set --exit-node lab-r >/dev/null
+expect_traffic blocked "lab-b -> $host before the exit node is approved" can_ping lab-b "$host"
+exit_state=$(curl -sf -b "$COOKIES" -H "Origin: $WEB" "$API/v1/networks/$sub_network/devices" |
+  node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).flatMap(d => d.routes).map(r => r.prefix + ":" + r.approved).join()')
+if [ "$exit_state" = "0.0.0.0/0:false,::/0:false" ]; then ok "the exit node waits for approval ($exit_state)"; else fail "exit node state '$exit_state'"; fi
+lb_problem=$(docker exec meshguard-lab-b meshguard status --json | json .problem)
+case "$lb_problem" in *"approved"*) ok "lab-b says why: $lb_problem";; *) fail "lab-b problem: '$lb_problem'";; esac
+
+put "/v1/devices/$r_id/routes" '{"approved":["0.0.0.0/0","::/0"]}' >/dev/null
+expect_traffic allowed "lab-b -> $host ping through the exit node" can_ping lab-b "$host"
+expect_traffic allowed "lab-b -> $host:8080 through the exit node" can_connect lab-b "$host" 8080
+lb_exit=$(docker exec meshguard-lab-b meshguard status --json | json .exitNode)
+if [ "$lb_exit" = lab-r ]; then ok "lab-b status: exit node $lb_exit"; else fail "lab-b exit node '$lb_exit'"; fi
+if docker exec meshguard-lab-b ip route get 192.168.50.10 mark 0 | grep -q "dev meshguard0"; then ok "lab-b's unmarked traffic goes through meshguard0"; else fail "lab-b's traffic does not use meshguard0"; fi
+if docker exec meshguard-lab-b ip route get 10.200.0.10 mark 51820 | grep -q "dev eth0"; then ok "the agent's own (marked) traffic stays on eth0"; else fail "marked traffic is routed into the tunnel"; fi
+# The control plane and relay stay reachable around the tunnel: lab-b keeps syncing.
+sleep 3
+lb_state=$(docker exec meshguard-lab-b meshguard status --json | json .state)
+if [ "$lb_state" = connected ]; then ok "lab-b stays connected to the control plane and relay"; else fail "lab-b state is $lb_state"; fi
+docker exec meshguard-lab-r meshguard status | grep -E "serving" || true
+docker exec meshguard-lab-b meshguard status | grep -E "exit node" || true
+
+# Stopping the exit node hands traffic back to the normal routes.
+docker exec meshguard-lab-b meshguard set --exit-node "" >/dev/null
+expect_traffic blocked "lab-b -> $host after leaving the exit node" can_ping lab-b "$host"
+if docker exec meshguard-lab-b ip rule | grep -q 51820; then fail "lab-b still has exit node rules"; else ok "lab-b removed its exit node rules"; fi
+
+# Revoking the exit node stops it for good.
+docker exec meshguard-lab-b meshguard set --exit-node lab-r >/dev/null
+expect_traffic allowed "lab-b -> $host through the exit node again" can_ping lab-b "$host"
+put "/v1/devices/$r_id/routes" '{"approved":[]}' >/dev/null
+expect_traffic blocked "lab-b -> $host after the exit node is revoked" can_ping lab-b "$host"
+docker exec meshguard-lab-b meshguard set --exit-node "" >/dev/null
+docker exec meshguard-lab-r meshguard set --advertise-exit-node=false >/dev/null
 
 # Sanity: lab-f can't open a connection into lab-e's NAT on its own. (Same
 # reason for the unreachable route as above.)

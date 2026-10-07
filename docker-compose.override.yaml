@@ -285,6 +285,7 @@ services:
     hostname: lab-r
     sysctls:
       net.ipv4.ip_forward: 1
+      net.ipv6.conf.all.forwarding: 1
     networks:
       lab_inet:
       lab_subnet: { ipv4_address: 192.168.50.2 }

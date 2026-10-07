@@ -192,3 +192,33 @@ func TestSetPrefs(t *testing.T) {
 	require.Equal(t, http.StatusOK, code)
 	assert.Empty(t, prefs.AdvertiseRoutes)
 }
+
+func TestSetExitNodePrefs(t *testing.T) {
+	server, _ := fakeControlPlane(t)
+	h := (&Agent{Version: "test", StateDir: t.TempDir()}).Handler()
+	call(t, h, http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
+
+	patch := func(body string) (int, ipc.Prefs) {
+		req := httptest.NewRequest(http.MethodPatch, "/v1/prefs", bytes.NewBufferString(body))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req.WithContext(ipc.WithCaller(req.Context(), ipc.Caller{UID: uint32(os.Geteuid())})))
+		var prefs ipc.Prefs
+		if rec.Code < 300 {
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &prefs))
+		}
+		return rec.Code, prefs
+	}
+
+	code, prefs := patch(`{"advertiseExitNode":true,"exitNode":" gateway "}`)
+	require.Equal(t, http.StatusOK, code)
+	assert.True(t, prefs.AdvertiseExitNode)
+	assert.Equal(t, "gateway", prefs.ExitNode)
+
+	code, prefs = patch(`{"exitNode":""}`)
+	require.Equal(t, http.StatusOK, code)
+	assert.Empty(t, prefs.ExitNode)
+	assert.True(t, prefs.AdvertiseExitNode, "left alone")
+
+	code, _ = patch(`{"exitNode":"` + hostname() + `"}`)
+	assert.Equal(t, http.StatusBadRequest, code, "not itself")
+}

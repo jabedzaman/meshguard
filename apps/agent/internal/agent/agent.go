@@ -46,6 +46,8 @@ type Engine interface {
 	SetServedRoutes(routes, mesh []netip.Prefix) error
 	// SetAcceptedRoutes sends traffic for peers' subnets through the mesh.
 	SetAcceptedRoutes([]netip.Prefix) error
+	// SetExitNode sends all other traffic through the mesh interface.
+	SetExitNode(on bool) error
 	ACLDropped() uint64
 	// SetLocalHandler answers packets for addresses the agent serves (DNS).
 	SetLocalHandler(wireguard.LocalHandler)
@@ -111,6 +113,8 @@ type connection struct {
 	stun     []string
 	// serving and accepted are the subnets routed for peers and sent to them.
 	serving, accepted []string
+	// exitNode is the peer all traffic goes through right now.
+	exitNode string
 	// routeProblem says why subnet routes could not be applied.
 	routeProblem string
 	acl          *coordination.ACL
@@ -456,15 +460,15 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	a.mu.Lock()
 	engine := c.engine
 	d := c.disco
-	advertise := append([]string{}, c.prefs.AdvertiseRoutes...)
-	acceptRoutes := c.prefs.AcceptRoutes
+	prefs := c.prefs
+	advertise := append([]string{}, prefs.AdvertiseRoutes...)
 	a.mu.Unlock()
-	var routeProblem string
+	var routeProblem, exitNode string
 	var accepted, serving []string
 
 	syncCtx, cancel := context.WithTimeout(c.ctx, 15*time.Second)
 	defer cancel()
-	nm, err := cl.Sync(syncCtx, coordination.SyncRequest{Endpoints: a.endpoints(engine, exclude), AdvertiseRoutes: advertise})
+	nm, err := cl.Sync(syncCtx, coordination.SyncRequest{Endpoints: a.endpoints(engine, exclude), AdvertiseRoutes: advertise, AdvertiseExitNode: prefs.AdvertiseExitNode})
 	if err != nil {
 		if c.ctx.Err() == nil {
 			slog.Warn("sync failed", "err", err)
@@ -480,7 +484,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 		if d != nil {
 			d.SetPeers(discoCandidates(nm.Peers))
 		}
-		plan := planRoutes(nm, acceptRoutes, exclude, localNetworks(engine.Name()))
+		plan := planRoutes(nm, prefs.AcceptRoutes, prefs.ExitNode, exclude, localNetworks(engine.Name()))
 		peers := make([]wireguard.Peer, 0, len(nm.Peers))
 		for _, p := range nm.Peers {
 			peer := wireguard.Peer{PublicKey: p.WireGuardPublicKey}
@@ -504,7 +508,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 		}
 		engine.SetACL(aclPolicy(nm.ACL))
 		routeProblem = a.applyRoutes(engine, plan, exclude)
-		accepted, serving = routeStrings(plan.accepted), routeStrings(plan.serve)
+		accepted, serving, exitNode = routeStrings(plan.accepted), routeStrings(plan.serve), plan.exitPeer
 	}
 
 	a.mu.Lock()
@@ -515,7 +519,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	c.lastSync = time.Now()
 	c.revision = nm.Revision
 	c.peers = nm.Peers
-	c.accepted, c.serving, c.routeProblem = accepted, serving, routeProblem
+	c.accepted, c.serving, c.routeProblem, c.exitNode = accepted, serving, routeProblem, exitNode
 	c.stun = nm.Stun
 	if !reflect.DeepEqual(c.acl, nm.ACL) {
 		st := aclStatus(nm.ACL, true, 0)
@@ -695,7 +699,8 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	}
 	s.Problem = c.problem
 	s.Prefs = prefsStatus(c.prefs)
-	s.Serving, s.Accepted = c.serving, c.accepted
+	s.Serving, s.Accepted, s.ExitNode = c.serving, c.accepted, c.exitNode
+	s.ServingExitNode = slices.Contains(c.serving, "0.0.0.0/0")
 	if !c.lastSync.IsZero() {
 		at := c.lastSync
 		s.LastSyncAt = &at

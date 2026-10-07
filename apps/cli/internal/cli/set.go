@@ -12,7 +12,8 @@ import (
 
 func newSet(o *options) *cobra.Command {
 	var advertise []string
-	var accept bool
+	var accept, advertiseExit bool
+	var exitNode string
 	cmd := &cobra.Command{
 		Use:   "set",
 		Short: "Change this device's settings",
@@ -22,8 +23,12 @@ func newSet(o *options) *cobra.Command {
   meshguard set --advertise-routes ""                stop offering routes
   meshguard set --accept-routes                      use subnets other devices route
   meshguard set --accept-routes=false
+  meshguard set --advertise-exit-node                offer this device as an exit node
+  meshguard set --exit-node laptop                   send all internet traffic through laptop
+  meshguard set --exit-node ""                       stop using an exit node
 
-Advertised routes take effect once an owner or admin approves them in the web.`,
+Advertised routes and exit nodes take effect once an owner or admin approves them
+in the web. Exit nodes work from and through Linux devices only.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			var req ipc.PrefsUpdate
@@ -34,7 +39,13 @@ Advertised routes take effect once an owner or admin approves them in the web.`,
 			if cmd.Flags().Changed("accept-routes") {
 				req.AcceptRoutes = &accept
 			}
-			if req.AdvertiseRoutes == nil && req.AcceptRoutes == nil {
+			if cmd.Flags().Changed("advertise-exit-node") {
+				req.AdvertiseExitNode = &advertiseExit
+			}
+			if cmd.Flags().Changed("exit-node") {
+				req.ExitNode = &exitNode
+			}
+			if req.AdvertiseRoutes == nil && req.AcceptRoutes == nil && req.AdvertiseExitNode == nil && req.ExitNode == nil {
 				return cmd.Help()
 			}
 			var prefs ipc.Prefs
@@ -50,6 +61,8 @@ Advertised routes take effect once an owner or admin approves them in the web.`,
 	}
 	cmd.Flags().StringSliceVar(&advertise, "advertise-routes", nil, "subnets to offer to route, comma separated (empty to stop)")
 	cmd.Flags().BoolVar(&accept, "accept-routes", false, "send traffic for other devices' approved subnets to them")
+	cmd.Flags().BoolVar(&advertiseExit, "advertise-exit-node", false, "offer this device as an exit node for its peers")
+	cmd.Flags().StringVar(&exitNode, "exit-node", "", "device to send all internet traffic through (name or mesh address; empty to stop)")
 	cmd.Flags().BoolVar(&o.json, "json", false, "print JSON")
 	return cmd
 }
@@ -71,4 +84,10 @@ func printPrefs(p ipc.Prefs) {
 		routes = strings.Join(p.AdvertiseRoutes, ", ")
 	}
 	fmt.Printf("  advertise-routes  %s\n  accept-routes     %v\n", routes, p.AcceptRoutes)
+	if p.AdvertiseExitNode {
+		fmt.Println("  exit node         offered to peers")
+	}
+	if p.ExitNode != "" {
+		fmt.Printf("  exit-node         %s\n", p.ExitNode)
+	}
 }

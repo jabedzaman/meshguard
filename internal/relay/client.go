@@ -4,11 +4,18 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/coder/websocket"
+
+	"github.com/jabedzaman/meshguard/internal/netmark"
 )
+
+// markedHTTP dials with the agent's firewall mark, so the relay connection
+// stays off an exit node's tunnel.
+var markedHTTP = &http.Client{Transport: netmark.Transport()}
 
 var (
 	errInvalid      = errors.New("invalid relay message")
@@ -135,7 +142,7 @@ func (c *Client) Run(ctx context.Context) {
 // succeeded before it ended.
 func (c *Client) session(ctx context.Context) (connected bool, err error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	conn, _, err := websocket.Dial(dialCtx, c.URL, nil)
+	conn, _, err := websocket.Dial(dialCtx, c.URL, &websocket.DialOptions{HTTPClient: markedHTTP})
 	cancel()
 	if err != nil {
 		return false, err

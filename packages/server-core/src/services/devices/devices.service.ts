@@ -7,7 +7,7 @@ import { deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
 import { DEFAULT_DNS_BASE_DOMAIN, networkDnsDomain } from "~/lib/dns-name";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
 import type { PresenceStore } from "~/lib/presence";
-import { MAX_DEVICE_ROUTES, parseRoutePrefix } from "~/lib/route-prefix";
+import { EXIT_NODE_ROUTES, MAX_DEVICE_ROUTES, parseRoutePrefix } from "~/lib/route-prefix";
 import { relayTokenExpiry, signRelayToken } from "~/lib/relay-token";
 import { hashToken } from "~/lib/tokens";
 import type { AclService } from "~/services/acl/acl.service";
@@ -177,7 +177,10 @@ export class DevicesService {
    * network map (see networkMap). Presence goes to Redis; Postgres is only
    * written when the endpoints change or lastSeenAt is due to be persisted.
    */
-  async sync(deviceId: string, input: { endpoints: string[]; advertiseRoutes?: string[] }) {
+  async sync(
+    deviceId: string,
+    input: { endpoints: string[]; advertiseRoutes?: string[]; advertiseExitNode?: boolean },
+  ) {
     const [self] = await this.db
       .select({ id: devices.id, networkId: devices.networkId, endpoints: devices.endpoints })
       .from(devices)
@@ -186,7 +189,12 @@ export class DevicesService {
 
     // Older agents don't send routes: leave theirs alone.
     if (input.advertiseRoutes) {
-      const changed = await this.reconcileRoutes(self.id, self.networkId, input.advertiseRoutes);
+      const changed = await this.reconcileRoutes(
+        self.id,
+        self.networkId,
+        input.advertiseRoutes,
+        input.advertiseExitNode ?? false,
+      );
       if (changed) {
         this.events.publish({ type: "updated", networkId: self.networkId, deviceId: self.id });
       }
@@ -258,7 +266,12 @@ export class DevicesService {
    * start unapproved, prefixes it stopped advertising go away. Returns whether
    * anything changed. Invalid prefixes are ignored.
    */
-  private async reconcileRoutes(deviceId: string, networkId: string, advertised: string[]) {
+  private async reconcileRoutes(
+    deviceId: string,
+    networkId: string,
+    advertised: string[],
+    exitNode: boolean,
+  ) {
     const [network] = await this.db
       .select({ ipv4Cidr: networks.ipv4Cidr })
       .from(networks)
@@ -270,6 +283,7 @@ export class DevicesService {
         .filter((prefix): prefix is string => prefix !== null)
         .slice(0, MAX_DEVICE_ROUTES),
     );
+    if (exitNode) for (const prefix of EXIT_NODE_ROUTES) wanted.add(prefix);
     const current = await this.db
       .select({ id: deviceRoutes.id, prefix: deviceRoutes.prefix })
       .from(deviceRoutes)

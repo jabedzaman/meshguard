@@ -47,6 +47,8 @@ type Engine struct {
 	peers []Peer // as last applied
 	// Subnet routes installed in the OS (accepted from peers) and served to them.
 	accepted, served, servedMesh []netip.Prefix
+	// exit: all other traffic goes through the mesh interface.
+	exit bool
 }
 
 // Start creates the TUN interface, brings up WireGuard and configures
@@ -71,7 +73,7 @@ func Start(cfg Config) (*Engine, error) {
 	// Peers are peer/<key> endpoints routed by the bind; never let WireGuard
 	// swap one for the raw address a packet arrived from.
 	dev.DisableSomeRoamingForBrokenMobileSemantics()
-	base := fmt.Sprintf("private_key=%s\nlisten_port=%d\n", hex.EncodeToString(cfg.PrivateKey[:]), cfg.ListenPort)
+	base := fmt.Sprintf("private_key=%s\nlisten_port=%d\n", hex.EncodeToString(cfg.PrivateKey[:]), cfg.ListenPort) + markConfig()
 	if err := dev.IpcSet(base); err != nil {
 		dev.Close()
 		return nil, fmt.Errorf("configure wireguard: %w", err)

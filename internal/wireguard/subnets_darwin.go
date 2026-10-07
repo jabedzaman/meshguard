@@ -29,3 +29,9 @@ func forwardingOn(string, []netip.Prefix, []netip.Prefix, []netip.Prefix, []neti
 }
 
 func forwardingOff(string, []netip.Prefix, []netip.Prefix) error { return nil }
+
+func exitOn(string) error {
+	return fmt.Errorf("exit nodes need a Linux client for now: macOS has no way yet to keep the agent's own traffic off the tunnel")
+}
+func exitOff(string) error { return nil }
+func markConfig() string   { return "" }

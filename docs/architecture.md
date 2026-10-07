@@ -2,27 +2,27 @@
 
 ## Repository layout
 
-| Path | What |
-| --- | --- |
-| `apps/api` | Control plane API (Hono) |
-| `apps/web` | Dashboard (Next.js) |
-| `apps/www` | Website and docs (Next.js + MDX) |
-| `apps/workers` | Background jobs (BullMQ), including all email delivery |
-| `apps/desktop` | Desktop app (Tauri 2 + React) |
-| `apps/mcp` | MCP server |
-| `apps/agent` | Device daemon (Go) |
-| `apps/cli` | `meshguard` CLI (Go) |
-| `apps/relay` | Relay and STUN server (Go) |
-| `internal/` | Shared Go packages |
-| `packages/server-core` | Business logic: services, domain errors, queues |
-| `packages/auth` | Better Auth setup; `@meshguard/auth/permissions` holds the roles |
-| `packages/db` | Drizzle schema and migrations |
-| `packages/emails` | Email templates (react-email) |
-| `packages/api-client` | Typed API client (Hono RPC) |
-| `packages/ui` | shadcn components |
-| `packages/utils` | Shared utilities (`createLogger`) |
-| `packages/config` | Zod-validated environment |
-| `packages/proto` | Protobuf contracts |
+| Path                   | What                                                             |
+| ---------------------- | ---------------------------------------------------------------- |
+| `apps/api`             | Control plane API (Hono)                                         |
+| `apps/web`             | Dashboard (Next.js)                                              |
+| `apps/www`             | Website and docs (Next.js + MDX)                                 |
+| `apps/workers`         | Background jobs (BullMQ), including all email delivery           |
+| `apps/desktop`         | Desktop app (Tauri 2 + React)                                    |
+| `apps/mcp`             | MCP server                                                       |
+| `apps/agent`           | Device daemon (Go)                                               |
+| `apps/cli`             | `meshguard` CLI (Go)                                             |
+| `apps/relay`           | Relay and STUN server (Go)                                       |
+| `internal/`            | Shared Go packages                                               |
+| `packages/server-core` | Business logic: services, domain errors, queues                  |
+| `packages/auth`        | Better Auth setup; `@meshguard/auth/permissions` holds the roles |
+| `packages/db`          | Drizzle schema and migrations                                    |
+| `packages/emails`      | Email templates (react-email)                                    |
+| `packages/api-client`  | Typed API client (Hono RPC)                                      |
+| `packages/ui`          | shadcn components                                                |
+| `packages/utils`       | Shared utilities (`createLogger`)                                |
+| `packages/config`      | Zod-validated environment                                        |
+| `packages/proto`       | Protobuf contracts                                               |
 
 ## API
 
@@ -264,12 +264,12 @@ allows it. A rule has a source and a destination, a protocol (`any`, `tcp`,
 `udp`, `icmp`) and, for TCP/UDP, a destination port range. Each side is a
 selector (`packages/server-core/src/lib/acl-policy.ts`):
 
-| Selector | Matches |
-| --- | --- |
-| `*` | any device |
-| `device:<id>` | one device |
-| `tag:<name>` | devices with that tag |
-| `user:<id>` | the devices that person owns (M1.27) |
+| Selector                                  | Matches                                 |
+| ----------------------------------------- | --------------------------------------- |
+| `*`                                       | any device                              |
+| `device:<id>`                             | one device                              |
+| `tag:<name>`                              | devices with that tag                   |
+| `user:<id>`                               | the devices that person owns (M1.27)    |
 | `role:owner`, `role:admin`, `role:member` | devices owned by members with that role |
 
 Owners and admins tag devices (`PUT /v1/devices/:id/tags`; tags grant access,

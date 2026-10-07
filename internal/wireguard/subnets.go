@@ -89,8 +89,32 @@ func (e *Engine) closeRoutes() {
 		_ = routeDel(e.name, p)
 	}
 	e.accepted = nil
+	if e.exit {
+		_ = exitOff(e.name)
+		e.exit = false
+	}
 	if len(e.served) > 0 {
 		_ = forwardingOff(e.name, e.served, e.servedMesh)
 		e.served, e.servedMesh = nil, nil
 	}
+}
+
+// SetExitNode sends all of this device's traffic that no other route claims
+// through the mesh interface (its peer must route the default route), or stops.
+func (e *Engine) SetExitNode(on bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if on == e.exit {
+		return nil
+	}
+	if !on {
+		e.exit = false
+		return exitOff(e.name)
+	}
+	if err := exitOn(e.name); err != nil {
+		_ = exitOff(e.name)
+		return err
+	}
+	e.exit = true
+	return nil
 }

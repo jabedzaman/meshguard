@@ -73,6 +73,12 @@ type Prefs struct {
 	AdvertiseRoutes []string `json:"advertiseRoutes,omitempty"`
 	// AcceptRoutes sends traffic for other devices' approved subnets to them.
 	AcceptRoutes bool `json:"acceptRoutes,omitempty"`
+	// AdvertiseExitNode offers this device as an exit node: peers may send all
+	// their traffic through it, once an owner or admin approves.
+	AdvertiseExitNode bool `json:"advertiseExitNode,omitempty"`
+	// ExitNode is the peer (name or mesh address) this device sends its
+	// internet traffic through; empty for none.
+	ExitNode string `json:"exitNode,omitempty"`
 }
 
 // ErrNotEnrolled is returned by Load when there is no state yet.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/jabedzaman/meshguard/internal/ipc"
 	"github.com/jabedzaman/meshguard/internal/routing"
@@ -15,7 +16,7 @@ func prefsStatus(p state.Prefs) *ipc.Prefs {
 	if routes == nil {
 		routes = []string{}
 	}
-	return &ipc.Prefs{AdvertiseRoutes: routes, AcceptRoutes: p.AcceptRoutes}
+	return &ipc.Prefs{AdvertiseRoutes: routes, AcceptRoutes: p.AcceptRoutes, AdvertiseExitNode: p.AdvertiseExitNode, ExitNode: p.ExitNode}
 }
 
 func (a *Agent) handleGetPrefs(w http.ResponseWriter, _ *http.Request) {
@@ -58,7 +59,18 @@ func (a *Agent) handleSetPrefs(w http.ResponseWriter, r *http.Request) {
 	if req.AcceptRoutes != nil {
 		next.AcceptRoutes = *req.AcceptRoutes
 	}
-	if slices.Equal(next.AdvertiseRoutes, st.Prefs.AdvertiseRoutes) && next.AcceptRoutes == st.Prefs.AcceptRoutes {
+	if req.AdvertiseExitNode != nil {
+		next.AdvertiseExitNode = *req.AdvertiseExitNode
+	}
+	if req.ExitNode != nil {
+		next.ExitNode = strings.TrimSpace(*req.ExitNode)
+		if next.ExitNode != "" && strings.EqualFold(next.ExitNode, st.Device.Name) {
+			writeError(w, http.StatusBadRequest, "invalid_exit_node", "a device can't be its own exit node")
+			return
+		}
+	}
+	if slices.Equal(next.AdvertiseRoutes, st.Prefs.AdvertiseRoutes) && next.AcceptRoutes == st.Prefs.AcceptRoutes &&
+		next.AdvertiseExitNode == st.Prefs.AdvertiseExitNode && next.ExitNode == st.Prefs.ExitNode {
 		writeJSON(w, http.StatusOK, prefsStatus(next))
 		return
 	}

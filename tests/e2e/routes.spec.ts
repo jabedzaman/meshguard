@@ -77,4 +77,37 @@ test.describe("subnet routes", () => {
     await sync(router, { endpoints: [], advertiseRoutes: [] });
     expect(await peerRoutes()).toEqual([]);
   });
+
+  test("an exit node is two default routes that wait for approval like any other", async ({
+    createUser,
+    createOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Exit Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const gateway = await enrollDevice(owner.page, network.id, "gateway");
+    const laptop = await enrollDevice(owner.page, network.id, "laptop");
+    const peerRoutes = async () =>
+      (await sync(laptop, { endpoints: [], advertiseRoutes: [] })).body.peers[0].routes;
+
+    await sync(gateway, { endpoints: [], advertiseRoutes: [], advertiseExitNode: true });
+    expect(await peerRoutes()).toEqual([]);
+    const listed = await api<{ name: string; routes: unknown }[]>(
+      owner.page,
+      `/v1/networks/${network.id}/devices`,
+    );
+    expect(listed.find((d) => d.name === "gateway")!.routes).toEqual([
+      { prefix: "0.0.0.0/0", approved: false },
+      { prefix: "::/0", approved: false },
+    ]);
+
+    await approve(owner.page, gateway.id, ["0.0.0.0/0", "::/0"]);
+    expect(await peerRoutes()).toEqual(["0.0.0.0/0", "::/0"]);
+    const self = await sync(gateway, { endpoints: [], advertiseRoutes: [], advertiseExitNode: true });
+    expect(self.body.self.routes).toEqual(["0.0.0.0/0", "::/0"]);
+
+    // Subnets and the exit node are independent; stopping the offer removes it.
+    await sync(gateway, { endpoints: [], advertiseRoutes: ["192.168.9.0/24"] });
+    expect(await peerRoutes()).toEqual([]);
+  });
 });

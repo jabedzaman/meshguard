@@ -29,16 +29,41 @@ func TestPlanRoutes(t *testing.T) {
 	local := pfx("172.16.3.0/24")
 
 	t.Run("without accept-routes only what we serve", func(t *testing.T) {
-		plan := planRoutes(nm, false, mesh, local)
+		plan := planRoutes(nm, false, "", mesh, local)
 		assert.Equal(t, pfx("172.20.0.0/16"), plan.serve)
 		assert.Empty(t, plan.accepted)
 		assert.Empty(t, plan.byPeer)
 	})
 
 	t.Run("accepting: first peer wins, mesh and local networks are skipped", func(t *testing.T) {
-		plan := planRoutes(nm, true, mesh, local)
+		plan := planRoutes(nm, true, "", mesh, local)
 		assert.Equal(t, pfx("192.168.50.0/24", "10.9.0.0/16"), plan.accepted)
 		assert.Equal(t, pfx("192.168.50.0/24", "10.9.0.0/16"), plan.byPeer["a"])
 		assert.Empty(t, plan.byPeer["b"], "b's routes are duplicates, mesh, on a local network or invalid")
 	})
+}
+
+func TestPlanExitNode(t *testing.T) {
+	nm := &coordination.NetworkMap{
+		Peers: []coordination.Peer{
+			{ID: "a", Name: "gateway", MeshIPv4: "10.77.0.2", Routes: []string{"0.0.0.0/0", "::/0", "192.168.1.0/24"}},
+			{ID: "b", Name: "plain", MeshIPv4: "10.77.0.3"},
+		},
+	}
+	mesh := pfx("10.77.0.0/16")
+
+	plan := planRoutes(nm, true, "Gateway", mesh, nil)
+	assert.Equal(t, "gateway", plan.exitPeer)
+	assert.Empty(t, plan.exitProblem)
+	assert.Equal(t, pfx("0.0.0.0/0", "::/0", "192.168.1.0/24"), plan.byPeer["a"], "default routes go to the exit node's allowed IPs")
+	assert.Equal(t, pfx("192.168.1.0/24"), plan.accepted, "a default route is never an accepted subnet")
+
+	assert.Equal(t, "gateway", planRoutes(nm, false, "10.77.0.2", mesh, nil).exitPeer, "by mesh address, without accept-routes")
+
+	plan = planRoutes(nm, false, "plain", mesh, nil)
+	assert.Empty(t, plan.exitPeer)
+	assert.Contains(t, plan.exitProblem, "approved")
+
+	plan = planRoutes(nm, false, "nobody", mesh, nil)
+	assert.Contains(t, plan.exitProblem, "isn't a device")
 }

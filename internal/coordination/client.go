@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jabedzaman/meshguard/internal/netmark"
 	"github.com/jabedzaman/meshguard/internal/state"
 )
 
@@ -26,7 +27,7 @@ type Client struct {
 func NewClient(serverURL string) *Client {
 	return &Client{
 		ServerURL: strings.TrimRight(serverURL, "/"),
-		HTTP:      &http.Client{Timeout: 30 * time.Second},
+		HTTP:      &http.Client{Timeout: 30 * time.Second, Transport: netmark.Transport()},
 	}
 }
 
@@ -125,6 +126,8 @@ type SyncRequest struct {
 	Endpoints []string `json:"endpoints"`
 	// Subnets this device offers to route (`meshguard set --advertise-routes`).
 	AdvertiseRoutes []string `json:"advertiseRoutes"`
+	// Offers this device as an exit node.
+	AdvertiseExitNode bool `json:"advertiseExitNode"`
 }
 
 // Sync reports this device's endpoints and returns its network map.

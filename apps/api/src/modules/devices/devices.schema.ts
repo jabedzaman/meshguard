@@ -29,6 +29,8 @@ export const syncDeviceBody = z.object({
   endpoints: z.array(endpoint).max(16),
   /** Subnets the device offers to route; omitted by agents that predate routes. */
   advertiseRoutes: z.array(z.string().max(64)).max(64).optional(),
+  /** Offers the device as an exit node (0.0.0.0/0 and ::/0, pending approval). */
+  advertiseExitNode: z.boolean().optional(),
 });
 
 export const setDeviceRoutesBody = z.object({

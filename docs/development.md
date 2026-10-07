@@ -22,14 +22,14 @@ Docker is the dev environment. Each app's dev image lives next to it
 Environment variables are injected by Docker Compose from `.env`; apps never
 read `.env` themselves.
 
-| Service | URL |
-| --- | --- |
-| Web | http://localhost:3000 |
-| Website and docs | http://localhost:3002/docs |
-| API | http://localhost:4000 |
-| Mailpit (catches all dev email) | http://localhost:8025 |
-| Relay | ws://localhost:3340/relay (health: http://localhost:3340/healthz) |
-| NATS monitoring | http://localhost:8222 |
+| Service                         | URL                                                               |
+| ------------------------------- | ----------------------------------------------------------------- |
+| Web                             | http://localhost:3000                                             |
+| Website and docs                | http://localhost:3002/docs                                        |
+| API                             | http://localhost:4000                                             |
+| Mailpit (catches all dev email) | http://localhost:8025                                             |
+| Relay                           | ws://localhost:3340/relay (health: http://localhost:3340/healthz) |
+| NATS monitoring                 | http://localhost:8222                                             |
 
 If a host port is taken by another project, override it in `.env` (`*_HOST_PORT`).
 
@@ -78,11 +78,11 @@ MESHGUARD_SOCKET=/tmp/meshguard.sock meshguard up --token meshguard_enr_...
 Containerized agents on the e2e stack, around a fake internet (`lab_inet`,
 10.200.0.0/24: API .10, relay + STUN .11) and NAT routers:
 
-| Pair | Setup | Must connect |
-| --- | --- | --- |
-| lab-a ↔ lab-b | same LAN | direct |
-| lab-e ↔ lab-f | e behind a NAT router, f public | direct, through e's NAT |
-| lab-g ↔ lab-h | g behind a symmetric NAT, h behind a NAT | via relay |
+| Pair          | Setup                                    | Must connect            |
+| ------------- | ---------------------------------------- | ----------------------- |
+| lab-a ↔ lab-b | same LAN                                 | direct                  |
+| lab-e ↔ lab-f | e behind a NAT router, f public          | direct, through e's NAT |
+| lab-g ↔ lab-h | g behind a symmetric NAT, h behind a NAT | via relay               |
 
 ```sh
 pnpm e2e:up

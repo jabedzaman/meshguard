@@ -16,3 +16,9 @@ func forwardingOn(string, []netip.Prefix, []netip.Prefix, []netip.Prefix, []neti
 	return fmt.Errorf("routing subnets is not supported on %s yet", runtime.GOOS)
 }
 func forwardingOff(string, []netip.Prefix, []netip.Prefix) error { return nil }
+
+func exitOn(string) error {
+	return fmt.Errorf("exit nodes are not supported on %s yet", runtime.GOOS)
+}
+func exitOff(string) error { return nil }
+func markConfig() string   { return "" }

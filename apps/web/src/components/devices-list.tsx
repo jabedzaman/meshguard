@@ -16,6 +16,7 @@ import {
 } from "@meshguard/ui/components/empty";
 import { ToggleGroup, ToggleGroupItem } from "@meshguard/ui/components/toggle-group";
 import { ConfirmDialog } from "~/components/confirm-dialog";
+import { groupRoutes } from "~/lib/routes";
 import { DeviceRoutesDialog } from "~/components/device-routes-dialog";
 import { DeviceTagsDialog } from "~/components/device-tags-dialog";
 import { ListSkeleton } from "~/components/list-skeleton";
@@ -136,14 +137,14 @@ export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDo
                           tag:{tag}
                         </Badge>
                       ))}
-                      {device.routes.map((route) => (
+                      {groupRoutes(device.routes).map((route) => (
                         <Badge
-                          key={route.prefix}
+                          key={route.label}
                           variant={route.approved ? "secondary" : "outline"}
                           className="font-mono font-normal"
                           title={route.approved ? "Route approved" : "Route waiting for approval"}
                         >
-                          {route.prefix}
+                          {route.label}
                           {!route.approved && " · pending"}
                         </Badge>
                       ))}

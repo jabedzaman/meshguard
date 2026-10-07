@@ -17,6 +17,7 @@ import {
 } from "@meshguard/ui/components/dialog";
 import { IconAction } from "~/components/icon-action";
 import { deviceMutations, deviceQueries } from "~/lib/queries";
+import { groupRoutes } from "~/lib/routes";
 
 /**
  * Owners and admins approve the subnets a device offers to route. Nothing
@@ -38,7 +39,8 @@ export function DeviceRoutesDialog({
       await queryClient.invalidateQueries({ queryKey: deviceQueries.all() });
     },
   });
-  const pending = device.routes.filter((route) => !route.approved).length;
+  const groups = groupRoutes(device.routes);
+  const pending = groups.filter((group) => !group.approved).length;
 
   return (
     <Dialog
@@ -71,29 +73,36 @@ export function DeviceRoutesDialog({
             <DialogTitle>Routes of {device.name}</DialogTitle>
             <DialogDescription>
               Subnets this device offers to route, set with{" "}
-              <code>meshguard set --advertise-routes</code>. Devices that accept routes send traffic
-              for an approved subnet through {device.name}.
+              <code>meshguard set --advertise-routes</code> or <code>--advertise-exit-node</code>.
+              Devices that accept routes send traffic for an approved subnet through {device.name}.
             </DialogDescription>
           </DialogHeader>
           <ul className="grid gap-2">
-            {device.routes.map((route) => (
-              <li key={route.prefix}>
-                <label className="flex items-center gap-2 font-mono text-sm">
-                  <input
-                    type="checkbox"
-                    checked={approved.includes(route.prefix)}
-                    onChange={(event) =>
-                      setApproved((current) =>
-                        event.target.checked
-                          ? [...current, route.prefix]
-                          : current.filter((prefix) => prefix !== route.prefix),
-                      )
-                    }
-                  />
-                  {route.prefix}
-                </label>
-              </li>
-            ))}
+            {groups.map((group) => {
+              const on = group.prefixes.every((prefix) => approved.includes(prefix));
+              return (
+                <li key={group.label}>
+                  <label className="flex items-center gap-2 font-mono text-sm">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={(event) =>
+                        setApproved((current) => [
+                          ...current.filter((prefix) => !group.prefixes.includes(prefix)),
+                          ...(event.target.checked ? group.prefixes : []),
+                        ])
+                      }
+                    />
+                    {group.label}
+                    {group.label === "exit node" && (
+                      <span className="text-muted-foreground font-sans">
+                        (all internet traffic of devices that choose it)
+                      </span>
+                    )}
+                  </label>
+                </li>
+              );
+            })}
           </ul>
           {save.error && (
             <p role="alert" className="text-destructive text-sm">

@@ -57,11 +57,17 @@ func printStatus(s ipc.Status) {
 	if s.ACL != nil {
 		printACL(*s.ACL)
 	}
-	if s.Prefs != nil && (len(s.Prefs.AdvertiseRoutes) > 0 || s.Prefs.AcceptRoutes) {
+	if s.Prefs != nil && (len(s.Prefs.AdvertiseRoutes) > 0 || s.Prefs.AcceptRoutes || s.Prefs.AdvertiseExitNode || s.Prefs.ExitNode != "") {
 		printPrefs(*s.Prefs)
 	}
-	if len(s.Serving) > 0 {
-		fmt.Printf("  serving    %s (routed for peers)\n", strings.Join(s.Serving, ", "))
+	if subnets := withoutDefaultRoutes(s.Serving); len(subnets) > 0 {
+		fmt.Printf("  serving    %s (routed for peers)\n", strings.Join(subnets, ", "))
+	}
+	if s.ServingExitNode {
+		fmt.Println("  serving    all internet traffic (exit node)")
+	}
+	if s.ExitNode != "" {
+		fmt.Printf("  exit node  all internet traffic goes through %s\n", s.ExitNode)
 	}
 	if len(s.Accepted) > 0 {
 		fmt.Printf("  accepting  %s (through peers)\n", strings.Join(s.Accepted, ", "))
@@ -161,4 +167,14 @@ func handshake(p ipc.Peer) string {
 		return "never"
 	}
 	return time.Since(*p.LastHandshake).Round(time.Second).String() + " ago"
+}
+
+func withoutDefaultRoutes(routes []string) []string {
+	var out []string
+	for _, r := range routes {
+		if r != "0.0.0.0/0" && r != "::/0" {
+			out = append(out, r)
+		}
+	}
+	return out
 }

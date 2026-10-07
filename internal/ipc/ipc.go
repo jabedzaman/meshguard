@@ -50,20 +50,31 @@ type Status struct {
 	Serving []string `json:"serving,omitempty"`
 	// Subnets of peers this device sends traffic to (needs accept-routes).
 	Accepted []string `json:"accepted,omitempty"`
-	Peers    []Peer   `json:"peers,omitempty"`
+	// The peer all traffic goes through, once it is in use (see Prefs.ExitNode).
+	ExitNode string `json:"exitNode,omitempty"`
+	// Serving is also set when this device is an approved exit node.
+	ServingExitNode bool   `json:"servingExitNode,omitempty"`
+	Peers           []Peer `json:"peers,omitempty"`
 }
 
 // Prefs are the device's settings (GET /v1/prefs).
 type Prefs struct {
 	AdvertiseRoutes []string `json:"advertiseRoutes"`
 	AcceptRoutes    bool     `json:"acceptRoutes"`
+	// Offers to be an exit node.
+	AdvertiseExitNode bool `json:"advertiseExitNode"`
+	// The peer used as exit node, if any.
+	ExitNode string `json:"exitNode"`
 }
 
 // PrefsUpdate is the body of PATCH /v1/prefs; fields left nil are unchanged.
 // An empty AdvertiseRoutes list clears the routes.
 type PrefsUpdate struct {
-	AdvertiseRoutes *[]string `json:"advertiseRoutes,omitempty"`
-	AcceptRoutes    *bool     `json:"acceptRoutes,omitempty"`
+	AdvertiseRoutes   *[]string `json:"advertiseRoutes,omitempty"`
+	AcceptRoutes      *bool     `json:"acceptRoutes,omitempty"`
+	AdvertiseExitNode *bool     `json:"advertiseExitNode,omitempty"`
+	// "" stops using an exit node.
+	ExitNode *string `json:"exitNode,omitempty"`
 }
 
 // ACLStatus summarizes the access rules this device enforces.

@@ -203,6 +203,20 @@ network page (the route icon on the device). Run `meshguard status` on the route
 to see `serving`, and on a client to see `accepting`. A router needs Linux with
 `iptables`; in a container, set `net.ipv4.ip_forward=1` on it.
 
+### Exit nodes
+
+```sh
+meshguard set --advertise-exit-node   # on the device that should carry the traffic
+meshguard set --exit-node gateway     # on a device that should use it
+meshguard set --exit-node ""          # stop using it
+```
+
+An owner or admin approves the exit node in the web first; until then
+`meshguard status` says why it isn't used. Both sides must be Linux for now. The
+exit node needs `iptables` and IP forwarding. While one is in use, everything
+the mesh and your local network don't claim goes through it; the agent's own
+connections (control plane, relay, WireGuard) are marked and stay off the tunnel.
+
 Routes are checked before they are saved: CIDR notation only, no default route
 (that is an exit node), nothing inside the network's mesh range.
 

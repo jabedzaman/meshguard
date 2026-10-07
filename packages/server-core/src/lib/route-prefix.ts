@@ -1,6 +1,9 @@
 import { isIPv6 } from "node:net";
 import { parseIpv4Cidr, type Ipv4Cidr } from "~/lib/ip";
 
+/** The routes of an exit node: everything. Offered by `advertiseExitNode`, never as a subnet. */
+export const EXIT_NODE_ROUTES = ["0.0.0.0/0", "::/0"];
+
 /** Routes one device may advertise; keeps the network map small. */
 export const MAX_DEVICE_ROUTES = 32;
 

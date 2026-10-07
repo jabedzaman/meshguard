@@ -17,18 +17,27 @@ type routePlan struct {
 	// byPeer the same per peer id (they join the peer's allowed IPs).
 	accepted []netip.Prefix
 	byPeer   map[string][]netip.Prefix
+	// exitPeer is the name of the peer all other traffic goes through, once
+	// it offers an approved exit node; exitProblem says why a chosen one isn't used.
+	exitPeer    string
+	exitProblem string
 }
+
+var defaultRoutes = []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0"), netip.MustParsePrefix("::/0")}
 
 // planRoutes decides which subnets to serve and accept. A subnet two peers
 // both route goes to the first in the map (the oldest device), and one that
 // overlaps the mesh or a network this machine is on is skipped, so a laptop
 // on the router's own LAN keeps using that LAN directly.
-func planRoutes(nm *coordination.NetworkMap, accept bool, mesh, local []netip.Prefix) routePlan {
+func planRoutes(nm *coordination.NetworkMap, accept bool, exitNode string, mesh, local []netip.Prefix) routePlan {
 	plan := routePlan{byPeer: map[string][]netip.Prefix{}}
 	for _, raw := range nm.Self.Routes {
 		if p, err := netip.ParsePrefix(raw); err == nil {
 			plan.serve = append(plan.serve, p.Masked())
 		}
+	}
+	if exitNode != "" {
+		planExitNode(&plan, nm, exitNode)
 	}
 	if !accept {
 		return plan
@@ -41,6 +50,9 @@ func planRoutes(nm *coordination.NetworkMap, accept bool, mesh, local []netip.Pr
 				continue
 			}
 			p = p.Masked()
+			if p.Bits() == 0 {
+				continue // an exit node, chosen with --exit-node
+			}
 			if claimed[p] || overlapsAny(p, mesh) || overlapsAny(p, local) {
 				if overlapsAny(p, local) {
 					slog.Debug("not routing a subnet this machine is on", "route", p, "peer", peer.Name)
@@ -96,6 +108,12 @@ func (a *Agent) applyRoutes(engine Engine, plan routePlan, mesh []netip.Prefix) 
 	if err := engine.SetAcceptedRoutes(plan.accepted); err != nil {
 		problems = append(problems, "cannot add subnet routes: "+err.Error())
 	}
+	if err := engine.SetExitNode(plan.exitPeer != ""); err != nil {
+		problems = append(problems, "cannot use the exit node: "+err.Error())
+	}
+	if plan.exitProblem != "" {
+		problems = append(problems, plan.exitProblem)
+	}
 	return strings.Join(problems, "; ")
 }
 
@@ -108,4 +126,28 @@ func routeStrings(ps []netip.Prefix) []string {
 		out[i] = p.String()
 	}
 	return out
+}
+
+// planExitNode finds the peer the user chose (by name or mesh address) and, if
+// it offers the default routes with approval, adds them to its allowed IPs.
+func planExitNode(plan *routePlan, nm *coordination.NetworkMap, want string) {
+	for _, peer := range nm.Peers {
+		if !strings.EqualFold(peer.Name, want) && peer.MeshIPv4 != want && peer.MeshIPv6 != want {
+			continue
+		}
+		var offered []netip.Prefix
+		for _, raw := range peer.Routes {
+			if p, err := netip.ParsePrefix(raw); err == nil && p.Bits() == 0 {
+				offered = append(offered, p.Masked())
+			}
+		}
+		if len(offered) == 0 {
+			plan.exitProblem = "exit node " + want + " isn't offering to route everything, or an owner or admin hasn't approved it yet"
+			return
+		}
+		plan.byPeer[peer.ID] = append(plan.byPeer[peer.ID], offered...)
+		plan.exitPeer = peer.Name
+		return
+	}
+	plan.exitProblem = "exit node " + want + " isn't a device this device can see"
 }
