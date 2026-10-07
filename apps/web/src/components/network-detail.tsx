@@ -73,6 +73,13 @@ export function NetworkDetail({ networkId }: { networkId: string }) {
             <Badge variant="outline" className="font-mono">
               {network.ipv6Cidr}
             </Badge>
+            <Badge
+              variant="outline"
+              className="font-mono"
+              title="Devices resolve as <name>.<domain>"
+            >
+              {network.dnsDomain}
+            </Badge>
           </div>
         </div>
         <AddDeviceDialog networkId={network.id} />
@@ -102,7 +109,7 @@ export function NetworkDetail({ networkId }: { networkId: string }) {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="devices" className="flex flex-col gap-8">
-          <DevicesList networkId={network.id} />
+          <DevicesList networkId={network.id} dnsDomain={network.dnsDomain} />
           <section className="flex flex-col gap-3">
             <h2 className="text-muted-foreground text-sm font-medium">Active enrollment tokens</h2>
             <EnrollmentTokensList networkId={network.id} />

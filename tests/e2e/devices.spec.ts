@@ -66,7 +66,9 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Rename Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await api<{ id: string; dnsDomain: string }>(owner.page, "/v1/networks", {
+      name: "home",
+    });
     const token = () =>
       api<{ token: string }>(owner.page, `/v1/networks/${network.id}/enrollment-tokens`, {}).then(
         (t) => t.token,
@@ -78,6 +80,7 @@ test.describe("devices", () => {
       platform: "darwin",
       ...laptop.keys,
     });
+    expect(a.body.network.dnsDomain).toBe(network.dnsDomain);
     const server = signingDevice();
     const b = await enroll({
       token: await token(),
@@ -93,7 +96,7 @@ test.describe("devices", () => {
     await owner.page.getByRole("button", { name: "Rename laptop" }).click();
     const input = owner.page.getByLabel("Device name");
     await input.fill("Work-Laptop");
-    await expect(owner.page.getByText("work-laptop.internal")).toBeVisible();
+    await expect(owner.page.getByText(`work-laptop.${network.dnsDomain}`)).toBeVisible();
     await owner.page.getByRole("button", { name: "Save" }).click();
     await expect(owner.page.getByRole("dialog")).toHaveCount(0);
     await expect(owner.page.locator("li", { hasText: "work-laptop" })).toContainText("macOS");

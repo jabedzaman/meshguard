@@ -45,7 +45,7 @@ const deviceId = (device: Device) => device.id;
 const deviceSignature = (device: Device) =>
   `${device.online}|${device.name}|${device.tags.join(",")}`;
 
-export function DevicesList({ networkId }: { networkId: string }) {
+export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDomain: string }) {
   const { data: devices, isPending, error } = useQuery(deviceQueries.list(networkId));
   const user = useCurrentUser();
   // Owners and admins manage every device; everyone manages their own.
@@ -150,7 +150,9 @@ export function DevicesList({ networkId }: { networkId: string }) {
                   </span>
                   <div className="flex items-center">
                     {canRenameAny && <DeviceTagsDialog device={device} />}
-                    {(canRenameAny || mine(device)) && <RenameDeviceDialog device={device} />}
+                    {(canRenameAny || mine(device)) && (
+                      <RenameDeviceDialog device={device} dnsDomain={dnsDomain} />
+                    )}
                     {(canRemoveAny || mine(device)) && (
                       <ConfirmDialog
                         trigger={
@@ -165,7 +167,7 @@ export function DevicesList({ networkId }: { networkId: string }) {
                         }
                         triggerTooltip="Remove"
                         title={`Remove ${device.name}?`}
-                        description={`It leaves the network and peers stop reaching ${device.name}.internal. To bring it back, run meshguard logout --force on it, then enroll it again.`}
+                        description={`It leaves the network and peers stop reaching ${device.name}.${dnsDomain}. To bring it back, run meshguard logout --force on it, then enroll it again.`}
                         confirmLabel="Remove device"
                         onConfirm={async () => {
                           await deviceMutations.remove(device.id);

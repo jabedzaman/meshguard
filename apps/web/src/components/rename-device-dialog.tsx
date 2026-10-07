@@ -45,7 +45,13 @@ const schema = z.object({
 
 type Values = z.infer<typeof schema>;
 
-export function RenameDeviceDialog({ device }: { device: { id: string; name: string } }) {
+export function RenameDeviceDialog({
+  device,
+  dnsDomain,
+}: {
+  device: { id: string; name: string };
+  dnsDomain: string;
+}) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const form = useForm<Values>({
@@ -110,7 +116,10 @@ export function RenameDeviceDialog({ device }: { device: { id: string; name: str
                     <Input autoComplete="off" spellCheck={false} {...field} />
                   </FormControl>
                   <FormDescription>
-                    Resolves as <span className="font-mono">{field.value || "name"}.internal</span>
+                    Resolves as{" "}
+                    <span className="font-mono">
+                      {field.value || "name"}.{dnsDomain}
+                    </span>
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
