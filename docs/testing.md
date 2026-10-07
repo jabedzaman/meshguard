@@ -36,7 +36,10 @@ check for the data plane: real agents with WireGuard in containers must ping
 each other's mesh IPv4 and IPv6 addresses: directly on a shared LAN, directly
 through a NAT router (STUN + hole punching), and through the relay behind a
 symmetric NAT. On the LAN pair it also turns on access rules and checks that
-pings and TCP ports are blocked and allowed as the rules say.
+pings and TCP ports are blocked and allowed as the rules say. A subnet router
+(`lab-r`, with a plain host `lab-s` on a LAN only it can reach) checks that a
+route waits for approval, carries traffic once approved and stops when revoked,
+when accept-routes is off or when access rules don't allow it.
 
 ## Agent service
 

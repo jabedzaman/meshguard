@@ -60,6 +60,12 @@ func printStatus(s ipc.Status) {
 	if s.Prefs != nil && (len(s.Prefs.AdvertiseRoutes) > 0 || s.Prefs.AcceptRoutes) {
 		printPrefs(*s.Prefs)
 	}
+	if len(s.Serving) > 0 {
+		fmt.Printf("  serving    %s (routed for peers)\n", strings.Join(s.Serving, ", "))
+	}
+	if len(s.Accepted) > 0 {
+		fmt.Printf("  accepting  %s (through peers)\n", strings.Join(s.Accepted, ", "))
+	}
 	if s.Relay != nil {
 		state := "connecting"
 		if s.Relay.Connected {

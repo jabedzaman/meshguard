@@ -48,18 +48,33 @@ func ruleExists(route, mesh netip.Prefix) bool {
 
 func sameFamily(a, b netip.Prefix) bool { return a.Addr().Is4() == b.Addr().Is4() }
 
-func setForwarding(on bool) error {
-	v := "0"
-	if on {
-		v = "1"
+// enableForwarding turns on IP forwarding for the families of routes. Only
+// the families in use are touched, and one that is already on is left alone:
+// containers can't write /proc/sys but may have it set.
+func enableForwarding(routes []netip.Prefix) error {
+	var need4, need6 bool
+	for _, p := range routes {
+		need4 = need4 || p.Addr().Is4()
+		need6 = need6 || p.Addr().Is6()
 	}
 	var firstErr error
-	for _, path := range []string{"/proc/sys/net/ipv4/ip_forward", "/proc/sys/net/ipv6/conf/all/forwarding"} {
-		if _, err := os.Stat(path); err != nil {
+	for _, f := range []struct {
+		need bool
+		path string
+	}{
+		{need4, "/proc/sys/net/ipv4/ip_forward"},
+		{need6, "/proc/sys/net/ipv6/conf/all/forwarding"},
+	} {
+		if !f.need {
 			continue
 		}
-		if err := os.WriteFile(path, []byte(v), 0o644); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("enable forwarding: %w", err)
+		current, err := os.ReadFile(f.path)
+		if err != nil || strings.TrimSpace(string(current)) == "1" {
+			continue
+		}
+		if err := os.WriteFile(f.path, []byte("1"), 0o644); err != nil && firstErr == nil {
+			name := strings.ReplaceAll(strings.TrimPrefix(f.path, "/proc/sys/"), "/", ".")
+			firstErr = fmt.Errorf("enable forwarding (set %s=1 yourself): %w", name, err)
 		}
 	}
 	return firstErr
@@ -72,7 +87,7 @@ func forwardingOn(iface string, routes, mesh, oldRoutes, oldMesh []netip.Prefix)
 		return fmt.Errorf("subnet routing needs iptables on this machine")
 	}
 	forwardingOff(iface, oldRoutes, oldMesh)
-	if err := setForwarding(true); err != nil {
+	if err := enableForwarding(routes); err != nil {
 		return err
 	}
 	var failed []string

@@ -103,7 +103,7 @@ func (a *Agent) updateDNSLocked(c *connection, nm *coordination.NetworkMap) {
 	if c.dns.server == nil {
 		return
 	}
-	c.dns.server.SetRecords(dnsRecords(nm.Self, nm.Peers))
+	c.dns.server.SetRecords(dnsRecords(nm.Self.Device, nm.Peers))
 	if domainChanged {
 		c.dns.server.SetDomain(c.dns.domain)
 		a.configureOSDNSLocked(c)

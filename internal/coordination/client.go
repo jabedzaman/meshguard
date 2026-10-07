@@ -69,6 +69,15 @@ type Peer struct {
 	MeshIPv6           string     `json:"meshIpv6"`
 	Endpoints          []string   `json:"endpoints"`
 	LastSeenAt         *time.Time `json:"lastSeenAt"`
+	// Subnets this peer routes, approved by an owner or admin.
+	Routes []string `json:"routes"`
+}
+
+// Self is this device in its network map.
+type Self struct {
+	state.Device
+	// Approved subnets this device is to route for its peers.
+	Routes []string `json:"routes"`
 }
 
 // Relay is where to send packets for peers that can't be reached directly.
@@ -98,7 +107,7 @@ type ACLRule struct {
 
 // NetworkMap is everything the agent needs to configure WireGuard.
 type NetworkMap struct {
-	Self    state.Device  `json:"self"`
+	Self    Self          `json:"self"`
 	Network state.Network `json:"network"`
 	Peers   []Peer        `json:"peers"`
 	Relay   *Relay        `json:"relay"`

@@ -37,10 +37,24 @@ type fakeEngine struct {
 	rebinds atomic.Int32
 	local   wireguard.LocalHandler
 	router  wireguard.Router
+	// subnet routes served to peers and accepted from them
+	served, accepted []netip.Prefix
 }
 
 func (e *fakeEngine) Name() string { return "meshguard-test0" }
 func (e *fakeEngine) Close()       {}
+func (e *fakeEngine) SetServedRoutes(routes, _ []netip.Prefix) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.served = routes
+	return nil
+}
+func (e *fakeEngine) SetAcceptedRoutes(routes []netip.Prefix) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.accepted = routes
+	return nil
+}
 func (e *fakeEngine) SetPeers(p []wireguard.Peer) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

@@ -198,6 +198,11 @@ meshguard set --advertise-routes ""                           # stop offering
 meshguard set --accept-routes                                 # use subnets other devices route
 ```
 
+An advertised route carries nothing until an owner or admin approves it on the
+network page (the route icon on the device). Run `meshguard status` on the router
+to see `serving`, and on a client to see `accepting`. A router needs Linux with
+`iptables`; in a container, set `net.ipv4.ip_forward=1` on it.
+
 Routes are checked before they are saved: CIDR notation only, no default route
 (that is an exit node), nothing inside the network's mesh range.
 

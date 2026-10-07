@@ -3,6 +3,7 @@
 #   lab-a ↔ lab-b  share a LAN                    → direct
 #   lab-e ↔ lab-f  e behind a cone NAT, f public  → direct through e's NAT
 #   lab-g ↔ lab-h  g symmetric NAT, h cone NAT    → relay
+#   lab-r, lab-s   lab-r routes 192.168.50.0/24 (where only lab-s lives) for lab-b
 # Usage: pnpm e2e:up && pnpm lab
 set -euo pipefail
 
@@ -42,7 +43,7 @@ docker compose up -d --build relay >/dev/null
 docker compose --profile e2e up -d api-e2e >/dev/null
 for _ in $(seq 60); do curl -sf "$API/healthz" >/dev/null && break; sleep 1; done
 docker compose --profile lab up -d --build --force-recreate \
-  router-e router-g router-h lab-a lab-b lab-e lab-f lab-g lab-h >/dev/null
+  router-e router-g router-h lab-a lab-b lab-r lab-s lab-e lab-f lab-g lab-h >/dev/null
 
 echo "==> creating an organization on $API"
 id="lab-$(date +%s)"
@@ -156,7 +157,70 @@ dropped=$(docker exec meshguard-lab-b meshguard status --json | json .acl.droppe
 if [ "${dropped:-0}" -gt 0 ]; then ok "lab-b counted $dropped refused packets"; else fail "lab-b counted no refused packets"; fi
 docker exec meshguard-lab-b meshguard status | grep access
 
-# Sanity: lab-f can't open a connection into lab-e's NAT on its own.
+# Subnet routes: lab-r advertises 192.168.50.0/24, which only it can reach
+# (lab-s lives there); lab-b accepts routes. Nothing flows until an admin approves.
+echo
+echo "==> subnet routes (lab-r routes 192.168.50.0/24 for lab-b)"
+sub_network=$(post /v1/networks '{"name":"lab-subnet"}' | json .id)
+docker exec meshguard-lab-b meshguard logout --force >/dev/null   # leaves lab-lan
+for device in lab-r lab-b; do
+  token=$(post "/v1/networks/$sub_network/enrollment-tokens" '{}' | json .token)
+  docker exec "meshguard-$device" meshguard up --token "$token" --server "$LAB_API" | head -1
+done
+r_id=$(docker exec meshguard-lab-r meshguard status --json | json .device.id)
+r4=$(ip_of lab-r IPv4); b4=$(ip_of lab-b IPv4)
+host=192.168.50.10
+docker exec -d meshguard-lab-s nc -lk 8080
+# Some Docker hosts (OrbStack) route between networks whatever "internal" says,
+# so say that lab-b is not on that LAN: a low-priority route the mesh route beats.
+docker exec meshguard-lab-b ip route add unreachable 192.168.50.0/24 metric 4000
+if can_ping lab-b "$host"; then fail "lab-b reaches $host outside the mesh; the routes test would be meaningless"
+else ok "lab-b cannot reach $host outside the mesh"; fi
+
+docker exec meshguard-lab-r meshguard set --advertise-routes 192.168.50.0/24 >/dev/null
+docker exec meshguard-lab-b meshguard set --accept-routes >/dev/null
+expect_traffic blocked "lab-b -> $host before approval" can_ping lab-b "$host"
+pending=$(curl -sf -b "$COOKIES" -H "Origin: $WEB" "$API/v1/networks/$sub_network/devices" |
+  node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).flatMap(d => d.routes).map(r => r.prefix + ":" + r.approved).join()')
+if [ "$pending" = "192.168.50.0/24:false" ]; then ok "the route waits for approval ($pending)"; else fail "route state '$pending'"; fi
+
+put() { curl -sf -m 15 -X PUT -b "$COOKIES" -c "$COOKIES" -H "Origin: $WEB" -H 'Content-Type: application/json' -d "$2" "$API$1"; }
+put "/v1/devices/$r_id/routes" '{"approved":["192.168.50.0/24"]}' >/dev/null
+expect_traffic allowed "lab-b -> $host ping through lab-r" can_ping lab-b "$host"
+expect_traffic allowed "lab-b -> $host:8080 through lab-r" can_connect lab-b "$host" 8080
+if docker exec meshguard-lab-b ip route get "$host" | grep -q "dev meshguard0"; then ok "lab-b routes $host through meshguard0"; else fail "lab-b does not route $host through meshguard0"; fi
+docker exec meshguard-lab-b meshguard status | grep -E "serving|accepting|routes" || true
+docker exec meshguard-lab-r meshguard status | grep -E "serving|accepting|routes" || true
+
+# Revoking takes the route away again.
+put "/v1/devices/$r_id/routes" '{"approved":[]}' >/dev/null
+expect_traffic blocked "lab-b -> $host after revoking" can_ping lab-b "$host"
+put "/v1/devices/$r_id/routes" '{"approved":["192.168.50.0/24"]}' >/dev/null
+expect_traffic allowed "lab-b -> $host after approving again" can_ping lab-b "$host"
+
+# Access rules cover the subnet too: under deny, lab-b needs a rule that lets
+# it reach lab-r.
+patch "/v1/networks/$sub_network/acl" '{"defaultAction":"deny"}' >/dev/null
+expect_traffic blocked "lab-b -> $host, deny without rules" can_ping lab-b "$host"
+b_id=$(docker exec meshguard-lab-b meshguard status --json | json .device.id)
+post "/v1/networks/$sub_network/acl/rules" \
+  "{\"source\":\"device:$b_id\",\"destination\":\"device:$r_id\",\"protocol\":\"any\"}" >/dev/null
+expect_traffic allowed "lab-b -> $host by a rule for lab-r" can_ping lab-b "$host"
+
+# Without accept-routes lab-b stops using the route.
+docker exec meshguard-lab-b meshguard set --accept-routes=false >/dev/null
+expect_traffic blocked "lab-b -> $host without accept-routes" can_ping lab-b "$host"
+
+# Stop advertising: the router's NAT rule goes away.
+docker exec meshguard-lab-r meshguard set --advertise-routes "" >/dev/null
+for _ in $(seq 20); do
+  docker exec meshguard-lab-r iptables -t nat -S POSTROUTING | grep -q 192.168.50.0 || break; sleep 1
+done
+if docker exec meshguard-lab-r iptables -t nat -S POSTROUTING | grep -q 192.168.50.0; then fail "lab-r still masquerades 192.168.50.0/24"; else ok "lab-r removed its NAT rule"; fi
+
+# Sanity: lab-f can't open a connection into lab-e's NAT on its own. (Same
+# reason for the unreachable route as above.)
+docker exec meshguard-lab-f ip route add unreachable 10.201.0.0/24 || true
 if docker exec meshguard-lab-f ping -c 1 -W 1 10.201.0.10 >/dev/null 2>&1; then
   fail "lab-f reaches lab-e's LAN address; the NAT test would be meaningless"
 else

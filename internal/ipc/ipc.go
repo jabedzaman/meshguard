@@ -46,7 +46,11 @@ type Status struct {
 	ACL *ACLStatus `json:"acl,omitempty"`
 	// Settings from `meshguard set`.
 	Prefs *Prefs `json:"prefs,omitempty"`
-	Peers []Peer `json:"peers,omitempty"`
+	// Subnets this device routes for its peers (approved).
+	Serving []string `json:"serving,omitempty"`
+	// Subnets of peers this device sends traffic to (needs accept-routes).
+	Accepted []string `json:"accepted,omitempty"`
+	Peers    []Peer   `json:"peers,omitempty"`
 }
 
 // Prefs are the device's settings (GET /v1/prefs).
@@ -101,8 +105,10 @@ type Peer struct {
 	MeshIPv4 string `json:"meshIpv4"`
 	MeshIPv6 string `json:"meshIpv6"`
 	// "ip:port" when direct; empty (ViaRelay) when through the relay.
-	Endpoint      string     `json:"endpoint,omitempty"`
-	ViaRelay      bool       `json:"viaRelay,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
+	ViaRelay bool   `json:"viaRelay,omitempty"`
+	// Approved subnets this peer routes.
+	Routes        []string   `json:"routes,omitempty"`
 	LastHandshake *time.Time `json:"lastHandshake,omitempty"`
 }
 

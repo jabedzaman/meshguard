@@ -42,6 +42,10 @@ type Engine interface {
 	Rebind() error
 	// SetACL replaces what peers may send in; until then only replies pass.
 	SetACL(acl.Policy)
+	// SetServedRoutes makes this device route subnets for its peers.
+	SetServedRoutes(routes, mesh []netip.Prefix) error
+	// SetAcceptedRoutes sends traffic for peers' subnets through the mesh.
+	SetAcceptedRoutes([]netip.Prefix) error
 	ACLDropped() uint64
 	// SetLocalHandler answers packets for addresses the agent serves (DNS).
 	SetLocalHandler(wireguard.LocalHandler)
@@ -105,7 +109,11 @@ type connection struct {
 	watching bool
 	peers    []coordination.Peer
 	stun     []string
-	acl      *coordination.ACL
+	// serving and accepted are the subnets routed for peers and sent to them.
+	serving, accepted []string
+	// routeProblem says why subnet routes could not be applied.
+	routeProblem string
+	acl          *coordination.ACL
 	// savedName and savedDNSDomain are in the state file, so a sync only
 	// touches the file when the control plane changed them.
 	savedName      string
@@ -449,7 +457,10 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	engine := c.engine
 	d := c.disco
 	advertise := append([]string{}, c.prefs.AdvertiseRoutes...)
+	acceptRoutes := c.prefs.AcceptRoutes
 	a.mu.Unlock()
+	var routeProblem string
+	var accepted, serving []string
 
 	syncCtx, cancel := context.WithTimeout(c.ctx, 15*time.Second)
 	defer cancel()
@@ -469,6 +480,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 		if d != nil {
 			d.SetPeers(discoCandidates(nm.Peers))
 		}
+		plan := planRoutes(nm, acceptRoutes, exclude, localNetworks(engine.Name()))
 		peers := make([]wireguard.Peer, 0, len(nm.Peers))
 		for _, p := range nm.Peers {
 			peer := wireguard.Peer{PublicKey: p.WireGuardPublicKey}
@@ -477,6 +489,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 					peer.AllowedIPs = append(peer.AllowedIPs, prefix)
 				}
 			}
+			peer.AllowedIPs = append(peer.AllowedIPs, plan.byPeer[p.ID]...)
 			// The bind picks direct or relay per packet; WireGuard
 			// only ever sees the peer.
 			if key, err := peerKey(p.WireGuardPublicKey); err == nil {
@@ -490,6 +503,8 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 			slog.Info("peers updated", "count", len(peers))
 		}
 		engine.SetACL(aclPolicy(nm.ACL))
+		routeProblem = a.applyRoutes(engine, plan, exclude)
+		accepted, serving = routeStrings(plan.accepted), routeStrings(plan.serve)
 	}
 
 	a.mu.Lock()
@@ -500,6 +515,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	c.lastSync = time.Now()
 	c.revision = nm.Revision
 	c.peers = nm.Peers
+	c.accepted, c.serving, c.routeProblem = accepted, serving, routeProblem
 	c.stun = nm.Stun
 	if !reflect.DeepEqual(c.acl, nm.ACL) {
 		st := aclStatus(nm.ACL, true, 0)
@@ -511,6 +527,8 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	switch {
 	case applyErr != nil:
 		c.problem = "cannot apply peers: " + applyErr.Error()
+	case routeProblem != "" && c.engine != nil:
+		c.problem = routeProblem
 	case c.engine != nil:
 		c.problem = ""
 	}
@@ -677,6 +695,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	}
 	s.Problem = c.problem
 	s.Prefs = prefsStatus(c.prefs)
+	s.Serving, s.Accepted = c.serving, c.accepted
 	if !c.lastSync.IsZero() {
 		at := c.lastSync
 		s.LastSyncAt = &at
@@ -700,7 +719,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		}
 	}
 	for _, p := range c.peers {
-		peer := ipc.Peer{Name: p.Name, DNSName: dns.Name(p.Name, c.dns.domain), MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6}
+		peer := ipc.Peer{Name: p.Name, DNSName: dns.Name(p.Name, c.dns.domain), MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6, Routes: p.Routes}
 		if hexKey, err := wireguard.KeyToHex(p.WireGuardPublicKey); err == nil {
 			if ps, ok := stats[hexKey]; ok {
 				peer.Endpoint, peer.ViaRelay = a.pathLocked(c, p, ps.Endpoint)
