@@ -4,6 +4,7 @@ import { AppError, ConflictError, NotFoundError } from "~/errors";
 import type { DeviceEvents } from "~/events/device-events";
 import { isUniqueViolation } from "~/lib/db-errors";
 import { deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
+import { DEFAULT_DNS_BASE_DOMAIN, networkDnsDomain } from "~/lib/dns-name";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
 import type { PresenceStore } from "~/lib/presence";
 import { relayTokenExpiry, signRelayToken } from "~/lib/relay-token";
@@ -35,6 +36,8 @@ export class DevicesService {
       relayUrl?: string;
       relayTokenKey?: KeyObject;
       stunServers?: string[];
+      /** DNS_BASE_DOMAIN: devices resolve as `<device>.<network dns label>.<base>`. */
+      dnsBaseDomain?: string;
     } = {},
   ) {}
 
@@ -121,6 +124,7 @@ export class DevicesService {
               name: network.name,
               ipv4Cidr: network.ipv4Cidr,
               ipv6Cidr: network.ipv6Cidr,
+              dnsDomain: this.dnsDomain(network.dnsLabel),
             },
           };
         } catch (error) {
@@ -267,6 +271,7 @@ export class DevicesService {
         name: networks.name,
         ipv4Cidr: networks.ipv4Cidr,
         ipv6Cidr: networks.ipv6Cidr,
+        dnsLabel: networks.dnsLabel,
       })
       .from(networks)
       .where(eq(networks.id, self.networkId));
@@ -294,7 +299,13 @@ export class DevicesService {
 
     const map = {
       self: { id: self.id, name: self.name, meshIpv4: self.meshIpv4, meshIpv6: self.meshIpv6 },
-      network: network!,
+      network: {
+        id: network!.id,
+        name: network!.name,
+        ipv4Cidr: network!.ipv4Cidr,
+        ipv6Cidr: network!.ipv6Cidr,
+        dnsDomain: this.dnsDomain(network!.dnsLabel),
+      },
       peers: visible.map((peer) => ({
         ...peer,
         lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt,
@@ -307,6 +318,11 @@ export class DevicesService {
       stun: this.options.stunServers ?? [],
     };
     return { ...map, revision: mapRevision(map) };
+  }
+
+  /** The domain a network's devices resolve under, e.g. `brave-otter.lvh.me`. */
+  private dnsDomain(label: string): string {
+    return networkDnsDomain(label, this.options.dnsBaseDomain ?? DEFAULT_DNS_BASE_DOMAIN);
   }
 
   /** The relay and, with a token key, this device's permission to use it. */

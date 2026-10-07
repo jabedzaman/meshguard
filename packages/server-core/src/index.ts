@@ -4,6 +4,7 @@ export * from "./lib/acl-policy";
 export * from "./lib/device-auth";
 export * from "./lib/device-nonces";
 export * from "./lib/device-name";
+export * from "./lib/dns-name";
 export * from "./lib/ip";
 export * from "./lib/mailer";
 export * from "./lib/nats";

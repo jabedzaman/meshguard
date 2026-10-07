@@ -19,7 +19,12 @@ const emailQueue = createEmailQueue(redis);
 const nats = await createNats(env.NATS_URL, "meshguard-api");
 const services = createServices(
   { db, redis, deviceEvents: new DeviceEvents(nats) },
-  { relayUrl: env.RELAY_URL, relayTokenKey: env.RELAY_TOKEN_KEY, stunServers: env.STUN_SERVERS },
+  {
+    relayUrl: env.RELAY_URL,
+    relayTokenKey: env.RELAY_TOKEN_KEY,
+    stunServers: env.STUN_SERVERS,
+    dnsBaseDomain: env.DNS_BASE_DOMAIN,
+  },
 );
 const auth = createAuth(db, {
   ...authOptionsFromEnv(env),

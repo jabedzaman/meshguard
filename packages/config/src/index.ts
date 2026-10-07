@@ -30,6 +30,20 @@ export const serverEnvSchema = z.object({
    * only serves enrolled devices. `meshguard-relay -gen-key` makes a pair.
    */
   RELAY_TOKEN_KEY: optional,
+  /**
+   * Domain devices resolve under: `<device>.<network label>.<DNS_BASE_DOMAIN>`.
+   * Agents answer these names themselves; the domain only needs to be public
+   * for HTTPS certificates. lvh.me publicly resolves every name to 127.0.0.1.
+   */
+  DNS_BASE_DOMAIN: optional.pipe(
+    z
+      .string()
+      .regex(
+        /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/,
+        "a lowercase domain like mesh.example.com",
+      )
+      .default("lvh.me"),
+  ),
   /** Comma-separated host:port STUN servers agents use to find their public address. */
   STUN_SERVERS: z
     .string()

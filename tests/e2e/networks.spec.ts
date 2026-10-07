@@ -32,6 +32,25 @@ test.describe("networks", () => {
     await expect(page.locator("li", { hasText: "lab" })).toContainText("172.20.0.0/16");
   });
 
+  test("each network gets its own random DNS domain", async ({
+    createUser,
+    createOrganization,
+  }) => {
+    const user = await createUser("Dns");
+    await createOrganization(user, "Dns Org");
+    const create = (name: string) =>
+      api<{ id: string; dnsDomain: string }>(user.page, "/v1/networks", { name });
+    const home = await create("home");
+    const lab = await create("lab");
+
+    // Like a tailnet name: two random words under the base domain.
+    expect(home.dnsDomain).toMatch(/^[a-z]+-[a-z]+\.lvh\.me$/);
+    expect(lab.dnsDomain).not.toBe(home.dnsDomain);
+
+    await user.page.goto(`/networks/${home.id}`);
+    await expect(user.page.getByText(home.dnsDomain)).toBeVisible();
+  });
+
   test("members can see networks but not create them", async ({
     createUser,
     createOrganization,

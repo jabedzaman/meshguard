@@ -44,6 +44,11 @@ export const networks = pgTable(
     // within a network. The IPv6 /48 is random per network.
     ipv4Cidr: text("ipv4_cidr").notNull(),
     ipv6Cidr: text("ipv6_cidr").notNull().unique(),
+    /**
+     * Random DNS label, unique across all networks (`brave-otter`): devices
+     * resolve as `<device>.<dns_label>.<DNS_BASE_DOMAIN>`.
+     */
+    dnsLabel: text("dns_label").notNull().unique(),
     /** "allow": every device reaches every other; "deny": only what acl_rules allow. */
     aclDefaultAction: aclDefaultAction("acl_default_action").notNull().default("allow"),
     ...timestamps,
@@ -63,7 +68,7 @@ export const devices = pgTable(
     networkId: uuid("network_id")
       .notNull()
       .references(() => networks.id, { onDelete: "cascade" }),
-    /** Unique in the network and a DNS label: the device resolves as `<name>.internal`. */
+    /** Unique in the network and a DNS label: the device resolves as `<name>.<network domain>`. */
     name: text("name").notNull(),
     /**
      * The user the device belongs to: whoever created its enrollment token.

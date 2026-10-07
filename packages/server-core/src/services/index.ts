@@ -2,6 +2,7 @@ import type { Db } from "@meshguard/db";
 import type { Redis } from "ioredis";
 import type { DeviceEvents } from "~/events/device-events";
 import { DeviceNonces } from "~/lib/device-nonces";
+import { DEFAULT_DNS_BASE_DOMAIN } from "~/lib/dns-name";
 import { PresenceStore } from "~/lib/presence";
 import { relayTokenKey } from "~/lib/relay-token";
 import { AclService } from "~/services/acl/acl.service";
@@ -21,6 +22,8 @@ export interface ServicesOptions {
   relayTokenKey?: string;
   /** STUN servers ("host:port") handed to agents for hole punching. */
   stunServers?: string[];
+  /** DNS_BASE_DOMAIN: devices resolve as `<device>.<network dns label>.<base>`. */
+  dnsBaseDomain?: string;
 }
 
 export interface ServicesDeps {
@@ -36,8 +39,9 @@ export function createServices(
   options: ServicesOptions = {},
 ) {
   const acl = new AclService(db, deviceEvents);
+  const dnsBaseDomain = options.dnsBaseDomain ?? DEFAULT_DNS_BASE_DOMAIN;
   return {
-    networks: new NetworksService(db),
+    networks: new NetworksService(db, dnsBaseDomain),
     enrollmentTokens: new EnrollmentTokensService(db),
     acl,
     deviceNonces: new DeviceNonces(redis),
@@ -45,6 +49,7 @@ export function createServices(
       relayUrl: options.relayUrl,
       relayTokenKey: options.relayTokenKey ? relayTokenKey(options.relayTokenKey) : undefined,
       stunServers: options.stunServers,
+      dnsBaseDomain,
     }),
   };
 }

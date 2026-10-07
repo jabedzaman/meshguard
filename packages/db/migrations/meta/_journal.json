@@ -57,6 +57,13 @@
       "when": 1791330947252,
       "tag": "0007_access_rule_selectors",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791333659331,
+      "tag": "0008_network_dns_labels",
+      "breakpoints": true
     }
   ]
 }

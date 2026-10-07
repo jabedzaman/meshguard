@@ -6,7 +6,7 @@ export const DEVICE_NAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /**
  * Turns a hostname into a device name that is also a DNS label, so the device
- * resolves as `<name>.internal`: lowercase letters, digits and inner hyphens.
+ * resolves as `<name>.<network domain>`: lowercase letters, digits and inner hyphens.
  */
 export function deviceNameFromHostname(hostname: string): string {
   const [first = ""] = hostname.split(".");
