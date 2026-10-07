@@ -28,7 +28,7 @@ func fakeControlPlane(t *testing.T) (url string, enrolled *[]coordination.Enroll
 		}
 		requests = append(requests, req)
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"device":{"id":"d1","name":"` + req.Hostname + `","meshIpv4":"10.77.0.9","meshIpv6":"fd00:1:2:0::9"},"network":{"id":"n1","name":"home"}}`))
+		_, _ = w.Write([]byte(`{"device":{"id":"d1","name":"` + req.Hostname + `","meshIpv4":"10.77.0.9","meshIpv6":"fd00:1:2:0::9"},"network":{"id":"n1","name":"home","ipv4Cidr":"10.77.0.0/16","ipv6Cidr":"fd00:1:2::/48"}}`))
 	}))
 	t.Cleanup(srv.Close)
 	return srv.URL, &requests
@@ -144,4 +144,51 @@ func TestLocalAPIRefusesOtherUsers(t *testing.T) {
 	assert.Equal(t, http.StatusOK, serve(as(4242)), "operator")
 	assert.Equal(t, http.StatusForbidden, serve(as(4343)), "other user")
 	assert.Equal(t, http.StatusForbidden, serve(httptest.NewRequest(http.MethodGet, "/v1/status", nil)), "unknown caller")
+}
+
+func TestSetPrefs(t *testing.T) {
+	server, _ := fakeControlPlane(t)
+	dir := t.TempDir()
+	h := (&Agent{Version: "test", StateDir: dir}).Handler()
+
+	rec, _, apiErr := call(t, h, http.MethodPatch, "/v1/prefs", map[string]any{"acceptRoutes": true})
+	require.Equal(t, http.StatusConflict, rec.Code, "not enrolled yet")
+	assert.Equal(t, "not_enrolled", apiErr.Code)
+
+	call(t, h, http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
+
+	patch := func(body string) (int, ipc.Prefs, ipc.Error) {
+		req := httptest.NewRequest(http.MethodPatch, "/v1/prefs", bytes.NewBufferString(body))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req.WithContext(ipc.WithCaller(req.Context(), ipc.Caller{UID: uint32(os.Geteuid())})))
+		var prefs ipc.Prefs
+		var e ipc.Error
+		if rec.Code < 300 {
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &prefs))
+		} else {
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &e))
+		}
+		return rec.Code, prefs, e
+	}
+
+	code, prefs, _ := patch(`{"advertiseRoutes":["192.168.1.7/24","192.168.1.0/24"],"acceptRoutes":true}`)
+	require.Equal(t, http.StatusOK, code)
+	assert.Equal(t, []string{"192.168.1.0/24"}, prefs.AdvertiseRoutes, "canonical, deduplicated")
+	assert.True(t, prefs.AcceptRoutes)
+
+	// Fields left out stay; they survive a restart and show in status.
+	code, prefs, _ = patch(`{"acceptRoutes":false}`)
+	require.Equal(t, http.StatusOK, code)
+	assert.Equal(t, []string{"192.168.1.0/24"}, prefs.AdvertiseRoutes)
+	assert.False(t, prefs.AcceptRoutes)
+	_, status, _ := call(t, (&Agent{Version: "test", StateDir: dir}).Handler(), http.MethodGet, "/v1/status", nil)
+	require.NotNil(t, status.Prefs)
+	assert.Equal(t, []string{"192.168.1.0/24"}, status.Prefs.AdvertiseRoutes)
+
+	code, _, apiErr = patch(`{"advertiseRoutes":["10.77.0.0/24"]}`)
+	assert.Equal(t, http.StatusBadRequest, code, "inside the mesh range")
+	assert.Equal(t, "invalid_route", apiErr.Code)
+	code, prefs, _ = patch(`{"advertiseRoutes":[]}`)
+	require.Equal(t, http.StatusOK, code)
+	assert.Empty(t, prefs.AdvertiseRoutes)
 }

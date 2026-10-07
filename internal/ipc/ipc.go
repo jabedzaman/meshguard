@@ -43,8 +43,23 @@ type Status struct {
 	Watching bool       `json:"watching,omitempty"`
 	DNS      *DNSStatus `json:"dns,omitempty"`
 	// Access rules for traffic from peers, once synced.
-	ACL   *ACLStatus `json:"acl,omitempty"`
-	Peers []Peer     `json:"peers,omitempty"`
+	ACL *ACLStatus `json:"acl,omitempty"`
+	// Settings from `meshguard set`.
+	Prefs *Prefs `json:"prefs,omitempty"`
+	Peers []Peer `json:"peers,omitempty"`
+}
+
+// Prefs are the device's settings (GET /v1/prefs).
+type Prefs struct {
+	AdvertiseRoutes []string `json:"advertiseRoutes"`
+	AcceptRoutes    bool     `json:"acceptRoutes"`
+}
+
+// PrefsUpdate is the body of PATCH /v1/prefs; fields left nil are unchanged.
+// An empty AdvertiseRoutes list clears the routes.
+type PrefsUpdate struct {
+	AdvertiseRoutes *[]string `json:"advertiseRoutes,omitempty"`
+	AcceptRoutes    *bool     `json:"acceptRoutes,omitempty"`
 }
 
 // ACLStatus summarizes the access rules this device enforces.

@@ -32,6 +32,8 @@ func (a *Agent) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/logout", a.handleLogout)
 	mux.HandleFunc("GET /v1/netcheck", a.handleNetcheck)
 	mux.HandleFunc("GET /v1/access", a.handleAccess)
+	mux.HandleFunc("GET /v1/prefs", a.handleGetPrefs)
+	mux.HandleFunc("PATCH /v1/prefs", a.handleSetPrefs)
 	return a.authorize(mux)
 }
 

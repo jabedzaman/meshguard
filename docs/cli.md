@@ -187,6 +187,20 @@ there; other lookups never touch it. Test it with
 | Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0`: the network's domain as a search domain, so short names work (`ssh laptop`), and the reverse zones as routing-only domains           |
 | Other Linux                 | not configured; `meshguard status` says so. Query the resolver directly                                                                                                       |
 
+### `meshguard set`
+
+Changes this device's settings. They are saved by the agent, survive restarts and
+are sent to the control plane on the next sync. Only the flags you give change.
+
+```sh
+meshguard set --advertise-routes 192.168.1.0/24,10.9.0.0/16   # offer to route subnets
+meshguard set --advertise-routes ""                           # stop offering
+meshguard set --accept-routes                                 # use subnets other devices route
+```
+
+Routes are checked before they are saved: CIDR notation only, no default route
+(that is an exit node), nothing inside the network's mesh range.
+
 ### `meshguard peers`
 
 The peer table on its own. `PATH` is `direct <ip:port>` (LAN or hole-punched)

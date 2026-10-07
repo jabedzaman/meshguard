@@ -144,7 +144,7 @@ What Tailscale calls subnet routers, exit nodes, Services, serve/funnel and app 
 - ⬜ M6.6 HTTPS for mesh names: a public zone (`<device>.<network>.<domain>`) with certificates from ACME DNS-01, answered by the control plane for the agent's CSR; `meshguard cert`
 - ⬜ M6.7 Funnel: a public hostname that reaches a device's port through the relay (TLS passthrough, stream frames on the agent's relay WebSocket); off unless an admin enables it
 - ⬜ M6.8 App connectors: domains routed through a chosen device; client DNS forwards those domains to it, and it advertises the addresses they resolve to as routes. Needs M6.1, M2.13 and M2.15
-- ⬜ M6.9 `meshguard set` for device preferences (advertised routes, accept routes, exit node, accept DNS), saved by the agent and sent on sync
+- ✅ M6.9 `meshguard set` for device preferences, saved by the agent (`state.json`, `prefs`), shown in `status` and sent on sync (`PATCH /v1/prefs` on the local API). Has `--advertise-routes` and `--accept-routes`; exit node and accept DNS join as M6.3 and M2.13 land
 
 ### M7 — Platform and operations ⬜
 

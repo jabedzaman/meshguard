@@ -42,7 +42,7 @@ The agent must be running: sudo meshguard-agent install (or sudo meshguard-agent
 
 	root.AddCommand(
 		newLogin(o), newUp(o), newDown(o), newLogout(o),
-		newStatus(o), newPeers(o), newIP(o), newPing(o), newNetcheck(o), newDoctor(o),
+		newStatus(o), newSet(o), newPeers(o), newIP(o), newPing(o), newNetcheck(o), newDoctor(o),
 		newVersion(o),
 	)
 	return root

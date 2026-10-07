@@ -57,6 +57,9 @@ func printStatus(s ipc.Status) {
 	if s.ACL != nil {
 		printACL(*s.ACL)
 	}
+	if s.Prefs != nil && (len(s.Prefs.AdvertiseRoutes) > 0 || s.Prefs.AcceptRoutes) {
+		printPrefs(*s.Prefs)
+	}
 	if s.Relay != nil {
 		state := "connecting"
 		if s.Relay.Connected {

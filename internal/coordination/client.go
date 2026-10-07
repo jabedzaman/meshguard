@@ -114,6 +114,8 @@ type NetworkMap struct {
 // SyncRequest reports where this device can be reached.
 type SyncRequest struct {
 	Endpoints []string `json:"endpoints"`
+	// Subnets this device offers to route (`meshguard set --advertise-routes`).
+	AdvertiseRoutes []string `json:"advertiseRoutes"`
 }
 
 // Sync reports this device's endpoints and returns its network map.

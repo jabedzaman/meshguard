@@ -61,6 +61,18 @@ type State struct {
 	// Disabled is set by `meshguard down`: stay enrolled but don't connect,
 	// including after the agent restarts.
 	Disabled bool `json:"disabled,omitempty"`
+	// Prefs are the settings `meshguard set` changes.
+	Prefs Prefs `json:"prefs,omitempty"`
+}
+
+// Prefs are this device's own choices, kept across restarts and sent to the
+// control plane on sync.
+type Prefs struct {
+	// AdvertiseRoutes are subnets this device offers to route (canonical CIDRs).
+	// They only take effect once an owner or admin approves them.
+	AdvertiseRoutes []string `json:"advertiseRoutes,omitempty"`
+	// AcceptRoutes sends traffic for other devices' approved subnets to them.
+	AcceptRoutes bool `json:"acceptRoutes,omitempty"`
 }
 
 // ErrNotEnrolled is returned by Load when there is no state yet.

@@ -110,6 +110,8 @@ type connection struct {
 	// touches the file when the control plane changed them.
 	savedName      string
 	savedDNSDomain string
+	// prefs from `meshguard set`; changed through setPrefs.
+	prefs state.Prefs
 
 	relayClient *relay.Client
 	relayURL    string
@@ -145,6 +147,7 @@ func (a *Agent) startLocked(st *state.State) {
 		ctx: ctx, cancel: cancel,
 		syncNow: make(chan struct{}, 1), synced: make(chan struct{}, 1),
 		savedName: st.Device.Name, savedDNSDomain: st.Network.DNSDomain,
+		prefs: st.Prefs,
 	}
 	a.conn = c
 
@@ -445,11 +448,12 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	a.mu.Lock()
 	engine := c.engine
 	d := c.disco
+	advertise := append([]string{}, c.prefs.AdvertiseRoutes...)
 	a.mu.Unlock()
 
 	syncCtx, cancel := context.WithTimeout(c.ctx, 15*time.Second)
 	defer cancel()
-	nm, err := cl.Sync(syncCtx, coordination.SyncRequest{Endpoints: a.endpoints(engine, exclude)})
+	nm, err := cl.Sync(syncCtx, coordination.SyncRequest{Endpoints: a.endpoints(engine, exclude), AdvertiseRoutes: advertise})
 	if err != nil {
 		if c.ctx.Err() == nil {
 			slog.Warn("sync failed", "err", err)
@@ -662,6 +666,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 			MeshIPv4: st.Device.MeshIPv4, MeshIPv6: st.Device.MeshIPv6,
 		},
 		Network: &ipc.Network{ID: st.Network.ID, Name: st.Network.Name},
+		Prefs:   prefsStatus(st.Prefs),
 	}
 	c := a.conn
 	if st.Disabled || c == nil {
@@ -671,6 +676,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		return s
 	}
 	s.Problem = c.problem
+	s.Prefs = prefsStatus(c.prefs)
 	if !c.lastSync.IsZero() {
 		at := c.lastSync
 		s.LastSyncAt = &at
