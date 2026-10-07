@@ -220,6 +220,14 @@ connections (control plane, relay, WireGuard) are marked and stay off the tunnel
 Routes are checked before they are saved: CIDR notation only, no default route
 (that is an exit node), nothing inside the network's mesh range.
 
+### `meshguard services`
+
+Lists the network's services: name, DNS name, address and the device serving it
+(`this device`, a peer or `no host online`). Owners and admins create services in
+the web (Services tab) and choose their hosts; any device then connects with the
+name, e.g. `curl http://web.svc.<network domain>:8080`, and reaches the first online
+host. A host can't reach its own service by name; use `localhost`.
+
 ### `meshguard peers`
 
 The peer table on its own. `PATH` is `direct <ip:port>` (LAN or hole-punched)

@@ -22,6 +22,8 @@ type filteredTUN struct {
 	tun.Device
 	filter *acl.Filter
 	local  atomic.Pointer[LocalHandler]
+	// Service addresses this device hosts; nil without an IPv4 mesh address.
+	nat *vipNAT
 }
 
 func (t *filteredTUN) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
@@ -44,6 +46,9 @@ func (t *filteredTUN) Read(bufs [][]byte, sizes []int, offset int) (int, error) 
 				continue
 			}
 		}
+		if t.nat != nil {
+			t.nat.outbound(packet)
+		}
 		t.filter.Outbound(packet)
 	}
 	if replies != nil {
@@ -59,6 +64,9 @@ func (t *filteredTUN) Write(bufs [][]byte, offset int) (int, error) {
 	var kept [][]byte // allocated only once something is dropped
 	for i, b := range bufs {
 		if t.filter.Allow(b[offset:]) {
+			if t.nat != nil {
+				t.nat.inbound(b[offset:])
+			}
 			if kept != nil {
 				kept = append(kept, b)
 			}

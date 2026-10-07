@@ -50,11 +50,25 @@ type Status struct {
 	Serving []string `json:"serving,omitempty"`
 	// Subnets of peers this device sends traffic to (needs accept-routes).
 	Accepted []string `json:"accepted,omitempty"`
+	// Services in the network and who serves them.
+	Services []Service `json:"services,omitempty"`
 	// The peer all traffic goes through, once it is in use (see Prefs.ExitNode).
 	ExitNode string `json:"exitNode,omitempty"`
 	// Serving is also set when this device is an approved exit node.
 	ServingExitNode bool   `json:"servingExitNode,omitempty"`
 	Peers           []Peer `json:"peers,omitempty"`
+}
+
+// Service is a named virtual address in the network.
+type Service struct {
+	Name string `json:"name"`
+	// e.g. "web.svc.brave-otter.mesh.jabed.dev".
+	DNSName string `json:"dnsName"`
+	VIP     string `json:"vip"`
+	// The peer traffic goes to; empty when this device hosts it or no host is online.
+	Host string `json:"host,omitempty"`
+	// This device serves it.
+	Hosting bool `json:"hosting,omitempty"`
 }
 
 // Prefs are the device's settings (GET /v1/prefs).

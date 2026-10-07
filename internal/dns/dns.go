@@ -160,7 +160,7 @@ func (s *Server) Answer(query []byte) ([]byte, error) {
 // answerName answers <label>.<domain>. Caller holds s.mu.
 func (s *Server) answerName(header dnsmessage.Header, q dnsmessage.Question, label string) ([]byte, error) {
 	r, ok := s.records[label]
-	if !ok || strings.Contains(label, ".") {
+	if !ok {
 		return reply(header, &q, dnsmessage.RCodeNameError, nil)
 	}
 

@@ -7,6 +7,7 @@ import {
   LaptopIcon,
   ListChecksIcon,
   type LucideIcon,
+  NetworkIcon,
   ShieldIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -26,9 +27,10 @@ import { AccessRules } from "~/components/access-rules";
 import { AddDeviceDialog } from "~/components/add-device-dialog";
 import { DevicesList } from "~/components/devices-list";
 import { EnrollmentTokensList } from "~/components/enrollment-tokens-list";
+import { ServicesList } from "~/components/services-list";
 import { aclQueries, deviceQueries, networkQueries } from "~/lib/queries";
 
-const TABS = ["devices", "access"] as const;
+const TABS = ["devices", "services", "access"] as const;
 type Tab = (typeof TABS)[number];
 
 export function NetworkDetail({ networkId }: { networkId: string }) {
@@ -103,6 +105,10 @@ export function NetworkDetail({ networkId }: { networkId: string }) {
             <LaptopIcon />
             Devices
           </TabsTrigger>
+          <TabsTrigger value="services">
+            <NetworkIcon />
+            Services
+          </TabsTrigger>
           <TabsTrigger value="access">
             <ShieldIcon />
             Access
@@ -114,6 +120,9 @@ export function NetworkDetail({ networkId }: { networkId: string }) {
             <h2 className="text-muted-foreground text-sm font-medium">Active enrollment tokens</h2>
             <EnrollmentTokensList networkId={network.id} />
           </section>
+        </TabsContent>
+        <TabsContent value="services">
+          <ServicesList networkId={network.id} />
         </TabsContent>
         <TabsContent value="access">
           <AccessRules networkId={network.id} />

@@ -82,6 +82,10 @@ func printStatus(s ipc.Status) {
 	if s.Problem != "" {
 		fmt.Printf("\n  ! %s\n", s.Problem)
 	}
+	if len(s.Services) > 0 {
+		fmt.Println("\nservices:")
+		printServices(s.Services)
+	}
 	if len(s.Peers) > 0 {
 		fmt.Println("\npeers:")
 		printPeers(s.Peers, "  ")

@@ -40,7 +40,7 @@ func (a *Agent) startDNSLocked(c *connection, st *state.State) {
 		}
 	}
 	server := &dns.Server{}
-	server.SetRecords(dnsRecords(st.Device, nil))
+	server.SetRecords(dnsRecords(st.Device, nil, nil))
 	server.SetNetworks(c.dns.networks)
 	server.SetDomain(c.dns.domain)
 	resolver := server.Addr()
@@ -103,14 +103,14 @@ func (a *Agent) updateDNSLocked(c *connection, nm *coordination.NetworkMap) {
 	if c.dns.server == nil {
 		return
 	}
-	c.dns.server.SetRecords(dnsRecords(nm.Self.Device, nm.Peers))
+	c.dns.server.SetRecords(dnsRecords(nm.Self.Device, nm.Peers, nm.Services))
 	if domainChanged {
 		c.dns.server.SetDomain(c.dns.domain)
 		a.configureOSDNSLocked(c)
 	}
 }
 
-func dnsRecords(self state.Device, peers []coordination.Peer) map[string]dns.Record {
+func dnsRecords(self state.Device, peers []coordination.Peer, services []coordination.Service) map[string]dns.Record {
 	records := map[string]dns.Record{}
 	add := func(name, v4, v6 string) {
 		if name == "" {
@@ -125,5 +125,9 @@ func dnsRecords(self state.Device, peers []coordination.Peer) map[string]dns.Rec
 		add(p.Name, p.MeshIPv4, p.MeshIPv6)
 	}
 	add(self.Name, self.MeshIPv4, self.MeshIPv6)
+	// A service answers at <name>.svc.<domain> with its address.
+	for _, s := range services {
+		add(s.Name+".svc", s.VIP, "")
+	}
 	return records
 }

@@ -40,6 +40,7 @@ type fakeEngine struct {
 	// subnet routes served to peers and accepted from them
 	served, accepted []netip.Prefix
 	exit             bool
+	hosted           []netip.Addr
 }
 
 func (e *fakeEngine) Name() string { return "meshguard-test0" }
@@ -49,6 +50,11 @@ func (e *fakeEngine) SetServedRoutes(routes, _ []netip.Prefix) error {
 	defer e.mu.Unlock()
 	e.served = routes
 	return nil
+}
+func (e *fakeEngine) SetServiceAddresses(vips []netip.Addr) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.hosted = vips
 }
 func (e *fakeEngine) SetExitNode(on bool) error {
 	e.mu.Lock()

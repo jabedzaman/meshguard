@@ -81,7 +81,7 @@ run_pair() {
   for device in "$a" "$b"; do
     local token
     token=$(post "/v1/networks/$network/enrollment-tokens" '{}' | json .token)
-    docker exec "meshguard-$device" meshguard up --token "$token" --server "$LAB_API" | head -1
+    docker exec "meshguard-$device" meshguard up --token "$token" --server "$LAB_API" | sed -n 1p
   done
 
   # Hole punching takes a few sync rounds (STUN, advertise, probe, switch).
@@ -165,7 +165,7 @@ sub_network=$(post /v1/networks '{"name":"lab-subnet"}' | json .id)
 docker exec meshguard-lab-b meshguard logout --force >/dev/null   # leaves lab-lan
 for device in lab-r lab-b; do
   token=$(post "/v1/networks/$sub_network/enrollment-tokens" '{}' | json .token)
-  docker exec "meshguard-$device" meshguard up --token "$token" --server "$LAB_API" | head -1
+  docker exec "meshguard-$device" meshguard up --token "$token" --server "$LAB_API" | sed -n 1p
 done
 r_id=$(docker exec meshguard-lab-r meshguard status --json | json .device.id)
 r4=$(ip_of lab-r IPv4); b4=$(ip_of lab-b IPv4)
@@ -259,6 +259,71 @@ put "/v1/devices/$r_id/routes" '{"approved":[]}' >/dev/null
 expect_traffic blocked "lab-b -> $host after the exit node is revoked" can_ping lab-b "$host"
 docker exec meshguard-lab-b meshguard set --exit-node "" >/dev/null
 docker exec meshguard-lab-r meshguard set --advertise-exit-node=false >/dev/null
+
+# Services: "web" is hosted by lab-r and lab-a; lab-b connects to its address
+# and always reaches one online host, whichever it is.
+echo
+echo "==> services (web hosted by lab-r and lab-a, used by lab-b)"
+svc_network=$(post /v1/networks '{"name":"lab-services"}' | json .id)
+for device in lab-r lab-a lab-b; do   # lab-r first: it is the first host
+  docker exec "meshguard-$device" meshguard logout --force >/dev/null 2>&1 || true
+  token=$(post "/v1/networks/$svc_network/enrollment-tokens" '{}' | json .token)
+  docker exec "meshguard-$device" meshguard up --token "$token" --server "$LAB_API" | sed -n 1p
+done
+r_id=$(docker exec meshguard-lab-r meshguard status --json | json .device.id)
+a_id=$(docker exec meshguard-lab-a meshguard status --json | json .device.id)
+b_id=$(docker exec meshguard-lab-b meshguard status --json | json .device.id)
+for device in lab-r lab-a; do
+  docker exec -d "meshguard-$device" sh -c 'while true; do echo "served by $(hostname)" | nc -l 8080 -q 1; done'
+done
+svc_vip=$(post "/v1/networks/$svc_network/services" "{\"name\":\"web\",\"hostDeviceIds\":[\"$r_id\",\"$a_id\"]}" | json .vip)
+svc_id=$(curl -sf -b "$COOKIES" -H "Origin: $WEB" "$API/v1/networks/$svc_network/services" | json "[0].id")
+ok "service web has address $svc_vip"
+domain=$(docker exec meshguard-lab-b meshguard status --json | json .dns.domain)
+svc_name="web.svc.$domain"
+
+# ask <seconds> <expected>: lab-b connects to the service address until it hears <expected>.
+ask() { docker exec meshguard-lab-b sh -c "nc -w 3 $svc_vip 8080 </dev/null 2>/dev/null"; }
+expect_answer() {
+  local what=$1 want=$2 seconds=${3:-30} got=""
+  for _ in $(seq "$seconds"); do
+    got=$(ask || true)
+    [ "$got" = "$want" ] && { ok "$what: $want"; return; }
+    sleep 1
+  done
+  fail "$what: '$got', want '$want'"
+}
+
+expect_answer "lab-b -> web ($svc_vip) reaches the first host" "served by lab-r"
+resolver=$(dns_resolver lab-b)
+resolved=$(docker exec meshguard-lab-b dig +short +time=2 +tries=1 @"$resolver" "$svc_name" A)
+if [ "$resolved" = "$svc_vip" ]; then ok "lab-b resolves $svc_name -> $svc_vip"; else fail "lab-b resolves $svc_name to '$resolved', want $svc_vip"; fi
+resolved=$(docker exec meshguard-lab-b dig +short +time=2 +tries=1 @"$resolver" -x "$svc_vip")
+if [ "$resolved" = "$svc_name." ]; then ok "lab-b resolves $svc_vip -> $svc_name"; else fail "lab-b resolves $svc_vip to '$resolved', want $svc_name."; fi
+if docker exec meshguard-lab-b meshguard services | grep -q "web .*$svc_vip .*lab-r"; then ok "meshguard services shows web served by lab-r"; else fail "meshguard services: $(docker exec meshguard-lab-b meshguard services)"; fi
+if can_ping lab-b "$svc_vip"; then ok "lab-b pings the service address"; else fail "lab-b cannot ping $svc_vip"; fi
+
+# The first host goes offline (its presence expires after about 30s): the next takes over.
+docker exec meshguard-lab-r meshguard down >/dev/null
+expect_answer "web fails over to lab-a" "served by lab-a" 90
+docker exec meshguard-lab-r meshguard up >/dev/null
+expect_answer "web returns to lab-r when it is back" "served by lab-r" 60
+
+# Access rules can name the service: with deny, only a rule for service:web lets lab-b in.
+patch "/v1/networks/$svc_network/acl" '{"defaultAction":"deny"}' >/dev/null
+expect_traffic blocked "lab-b -> web:8080, deny without rules" can_connect lab-b "$svc_vip" 8080
+post "/v1/networks/$svc_network/acl/rules" \
+  "{\"source\":\"device:$b_id\",\"destination\":\"service:web\",\"protocol\":\"tcp\",\"portFrom\":8080}" >/dev/null
+expect_answer "lab-b -> web:8080 by a rule for service:web" "served by lab-r" 40
+expect_traffic blocked "lab-b -> web ping, not in the rule" can_ping lab-b "$svc_vip"
+
+# Changing the hosts moves traffic; deleting the service ends it.
+put "/v1/services/$svc_id/hosts" "{\"hostDeviceIds\":[\"$a_id\"]}" >/dev/null
+expect_answer "web moves to lab-a when lab-r stops hosting" "served by lab-a" 40
+curl -sf -m 15 -X DELETE -b "$COOKIES" -H "Origin: $WEB" "$API/v1/services/$svc_id" >/dev/null
+expect_traffic blocked "lab-b -> web after deleting the service" can_connect lab-b "$svc_vip" 8080
+resolved=$(docker exec meshguard-lab-b dig +time=2 +tries=1 @"$resolver" "$svc_name" A | grep -c "status: NXDOMAIN" || true)
+if [ "$resolved" = 1 ]; then ok "$svc_name no longer resolves"; else fail "$svc_name still resolves"; fi
 
 # Sanity: lab-f can't open a connection into lab-e's NAT on its own. (Same
 # reason for the unreachable route as above.)

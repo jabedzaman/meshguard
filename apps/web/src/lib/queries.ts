@@ -85,6 +85,31 @@ export const deviceQueries = {
     }),
 };
 
+export const serviceQueries = {
+  all: () => ["services"] as const,
+  list: (networkId: string) =>
+    queryOptions({
+      queryKey: [...serviceQueries.all(), networkId],
+      queryFn: () =>
+        parseResponse(api.v1.networks[":networkId"].services.$get({ param: { networkId } })),
+      // Hosts go on and offline from the command line.
+      refetchInterval: 5000,
+    }),
+};
+
+export const serviceMutations = {
+  create: (networkId: string, name: string, hostDeviceIds: string[]) =>
+    parseResponse(
+      api.v1.networks[":networkId"].services.$post({
+        param: { networkId },
+        json: { name, hostDeviceIds },
+      }),
+    ),
+  setHosts: (id: string, hostDeviceIds: string[]) =>
+    parseResponse(api.v1.services[":id"].hosts.$put({ param: { id }, json: { hostDeviceIds } })),
+  remove: (id: string) => parseResponse(api.v1.services[":id"].$delete({ param: { id } })),
+};
+
 export const deviceMutations = {
   rename: (id: string, name: string) =>
     parseResponse(api.v1.devices[":id"].$patch({ param: { id }, json: { name } })),

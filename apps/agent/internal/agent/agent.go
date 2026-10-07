@@ -48,6 +48,8 @@ type Engine interface {
 	SetAcceptedRoutes([]netip.Prefix) error
 	// SetExitNode sends all other traffic through the mesh interface.
 	SetExitNode(on bool) error
+	// SetServiceAddresses answers for the service addresses this device hosts.
+	SetServiceAddresses([]netip.Addr)
 	ACLDropped() uint64
 	// SetLocalHandler answers packets for addresses the agent serves (DNS).
 	SetLocalHandler(wireguard.LocalHandler)
@@ -115,6 +117,8 @@ type connection struct {
 	serving, accepted []string
 	// exitNode is the peer all traffic goes through right now.
 	exitNode string
+	// services as of the last sync.
+	services []coordination.Service
 	// routeProblem says why subnet routes could not be applied.
 	routeProblem string
 	acl          *coordination.ACL
@@ -519,6 +523,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	c.lastSync = time.Now()
 	c.revision = nm.Revision
 	c.peers = nm.Peers
+	c.services = nm.Services
 	c.accepted, c.serving, c.routeProblem, c.exitNode = accepted, serving, routeProblem, exitNode
 	c.stun = nm.Stun
 	if !reflect.DeepEqual(c.acl, nm.ACL) {
@@ -722,6 +727,17 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		if c.problem == "" && !c.lastSync.IsZero() {
 			s.State = "connected"
 		}
+	}
+	for _, svc := range c.services {
+		out := ipc.Service{Name: svc.Name, DNSName: dns.Name(svc.Name+".svc", c.dns.domain), VIP: svc.VIP, Hosting: svc.Hosting}
+		if svc.HostID != nil {
+			for _, p := range c.peers {
+				if p.ID == *svc.HostID {
+					out.Host = p.Name
+				}
+			}
+		}
+		s.Services = append(s.Services, out)
 	}
 	for _, p := range c.peers {
 		peer := ipc.Peer{Name: p.Name, DNSName: dns.Name(p.Name, c.dns.domain), MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6, Routes: p.Routes}

@@ -77,7 +77,12 @@ test.describe("services", () => {
     expect(listed[0]!.hosts.map((h) => h.name)).toEqual(["host-one", "host-two"]);
 
     // Changing the hosts moves traffic at once.
-    await api(owner.page, `/v1/services/${web.id}/hosts`, { hostDeviceIds: [two.id] }, { method: "PUT" });
+    await api(
+      owner.page,
+      `/v1/services/${web.id}/hosts`,
+      { hostDeviceIds: [two.id] },
+      { method: "PUT" },
+    );
     expect((await mapOf(client)).services[0].hostId).toBe(two.id);
     expect((await mapOf(one)).services[0].hosting).toBe(false);
 
@@ -114,7 +119,12 @@ test.describe("services", () => {
       }),
     ).rejects.toMatchObject({ status: 404 });
 
-    await api(owner.page, `/v1/networks/${network.id}/acl`, { defaultAction: "deny" }, { method: "PATCH" });
+    await api(
+      owner.page,
+      `/v1/networks/${network.id}/acl`,
+      { defaultAction: "deny" },
+      { method: "PATCH" },
+    );
     await api(owner.page, `/v1/networks/${network.id}/acl/rules`, {
       source: `device:${client.id}`,
       destination: "service:web",
@@ -134,5 +144,52 @@ test.describe("services", () => {
     await api(owner.page, `/v1/services/${service.id}`, undefined, { method: "DELETE" });
     expect((await rules()).rules).toEqual([]);
     expect(await inbound(host)).toEqual([]);
+  });
+
+  test("admins manage services from the network page", async ({
+    createUser,
+    createOrganization,
+  }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Services Web Org");
+    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    await enrollDevice(owner.page, network.id, "alpha");
+    await enrollDevice(owner.page, network.id, "beta");
+    const page = owner.page;
+
+    await page.goto(`/networks/${network.id}?tab=services`);
+    await expect(page.getByText("No services yet.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Add service" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Name").fill("web");
+    await dialog.getByLabel("beta").check();
+    await dialog.getByRole("button", { name: "Create service" }).click();
+    await expect(dialog).toHaveCount(0);
+
+    const row = page.locator("li", { hasText: "web.svc." });
+    await expect(row).toContainText("beta");
+    await expect(row).not.toContainText("alpha");
+    await expect(row).toContainText(/10\.77\.\d+\.\d+/);
+
+    await page.getByRole("button", { name: "Hosts of web" }).click();
+    await page.getByRole("dialog").getByLabel("alpha").check();
+    await page.getByRole("dialog").getByRole("button", { name: "Save hosts" }).click();
+    await expect(row).toContainText("alpha");
+
+    // The service can be a rule's destination.
+    await page.getByRole("tab", { name: "Access" }).click();
+    await page.getByRole("button", { name: "Add rule" }).click();
+    await page.getByRole("dialog").getByLabel("To", { exact: true }).click();
+    await page.getByRole("option", { name: "service:web" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Add rule" }).click();
+    await expect(page.locator("li", { hasText: "service:web" })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Services" }).click();
+    await page.getByRole("button", { name: "Delete web" }).click();
+    await page.getByRole("button", { name: "Delete service" }).click();
+    await expect(row).toHaveCount(0);
+    await page.getByRole("tab", { name: "Access" }).click();
+    await expect(page.getByText("No access rules.")).toBeVisible();
   });
 });

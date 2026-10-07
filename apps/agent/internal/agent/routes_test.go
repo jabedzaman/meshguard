@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jabedzaman/meshguard/internal/coordination"
+	"github.com/jabedzaman/meshguard/internal/state"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,6 +42,30 @@ func TestPlanRoutes(t *testing.T) {
 		assert.Equal(t, pfx("192.168.50.0/24", "10.9.0.0/16"), plan.byPeer["a"])
 		assert.Empty(t, plan.byPeer["b"], "b's routes are duplicates, mesh, on a local network or invalid")
 	})
+}
+
+func TestPlanServices(t *testing.T) {
+	host := "peer-a"
+	nm := &coordination.NetworkMap{
+		Peers: []coordination.Peer{{ID: "peer-a", Name: "a"}, {ID: "peer-b", Name: "b"}},
+		Services: []coordination.Service{
+			{Name: "web", VIP: "10.77.9.1", HostID: &host},
+			{Name: "db", VIP: "10.77.9.2", Hosting: true},
+			{Name: "idle", VIP: "10.77.9.3"},
+			{Name: "bad", VIP: "nonsense", HostID: &host},
+		},
+	}
+	plan := planRoutes(nm, false, "", pfx("10.77.0.0/16"), nil)
+	assert.Equal(t, pfx("10.77.9.1/32"), plan.byPeer["peer-a"], "the address goes to its host")
+	assert.Empty(t, plan.byPeer["peer-b"])
+	assert.Equal(t, []netip.Addr{netip.MustParseAddr("10.77.9.2")}, plan.hosted)
+}
+
+func TestDNSRecordsForServices(t *testing.T) {
+	records := dnsRecords(state.Device{Name: "me", MeshIPv4: "10.77.0.1"}, nil,
+		[]coordination.Service{{Name: "web", VIP: "10.77.9.1"}})
+	assert.Equal(t, "10.77.9.1", records["web.svc"].IPv4.String())
+	assert.Equal(t, "10.77.0.1", records["me"].IPv4.String())
 }
 
 func TestPlanExitNode(t *testing.T) {

@@ -74,6 +74,16 @@ type Peer struct {
 	Routes []string `json:"routes"`
 }
 
+// Service is a named virtual address in the network.
+type Service struct {
+	Name string `json:"name"`
+	VIP  string `json:"vip"`
+	// This device hosts it: the agent answers for the address itself.
+	Hosting bool `json:"hosting"`
+	// The peer to send the address to; nil when no host is online.
+	HostID *string `json:"hostId"`
+}
+
 // Self is this device in its network map.
 type Self struct {
 	state.Device
@@ -108,10 +118,11 @@ type ACLRule struct {
 
 // NetworkMap is everything the agent needs to configure WireGuard.
 type NetworkMap struct {
-	Self    Self          `json:"self"`
-	Network state.Network `json:"network"`
-	Peers   []Peer        `json:"peers"`
-	Relay   *Relay        `json:"relay"`
+	Self     Self          `json:"self"`
+	Network  state.Network `json:"network"`
+	Peers    []Peer        `json:"peers"`
+	Relay    *Relay        `json:"relay"`
+	Services []Service     `json:"services"`
 	// Nil from a control plane without access rules: everything is allowed.
 	ACL *ACL `json:"acl"`
 	// STUN servers ("host:port") for discovering our public address.

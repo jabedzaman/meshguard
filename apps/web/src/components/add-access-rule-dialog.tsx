@@ -38,9 +38,15 @@ import {
   SelectValue,
 } from "@meshguard/ui/components/select";
 import { useOrganization } from "~/components/providers/organization-provider";
-import { aclMutations, aclQueries, type CreateAclRuleInput, memberQueries } from "~/lib/queries";
+import {
+  aclMutations,
+  aclQueries,
+  type CreateAclRuleInput,
+  memberQueries,
+  serviceQueries,
+} from "~/lib/queries";
 
-/** Selector for any device; the others are `device:<id>`, `tag:<name>`, `user:<id>`, `role:<role>`. */
+/** Selector for any device; the others are `device:<id>`, `tag:<name>`, `user:<id>`, `role:<role>`, `service:<name>`. */
 const ANY = "*";
 
 const ROLES = [
@@ -127,6 +133,7 @@ export function AddAccessRuleDialog({
   const queryClient = useQueryClient();
   const organization = useOrganization();
   const { data: members = [] } = useQuery(memberQueries.list(organization.id));
+  const { data: services = [] } = useQuery(serviceQueries.list(networkId));
   const tags = [...new Set(devices.flatMap((device) => device.tags))].sort();
   const [open, setOpen] = useState(false);
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
@@ -171,6 +178,16 @@ export function AddAccessRuleDialog({
                   {tags.map((tag) => (
                     <SelectItem key={tag} value={`tag:${tag}`}>
                       tag:{tag}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {services.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Services</SelectLabel>
+                  {services.map((service) => (
+                    <SelectItem key={service.id} value={`service:${service.name}`}>
+                      service:{service.name}
                     </SelectItem>
                   ))}
                 </SelectGroup>
@@ -236,8 +253,8 @@ export function AddAccessRuleDialog({
               <DialogTitle>Add an access rule</DialogTitle>
               <DialogDescription>
                 Lets devices open connections to others: by device, by tag, by person (their
-                devices) or by role. Replies always get back, so the other direction needs its own
-                rule only if it opens connections too.
+                devices), by role or by service (the devices hosting it). Replies always get back,
+                so the other direction needs its own rule only if it opens connections too.
               </DialogDescription>
             </DialogHeader>
             <div className="grid items-start gap-4 sm:grid-cols-2">

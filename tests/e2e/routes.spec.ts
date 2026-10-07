@@ -103,7 +103,11 @@ test.describe("subnet routes", () => {
 
     await approve(owner.page, gateway.id, ["0.0.0.0/0", "::/0"]);
     expect(await peerRoutes()).toEqual(["0.0.0.0/0", "::/0"]);
-    const self = await sync(gateway, { endpoints: [], advertiseRoutes: [], advertiseExitNode: true });
+    const self = await sync(gateway, {
+      endpoints: [],
+      advertiseRoutes: [],
+      advertiseExitNode: true,
+    });
     expect(self.body.self.routes).toEqual(["0.0.0.0/0", "::/0"]);
 
     // Subnets and the exit node are independent; stopping the offer removes it.

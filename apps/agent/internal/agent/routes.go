@@ -21,6 +21,9 @@ type routePlan struct {
 	// it offers an approved exit node; exitProblem says why a chosen one isn't used.
 	exitPeer    string
 	exitProblem string
+	// hosted are the service addresses this device serves itself; the others
+	// join their host's allowed IPs (in byPeer) so packets to them reach it.
+	hosted []netip.Addr
 }
 
 var defaultRoutes = []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0"), netip.MustParsePrefix("::/0")}
@@ -38,6 +41,18 @@ func planRoutes(nm *coordination.NetworkMap, accept bool, exitNode string, mesh,
 	}
 	if exitNode != "" {
 		planExitNode(&plan, nm, exitNode)
+	}
+	for _, s := range nm.Services {
+		vip, err := netip.ParseAddr(s.VIP)
+		if err != nil {
+			continue
+		}
+		if s.Hosting {
+			plan.hosted = append(plan.hosted, vip)
+		}
+		if s.HostID != nil {
+			plan.byPeer[*s.HostID] = append(plan.byPeer[*s.HostID], netip.PrefixFrom(vip, vip.BitLen()))
+		}
 	}
 	if !accept {
 		return plan
@@ -111,6 +126,7 @@ func (a *Agent) applyRoutes(engine Engine, plan routePlan, mesh []netip.Prefix) 
 	if err := engine.SetExitNode(plan.exitPeer != ""); err != nil {
 		problems = append(problems, "cannot use the exit node: "+err.Error())
 	}
+	engine.SetServiceAddresses(plan.hosted)
 	if plan.exitProblem != "" {
 		problems = append(problems, plan.exitProblem)
 	}

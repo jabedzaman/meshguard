@@ -69,6 +69,11 @@ func Start(cfg Config) (*Engine, error) {
 	bind := NewBind(conn.NewDefaultBind())
 	filter := acl.NewFilter(acl.Policy{})
 	ft := &filteredTUN{Device: t, filter: filter}
+	for _, a := range cfg.Addresses {
+		if a.Addr().Is4() {
+			ft.nat = newVIPNAT(a.Addr())
+		}
+	}
 	dev := device.NewDevice(ft, bind, logger)
 	// Peers are peer/<key> endpoints routed by the bind; never let WireGuard
 	// swap one for the raw address a packet arrived from.
@@ -111,6 +116,15 @@ func (e *Engine) Rebind() error { return e.dev.BindUpdate() }
 
 // SetACL replaces the access rules for packets from peers.
 func (e *Engine) SetACL(p acl.Policy) { e.filter.SetPolicy(p) }
+
+// SetServiceAddresses makes this device answer for the service addresses it
+// hosts: peers' packets to them are delivered to the device itself, and its
+// replies leave from the address.
+func (e *Engine) SetServiceAddresses(vips []netip.Addr) {
+	if e.tun.nat != nil {
+		e.tun.nat.set(vips)
+	}
+}
 
 // SetLocalHandler answers packets for addresses the agent serves itself.
 func (e *Engine) SetLocalHandler(h LocalHandler) { e.tun.local.Store(&h) }
