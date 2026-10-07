@@ -266,6 +266,11 @@ may connect to another on a protocol and port, and by which rule;
 `GET .../acl/document` is the whole policy with names and emails instead of
 ids. Both are on the network page (Check access, View as policy file).
 
+Under `deny`, a device's network map lists only the peers some rule connects
+it to, in either direction (`relatedPeers`): a device nothing lets it talk
+to isn't configured in WireGuard, doesn't resolve in its DNS, and its key
+and endpoints aren't sent. Under `allow` every device gets every peer.
+
 Enforcement happens at the destination. On sync each agent gets only the rules
 that let traffic in to it, with sources resolved to mesh addresses
 (`acl.inbound`). The agent wraps WireGuard's TUN (`internal/acl`,

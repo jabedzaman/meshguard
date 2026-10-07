@@ -259,6 +259,13 @@ test.describe("access rules", () => {
     expect(await inbound(web!)).toEqual([{ sources: [desktop.ipv4, desktop.ipv6], ...all }]);
     expect(await inbound(laptop)).toEqual([]);
 
+    // Each device only learns about the peers a rule connects it to.
+    const peersOf = async (device: { id: string; privateKey: any }) =>
+      ((await sync(device, { endpoints: [] })).body.peers as { name: string }[]).map((p) => p.name);
+    expect(await peersOf(laptop)).toEqual(["db"]);
+    expect(await peersOf(web!)).toEqual(["bob-desktop"]);
+    expect(await peersOf(db!)).toEqual(["alice-laptop", "bob-desktop"]);
+
     // Check and the policy file agree.
     const check = (from: string, to: string, protocol: string, port?: number) =>
       api<{ allowed: boolean; ruleIndex: number | null }>(

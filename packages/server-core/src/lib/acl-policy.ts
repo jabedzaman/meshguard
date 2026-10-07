@@ -114,6 +114,23 @@ export function inboundRules(rules: PolicyRule[], devices: PolicyDevice[], self:
 }
 
 /**
+ * The peers `self` needs to know about: those some rule lets it reach or be
+ * reached by, on any protocol. Under the default action "deny" a device gets
+ * only these in its network map; a peer nothing connects it to stays unknown.
+ */
+export function relatedPeers(rules: PolicyRule[], devices: PolicyDevice[], self: PolicyDevice) {
+  return devices.filter(
+    (peer) =>
+      peer.id !== self.id &&
+      rules.some(
+        (rule) =>
+          (matches(rule.source, self) && matches(rule.destination, peer)) ||
+          (matches(rule.source, peer) && matches(rule.destination, self)),
+      ),
+  );
+}
+
+/**
  * Whether `source` may open a connection to `destination` on the protocol
  * and port, and the first rule that allows it (null with the default action
  * "allow", or when nothing does).

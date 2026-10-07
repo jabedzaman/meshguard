@@ -241,8 +241,10 @@ export class DevicesService {
   }
 
   /**
-   * The device's network map: the device itself plus every peer's WireGuard
-   * key, mesh addresses and endpoints, what may reach it, and where to relay.
+   * The device's network map: the device itself plus its peers' WireGuard
+   * keys, mesh addresses and endpoints (every device in the network, or under
+   * "deny" only those a rule connects it to), what may reach it, and where to
+   * relay.
    * `revision` changes whenever anything but peers' lastSeenAt does.
    */
   async networkMap(deviceId: string) {
@@ -282,17 +284,23 @@ export class DevicesService {
       .from(devices)
       .where(and(eq(devices.networkId, self.networkId), ne(devices.id, self.id)))
       .orderBy(devices.createdAt);
+    // Under "deny", only peers a rule connects it to (either way).
+    const policy = await this.acl.policyFor(self.networkId, self.id);
+    const visible = policy.peers === null ? peers : peers.filter((p) => policy.peers!.has(p.id));
     const seen = await this.presence.lastSeen(
       self.networkId,
-      peers.map((peer) => peer.id),
+      visible.map((peer) => peer.id),
     );
 
     const map = {
       self: { id: self.id, name: self.name, meshIpv4: self.meshIpv4, meshIpv6: self.meshIpv6 },
       network: network!,
-      peers: peers.map((peer) => ({ ...peer, lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt })),
+      peers: visible.map((peer) => ({
+        ...peer,
+        lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt,
+      })),
       /** Traffic from peers the agent lets in. */
-      acl: await this.acl.policyFor(self.networkId, self.id),
+      acl: policy.acl,
       /** Where to relay WireGuard packets for peers that can't be reached directly. */
       relay: this.relayFor(self.wireguardPublicKey, new Date()),
       /** STUN servers for discovering this device's public address. */

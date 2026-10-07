@@ -6,6 +6,7 @@ import {
   formatSelector,
   inboundRules,
   parseSelector,
+  relatedPeers,
   type PolicyDevice,
   type PolicyRule,
   type Selector,
@@ -188,7 +189,9 @@ export class AclService {
   /**
    * What may reach a device, for its agent: the network's default action and,
    * when that is "deny", the rules whose destination matches it, with sources
-   * resolved to mesh addresses (null: any peer).
+   * resolved to mesh addresses (null: any peer). `peers` are the ids of the
+   * devices it may talk to in either direction (null: every device), so its
+   * network map leaves out the rest.
    */
   async policyFor(networkId: string, deviceId: string) {
     const [network] = await this.db
@@ -196,13 +199,13 @@ export class AclService {
       .from(networks)
       .where(eq(networks.id, networkId));
     if (!network || network.defaultAction === "allow") {
-      return { defaultAction: "allow" as const, inbound: [] };
+      return { acl: { defaultAction: "allow" as const, inbound: [] }, peers: null };
     }
     const { rules, devices: all } = await this.load(networkId);
     const self = all.find((d) => d.id === deviceId);
     return {
-      defaultAction: "deny" as const,
-      inbound: self ? inboundRules(rules, all, self) : [],
+      acl: { defaultAction: "deny" as const, inbound: self ? inboundRules(rules, all, self) : [] },
+      peers: new Set(self ? relatedPeers(rules, all, self).map((d) => d.id) : []),
     };
   }
 

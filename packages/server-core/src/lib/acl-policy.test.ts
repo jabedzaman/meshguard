@@ -5,6 +5,7 @@ import {
   inboundRules,
   matches,
   parseSelector,
+  relatedPeers,
   type PolicyDevice,
   type PolicyRule,
 } from "~/lib/acl-policy";
@@ -97,5 +98,21 @@ describe("check", () => {
     expect(check("deny", rules, laptop, db, "udp", 5432)).toEqual({ allowed: false, rule: null });
     expect(check("deny", rules, laptop, db, "icmp", null)).toEqual({ allowed: false, rule: null });
     expect(check("allow", [], laptop, db, "tcp", 22)).toEqual({ allowed: true, rule: null });
+  });
+});
+
+describe("relatedPeers", () => {
+  it("lists peers a rule connects in either direction", () => {
+    const rules = [rule("role:admin", "tag:server"), rule("user:alice", "tag:db")];
+    expect(relatedPeers(rules, all, laptop)).toEqual([db]);
+    expect(relatedPeers(rules, all, desktop)).toEqual([db, web]);
+    expect(relatedPeers(rules, all, db)).toEqual([laptop, desktop]);
+    expect(relatedPeers(rules, all, web)).toEqual([desktop]);
+    expect(relatedPeers([], all, web)).toEqual([]);
+    expect(relatedPeers([rule("*", "*", { protocol: "icmp" })], all, web)).toEqual([
+      laptop,
+      desktop,
+      db,
+    ]);
   });
 });
