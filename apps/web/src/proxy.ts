@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/lib/auth";
+import { ADD_ACCOUNT_PARAM, REDIRECT_PARAM, safeRedirect, withRedirect } from "~/lib/redirect";
 
 /** Reachable without a session. Signed-in users are sent to the app. */
 const AUTH_ROUTES = new Set(["/sign-in", "/sign-up"]);
@@ -15,6 +16,8 @@ function isOnboardingRoute(pathname: string) {
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname.replace(/\/+$/, "") || "/";
   const redirect = (path: string) => NextResponse.redirect(new URL(path, request.url));
+  // Where the visitor was headed, so the auth and onboarding steps can return there.
+  const destination = `${pathname}${request.nextUrl.search}`;
 
   const requestHeaders = await headers();
   const session = await auth.api.getSession({ headers: requestHeaders });
@@ -22,18 +25,26 @@ export async function proxy(request: NextRequest) {
   if (!session) {
     return AUTH_ROUTES.has(pathname)
       ? NextResponse.next()
-      : redirect(`/sign-in?redirectTo=${encodeURIComponent(pathname)}`);
+      : redirect(withRedirect("/sign-in", destination));
   }
 
-  if (AUTH_ROUTES.has(pathname)) return redirect("/");
+  if (AUTH_ROUTES.has(pathname)) {
+    // Signed-in users can still reach these pages to add another account.
+    return request.nextUrl.searchParams.has(ADD_ACCOUNT_PARAM)
+      ? NextResponse.next()
+      : redirect(safeRedirect(request.nextUrl.searchParams.get(REDIRECT_PARAM)));
+  }
   if (isOnboardingRoute(pathname)) return NextResponse.next();
 
   if (!session.session.activeOrganizationId) {
     const [first] = await auth.api.listOrganizations({ headers: requestHeaders });
     return redirect(
-      first
-        ? `/api/organizations/${encodeURIComponent(first.id)}/activate`
-        : "/organizations/create",
+      withRedirect(
+        first
+          ? `/api/organizations/${encodeURIComponent(first.id)}/activate`
+          : "/organizations/create",
+        destination,
+      ),
     );
   }
 

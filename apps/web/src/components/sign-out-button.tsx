@@ -1,26 +1,27 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import type { ComponentProps } from "react";
 import { Button } from "@meshguard/ui/components/button";
-import { authClient, unwrap } from "~/lib/auth-client";
+import { useHydrated } from "~/hooks/use-hydrated";
+import { useSignOutAll } from "~/hooks/use-session-navigation";
 
+/** Signs out of every account on this browser. */
 export function SignOutButton({
-  label = "Sign out",
-  redirectTo = "/sign-in",
-}: {
-  label?: string;
-  /** Where to go after signing out. */
-  redirectTo?: string;
-}) {
-  const signOut = useMutation({
-    mutationFn: () => unwrap(authClient.signOut()),
-    // Full navigation drops every client cache (router and TanStack Query).
-    onSuccess: () => window.location.assign(redirectTo),
-  });
-
+  children = "Sign out",
+  variant = "outline",
+  ...props
+}: Omit<ComponentProps<typeof Button>, "onClick" | "type">) {
+  const hydrated = useHydrated();
+  const signOut = useSignOutAll();
   return (
-    <Button variant="outline" disabled={signOut.isPending} onClick={() => signOut.mutate()}>
-      {label}
+    <Button
+      type="button"
+      variant={variant}
+      disabled={!hydrated || signOut.isPending}
+      onClick={() => signOut.mutate()}
+      {...props}
+    >
+      {signOut.isPending ? "Signing out…" : children}
     </Button>
   );
 }

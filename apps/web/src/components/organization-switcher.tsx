@@ -21,18 +21,19 @@ import {
   type ActiveOrganization,
   useOrganization,
 } from "~/components/providers/organization-provider";
+import { useResetNavigate } from "~/hooks/use-session-navigation";
 import { authClient, unwrap } from "~/lib/auth-client";
 
 export function OrganizationSwitcher({ organizations }: { organizations: ActiveOrganization[] }) {
   const active = useOrganization();
+  const navigate = useResetNavigate();
   const { isMobile } = useSidebar();
 
   const switchOrganization = useMutation({
     mutationFn: (organizationId: string) =>
       unwrap(authClient.organization.setActive({ organizationId })),
-    // Full navigation drops router and query caches holding the previous org's data.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload
-    onSuccess: () => window.location.assign("/"),
+    // Drops router and query caches holding the previous org's data.
+    onSuccess: () => navigate("/"),
   });
 
   return (

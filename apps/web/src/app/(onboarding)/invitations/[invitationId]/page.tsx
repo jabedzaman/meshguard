@@ -9,8 +9,8 @@ import {
   CardTitle,
 } from "@meshguard/ui/components/card";
 import { InvitationResponse } from "~/components/invitation-response";
-import { SignOutButton } from "~/components/sign-out-button";
 import { loadInvitation } from "~/lib/invitations";
+import { ADD_ACCOUNT_PARAM, withRedirect } from "~/lib/redirect";
 import { getSession } from "~/lib/session";
 
 export const metadata: Metadata = { title: "Invitation" };
@@ -74,10 +74,13 @@ export default async function InvitationPage({ params }: PageProps<"/invitations
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <SignOutButton
-            label="Switch account"
-            redirectTo={`/sign-in?redirectTo=${encodeURIComponent(`/invitations/${invitationId}`)}`}
-          />
+          <Button asChild variant="outline">
+            <Link
+              href={`${withRedirect("/sign-in", `/invitations/${invitationId}`)}&${ADD_ACCOUNT_PARAM}=1`}
+            >
+              Use another account
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     );

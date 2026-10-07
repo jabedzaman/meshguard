@@ -2,6 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { eq, schema } from "@meshguard/db";
 import { auth, getDb } from "~/lib/auth";
+import { getSession } from "~/lib/session";
 
 export type InvitationView =
   | {
@@ -55,4 +56,26 @@ export async function loadInvitation(id: string): Promise<InvitationView> {
     return { state: row.status };
   }
   return { state: "not_found" };
+}
+
+export type MyInvitation = { id: string; organizationName: string; role: string };
+
+/**
+ * Pending, unexpired invitations addressed to the signed-in user's email.
+ * Called without the session's headers on purpose: Better Auth's client-facing
+ * listing refuses users whose email is unverified, while the invitation link
+ * page (see loadInvitation) only matches on the address. This stays consistent
+ * with that policy.
+ */
+export async function listMyInvitations(): Promise<MyInvitation[]> {
+  const session = await getSession();
+  if (!session) return [];
+  const invitations = await auth.api.listUserInvitations({ query: { email: session.user.email } });
+  const now = Date.now();
+  return invitations
+    .filter(
+      (invitation) =>
+        invitation.status === "pending" && new Date(invitation.expiresAt).getTime() > now,
+    )
+    .map(({ id, organizationName, role }) => ({ id, organizationName, role }));
 }

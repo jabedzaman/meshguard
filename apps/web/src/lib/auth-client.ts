@@ -1,4 +1,4 @@
-import { organizationClient } from "better-auth/client/plugins";
+import { multiSessionClient, organizationClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { ac, roles } from "@meshguard/auth/permissions";
 import { API_URL } from "~/lib/env";
@@ -6,7 +6,7 @@ import { API_URL } from "~/lib/env";
 export const authClient = createAuthClient({
   baseURL: API_URL,
   basePath: "/api/auth",
-  plugins: [organizationClient({ ac, roles })],
+  plugins: [organizationClient({ ac, roles }), multiSessionClient()],
 });
 
 /**

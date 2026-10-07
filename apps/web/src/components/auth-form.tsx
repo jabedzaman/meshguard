@@ -16,14 +16,11 @@ import {
 import { Input } from "@meshguard/ui/components/input";
 import { Label } from "@meshguard/ui/components/label";
 import { authClient, unwrap } from "~/lib/auth-client";
+import { useResetNavigate } from "~/hooks/use-session-navigation";
+import { ADD_ACCOUNT_PARAM, REDIRECT_PARAM, safeRedirect } from "~/lib/redirect";
 import { useHydrated } from "~/hooks/use-hydrated";
 
 type Mode = "sign-in" | "sign-up";
-
-// Only allow same-origin paths, so ?redirectTo= can't send users to another site.
-function safeRedirect(target: string | null) {
-  return target?.startsWith("/") && !target.startsWith("//") ? target : "/";
-}
 
 const copy = {
   "sign-in": {
@@ -47,7 +44,18 @@ const copy = {
 export function AuthForm({ mode }: { mode: Mode }) {
   const hydrated = useHydrated();
   const searchParams = useSearchParams();
+  const navigate = useResetNavigate();
   const t = copy[mode];
+  const redirectTo = safeRedirect(searchParams.get(REDIRECT_PARAM));
+  const addingAccount = searchParams.has(ADD_ACCOUNT_PARAM);
+
+  // Carry over the params that shape the flow (redirect target, add-account).
+  const carried = new URLSearchParams();
+  for (const key of [REDIRECT_PARAM, ADD_ACCOUNT_PARAM]) {
+    const value = searchParams.get(key);
+    if (value !== null) carried.set(key, value);
+  }
+  const switchHref = carried.size ? `${t.switchHref}?${carried}` : t.switchHref;
 
   const emailAuth = useMutation({
     mutationFn: (form: FormData) => {
@@ -57,13 +65,17 @@ export function AuthForm({ mode }: { mode: Mode }) {
         ? unwrap(authClient.signUp.email({ name: String(form.get("name")), email, password }))
         : unwrap(authClient.signIn.email({ email, password }));
     },
-    // Full navigation so no client cache from the signed-out state survives.
-    onSuccess: () => window.location.assign(safeRedirect(searchParams.get("redirectTo"))),
+    onSuccess: () => navigate(redirectTo),
   });
 
   const githubAuth = useMutation({
     mutationFn: () =>
-      unwrap(authClient.signIn.social({ provider: "github", callbackURL: window.location.origin })),
+      unwrap(
+        authClient.signIn.social({
+          provider: "github",
+          callbackURL: new URL(redirectTo, window.location.origin).href,
+        }),
+      ),
   });
 
   const error = emailAuth.error ?? githubAuth.error;
@@ -128,17 +140,18 @@ export function AuthForm({ mode }: { mode: Mode }) {
           </Button>
           <p className="text-muted-foreground text-sm">
             {t.switchText}{" "}
-            <Link
-              href={
-                searchParams.get("redirectTo")
-                  ? `${t.switchHref}?redirectTo=${encodeURIComponent(searchParams.get("redirectTo")!)}`
-                  : t.switchHref
-              }
-              className="text-foreground underline underline-offset-4"
-            >
+            <Link href={switchHref} className="text-foreground underline underline-offset-4">
               {t.switchLabel}
             </Link>
           </p>
+          {addingAccount && (
+            <Link
+              href={redirectTo}
+              className="text-muted-foreground text-sm underline underline-offset-4"
+            >
+              Cancel
+            </Link>
+          )}
         </CardFooter>
       </form>
     </Card>

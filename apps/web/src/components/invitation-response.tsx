@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { Button } from "@meshguard/ui/components/button";
 import { useHydrated } from "~/hooks/use-hydrated";
+import { useResetNavigate } from "~/hooks/use-session-navigation";
 import { authClient, unwrap } from "~/lib/auth-client";
 
 export function InvitationResponse({
@@ -14,11 +15,11 @@ export function InvitationResponse({
   organizationName: string;
 }) {
   const hydrated = useHydrated();
+  const navigate = useResetNavigate();
   // Accepting makes the organization active; a full navigation drops caches.
   const accept = useMutation({
     mutationFn: () => unwrap(authClient.organization.acceptInvitation({ invitationId })),
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload
-    onSuccess: () => window.location.assign("/"),
+    onSuccess: () => navigate("/"),
   });
   const decline = useMutation({
     mutationFn: () => unwrap(authClient.organization.rejectInvitation({ invitationId })),

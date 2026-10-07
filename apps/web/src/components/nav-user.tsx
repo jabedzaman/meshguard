@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
-import { ChevronsUpDownIcon, LogOutIcon, MoonIcon, SunIcon } from "lucide-react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronsUpDownIcon, LogOutIcon, MoonIcon, PlusIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Avatar, AvatarFallback } from "@meshguard/ui/components/avatar";
 import {
@@ -19,6 +20,8 @@ import {
   useSidebar,
 } from "@meshguard/ui/components/sidebar";
 import { useCurrentUser, useRole } from "~/components/providers/organization-provider";
+import { useSignOutAccount, useSignOutAll, useSwitchAccount } from "~/hooks/use-session-navigation";
+import { ADD_ACCOUNT_PARAM } from "~/lib/redirect";
 import { authClient, unwrap } from "~/lib/auth-client";
 
 export function NavUser() {
@@ -26,12 +29,17 @@ export function NavUser() {
   const role = useRole();
   const { isMobile } = useSidebar();
   const { resolvedTheme, setTheme } = useTheme();
-  const signOut = useMutation({
-    mutationFn: () => unwrap(authClient.signOut()),
-    // Full navigation drops every client cache (router and TanStack Query).
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload
-    onSuccess: () => window.location.assign("/sign-in"),
+  const signOutAll = useSignOutAll();
+  const signOutAccount = useSignOutAccount();
+
+  const sessions = useQuery({
+    queryKey: ["device-sessions"],
+    queryFn: () => unwrap(authClient.multiSession.listDeviceSessions()),
   });
+  const switchAccount = useSwitchAccount();
+  const otherAccounts = (sessions.data ?? []).filter((s) => s.user.id !== user.id);
+  const currentToken = sessions.data?.find((s) => s.user.id === user.id)?.session.token;
+  const signingOut = signOutAll.isPending || signOutAccount.isPending;
 
   const identity = (
     <>
@@ -68,6 +76,27 @@ export function NavUser() {
               <div className="flex items-center gap-2 px-1 py-1.5">{identity}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {otherAccounts.map(({ session, user: account }) => (
+              <DropdownMenuItem
+                key={session.token}
+                disabled={switchAccount.isPending}
+                onSelect={() => switchAccount.mutate(session.token)}
+              >
+                <Avatar className="size-5 rounded">
+                  <AvatarFallback className="rounded text-xs uppercase">
+                    {account.email[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate">{account.email}</span>
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuItem asChild>
+              <Link href={`/sign-in?${ADD_ACCOUNT_PARAM}=1`}>
+                <PlusIcon />
+                Add account
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             >
@@ -77,10 +106,24 @@ export function NavUser() {
               Toggle theme
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={signOut.isPending} onSelect={() => signOut.mutate()}>
+            <DropdownMenuItem
+              disabled={signingOut}
+              onSelect={() =>
+                // With several accounts, sign out of this one and fall back to another.
+                currentToken && otherAccounts.length > 0
+                  ? signOutAccount.mutate(currentToken)
+                  : signOutAll.mutate()
+              }
+            >
               <LogOutIcon />
               Sign out
             </DropdownMenuItem>
+            {otherAccounts.length > 0 && (
+              <DropdownMenuItem disabled={signingOut} onSelect={() => signOutAll.mutate()}>
+                <LogOutIcon />
+                Sign out of all accounts
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

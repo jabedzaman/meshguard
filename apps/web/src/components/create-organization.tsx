@@ -1,7 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@meshguard/ui/components/button";
@@ -24,6 +26,9 @@ import {
 import { Input } from "@meshguard/ui/components/input";
 import { authClient, unwrap } from "~/lib/auth-client";
 import { useHydrated } from "~/hooks/use-hydrated";
+import { useResetNavigate } from "~/hooks/use-session-navigation";
+import { REDIRECT_PARAM, safeRedirect } from "~/lib/redirect";
+import { SignOutButton } from "~/components/sign-out-button";
 
 const schema = z.object({
   name: z.string().trim().min(2, "At least 2 characters").max(64, "At most 64 characters"),
@@ -41,6 +46,8 @@ function slugify(name: string) {
 
 export function CreateOrganization() {
   const hydrated = useHydrated();
+  const navigate = useResetNavigate();
+  const redirectTo = safeRedirect(useSearchParams().get(REDIRECT_PARAM));
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { name: "" },
@@ -50,12 +57,17 @@ export function CreateOrganization() {
   const createOrganization = useMutation({
     mutationFn: ({ name }: Values) =>
       unwrap(authClient.organization.create({ name, slug: slugify(name) })),
-    // Full navigation: the client router cached "/" as a redirect back here
-    // from before the organization existed.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload
-    onSuccess: () => window.location.assign("/"),
+    // Resets the router cache: it holds "/" as a redirect back here.
+    onSuccess: () => navigate(redirectTo),
     onError: (error) => form.setError("root", { message: error.message }),
   });
+
+  // A user who already belongs to an organization can back out of creating another.
+  const organizations = useQuery({
+    queryKey: ["organizations"],
+    queryFn: () => unwrap(authClient.organization.list()),
+  });
+  const hasOrganization = (organizations.data?.length ?? 0) > 0;
 
   return (
     <Card className="w-full max-w-sm">
@@ -85,7 +97,7 @@ export function CreateOrganization() {
               </p>
             )}
           </CardContent>
-          <CardFooter className="mt-6">
+          <CardFooter className="mt-6 flex-col gap-2">
             <Button
               type="submit"
               className="w-full"
@@ -93,6 +105,13 @@ export function CreateOrganization() {
             >
               {createOrganization.isPending ? "Creating…" : "Create organization"}
             </Button>
+            {hasOrganization ? (
+              <Button asChild variant="ghost" className="w-full">
+                <Link href={redirectTo}>Cancel</Link>
+              </Button>
+            ) : (
+              <SignOutButton variant="ghost" className="w-full" />
+            )}
           </CardFooter>
         </form>
       </Form>

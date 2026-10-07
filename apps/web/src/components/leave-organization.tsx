@@ -3,10 +3,12 @@
 import { Button } from "@meshguard/ui/components/button";
 import { ConfirmDialog } from "~/components/confirm-dialog";
 import { useOrganization } from "~/components/providers/organization-provider";
+import { useResetNavigate } from "~/hooks/use-session-navigation";
 import { authClient, unwrap } from "~/lib/auth-client";
 
 export function LeaveOrganization() {
   const organization = useOrganization();
+  const navigate = useResetNavigate();
 
   return (
     <div className="border-destructive/30 bg-destructive/5 flex items-center justify-between gap-4 rounded-xl border p-4">
@@ -25,8 +27,7 @@ export function LeaveOrganization() {
           await unwrap(authClient.organization.leave({ organizationId: organization.id }));
           // Better Auth clears this session's active organization; the proxy
           // then activates another one or sends the user to create one.
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload
-          window.location.assign("/");
+          navigate("/");
         }}
       />
     </div>

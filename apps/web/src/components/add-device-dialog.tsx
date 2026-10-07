@@ -86,7 +86,12 @@ export function AddDeviceDialog({ networkId }: { networkId: string }) {
                 This token won&apos;t be shown again. It works once and expires{" "}
                 {new Date(create.data.expiresAt).toLocaleString()}.
               </p>
-              <CopyButton value={command} label="Copy command" />
+              {/* Brief delay so the "Copied" state is seen before the token is discarded. */}
+              <CopyButton
+                value={command}
+                label="Copy command"
+                onCopy={() => setTimeout(() => setOpen(false), 600)}
+              />
             </div>
           </div>
         ) : (

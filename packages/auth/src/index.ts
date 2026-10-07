@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware, isAPIError } from "better-auth/api";
-import { organization } from "better-auth/plugins";
+import { multiSession, organization } from "better-auth/plugins";
 import { ac, roles } from "./permissions";
 import type { AuthEnv } from "@meshguard/config";
 import { and, asc, eq, schema, type Db } from "@meshguard/db";
@@ -65,6 +65,8 @@ export function createAuth(db: Db, options: AuthOptions) {
     emailAndPassword: { enabled: true },
     socialProviders: options.github ? { github: options.github } : {},
     plugins: [
+      // Several accounts signed in on one browser; the newest sign-in is active.
+      multiSession({ maximumSessions: 5 }),
       organization({
         ac,
         roles,
