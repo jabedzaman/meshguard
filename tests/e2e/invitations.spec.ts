@@ -53,8 +53,12 @@ test.describe("invitations", () => {
     await expect(page.getByText(`Join ${org.name}`).first()).toBeVisible();
     await expect(page.getByText(`${owner.email} invited you to join as admin`)).toBeVisible();
     await page.getByRole("button", { name: `Join ${org.name}` }).click();
-    await expect(page.locator("header button", { hasText: org.name })).toBeVisible();
-    await expect(page.locator("header")).toContainText(`${email} · admin`);
+    await expect(
+      page.locator("[data-slot=sidebar-header] button", { hasText: org.name }),
+    ).toBeVisible();
+    const footer = page.locator("[data-slot=sidebar-footer]");
+    await expect(footer).toContainText(email);
+    await expect(footer).toContainText("admin");
 
     await page.goto(link);
     await expect(page.getByText("Invitation already accepted")).toBeVisible();

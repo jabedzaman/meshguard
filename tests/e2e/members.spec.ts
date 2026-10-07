@@ -36,7 +36,7 @@ test.describe("members and roles", () => {
     await expect(rows.filter({ hasText: member.email }).getByRole("combobox")).toHaveText("admin");
 
     await member.page.goto("/");
-    await expect(member.page.locator("header")).toContainText("· admin");
+    await expect(member.page.locator("[data-slot=sidebar-footer]")).toContainText("admin");
 
     // Member view: no pickers.
     const plain = await createUser("Plain");
@@ -99,6 +99,8 @@ test.describe("members and roles", () => {
     await admin.page.goto("/members");
     await admin.page.getByRole("button", { name: "Leave", exact: true }).click();
     await admin.page.getByRole("button", { name: "Leave organization" }).click();
-    await expect(admin.page.locator("header button", { hasText: side.name })).toBeVisible();
+    await expect(
+      admin.page.locator("[data-slot=sidebar-header] button", { hasText: side.name }),
+    ).toBeVisible();
   });
 });

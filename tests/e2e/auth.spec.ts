@@ -22,13 +22,18 @@ test.describe("auth", () => {
 
     await page.fill("input[name=name]", orgName);
     await page.click("text=Create organization");
-    await expect(page.locator("header button", { hasText: orgName })).toBeVisible();
-    await expect(page.locator("header")).toContainText(`${email} · owner`);
+    await expect(
+      page.locator("[data-slot=sidebar-header] button", { hasText: orgName }),
+    ).toBeVisible();
+    const footer = page.locator("[data-slot=sidebar-footer]");
+    await expect(footer).toContainText(email);
+    await expect(footer).toContainText("owner");
 
     await page.goto("/sign-in");
     await expect(page).toHaveURL("/");
 
-    await page.click("text=Sign out");
+    await footer.getByRole("button").click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL("/sign-in");
 
     await page.fill("#email", email);
@@ -39,7 +44,9 @@ test.describe("auth", () => {
     await page.fill("#password", PASSWORD);
     await page.click("button[type=submit]");
     // A new session gets the user's organization back.
-    await expect(page.locator("header button", { hasText: orgName })).toBeVisible();
+    await expect(
+      page.locator("[data-slot=sidebar-header] button", { hasText: orgName }),
+    ).toBeVisible();
   });
 
   test("organization name is validated", async ({ createUser }) => {

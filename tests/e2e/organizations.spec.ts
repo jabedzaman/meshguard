@@ -11,27 +11,32 @@ test.describe("organizations", () => {
     const { page } = user;
 
     await page.goto("/");
+    await page.getByRole("button", { name: "New network" }).click();
     await page.fill("input[name=name]", "home");
     await page.click("text=Create network");
     await expect(page.locator("li", { hasText: "home" })).toBeVisible();
 
-    await page.click(`header button:has-text("${first.name}")`);
+    await page.click(`[data-slot=sidebar-header] button:has-text("${first.name}")`);
     await page.click("text=New organization");
     await expect(page).toHaveURL("/organizations/create");
     const secondName = `Second ${Date.now()}`;
     await page.fill("input[name=name]", secondName);
     await page.click("text=Create organization");
-    await expect(page.locator("header button", { hasText: secondName })).toBeVisible();
+    await expect(
+      page.locator("[data-slot=sidebar-header] button", { hasText: secondName }),
+    ).toBeVisible();
     await expect(page.getByText("No networks yet.")).toBeVisible();
 
-    await page.click(`header button:has-text("${secondName}")`);
+    await page.click(`[data-slot=sidebar-header] button:has-text("${secondName}")`);
     await expect(page.getByRole("menuitem")).toHaveText([
       first.name,
       secondName,
       "New organization",
     ]);
     await page.getByRole("menuitem", { name: first.name }).click();
-    await expect(page.locator("header button", { hasText: first.name })).toBeVisible();
+    await expect(
+      page.locator("[data-slot=sidebar-header] button", { hasText: first.name }),
+    ).toBeVisible();
     await expect(page.locator("li", { hasText: "home" })).toBeVisible();
   });
 
@@ -48,7 +53,9 @@ test.describe("organizations", () => {
     );
 
     await user.page.goto("/");
-    await expect(user.page.locator("header button", { hasText: org.name })).toBeVisible();
+    await expect(
+      user.page.locator("[data-slot=sidebar-header] button", { hasText: org.name }),
+    ).toBeVisible();
   });
 
   test("deleting an organization clears it from the user's other sessions", async ({

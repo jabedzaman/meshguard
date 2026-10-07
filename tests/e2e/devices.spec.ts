@@ -264,13 +264,13 @@ test.describe("devices", () => {
     ).rejects.toMatchObject({ status: 403 });
 
     await alice.page.goto(`/networks/${network.id}`);
-    const rows = alice.page.locator("li");
+    const rows = alice.page.locator("main li");
     await expect(rows.filter({ hasText: "alice-laptop" })).toContainText("yours");
     await expect(rows.filter({ hasText: "bob-box" })).toContainText("Bob");
     await expect(
       rows.filter({ hasText: "bob-box" }).getByRole("button", { name: /^Remove/ }),
     ).toHaveCount(0);
-    await alice.page.getByRole("button", { name: "Mine" }).click();
+    await alice.page.getByRole("radio", { name: "Mine" }).click();
     await expect(rows).toHaveCount(2);
     await alice.page.getByRole("button", { name: "Remove alice-pi" }).click();
     await alice.page.getByRole("button", { name: "Remove device" }).click();

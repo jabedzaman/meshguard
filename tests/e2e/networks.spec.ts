@@ -10,12 +10,14 @@ test.describe("networks", () => {
     const { page } = user;
     await page.goto("/");
 
+    await page.getByRole("button", { name: "New network" }).click();
     await page.fill("input[name=name]", "home");
     await page.click("text=Create network");
     const row = page.locator("li", { hasText: "home" });
     await expect(row).toContainText("10.77.0.0/16");
     await expect(row).toContainText(/fd[0-9a-f]{2}:[0-9a-f]{1,4}:[0-9a-f]{1,4}::\/48/);
 
+    await page.getByRole("button", { name: "New network" }).click();
     await page.fill("input[name=name]", "home");
     await page.click("text=Create network");
     await expect(page.getByText("A network with this name already exists")).toBeVisible();
@@ -38,6 +40,7 @@ test.describe("networks", () => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Perm Org");
     await owner.page.goto("/");
+    await owner.page.getByRole("button", { name: "New network" }).click();
     await owner.page.fill("input[name=name]", "shared");
     await owner.page.click("text=Create network");
     await expect(owner.page.locator("li", { hasText: "shared" })).toBeVisible();
@@ -45,9 +48,9 @@ test.describe("networks", () => {
     const member = await createUser("Member");
     await addToOrganization(owner, member, "member");
     await member.page.goto("/");
-    await expect(member.page.locator("header")).toContainText("· member");
+    await expect(member.page.locator("[data-slot=sidebar-footer]")).toContainText("member");
     await expect(member.page.locator("li", { hasText: "shared" })).toBeVisible();
-    await expect(member.page.getByText("Create network")).toHaveCount(0);
+    await expect(member.page.getByRole("button", { name: "New network" })).toHaveCount(0);
 
     await expect(api(member.page, "/v1/networks", { name: "sneaky" })).rejects.toMatchObject({
       status: 403,

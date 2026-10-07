@@ -153,7 +153,7 @@ test.describe("access rules", () => {
       api(member.page, `/v1/acl-rules/${rule.id}`, undefined, { method: "DELETE" }),
     ).rejects.toMatchObject({ status: 403 });
 
-    await member.page.goto(`/networks/${network.id}`);
+    await member.page.goto(`/networks/${network.id}?tab=access`);
     await expect(member.page.getByText("Any device → every device")).toBeVisible();
     await expect(member.page.getByRole("button", { name: "Add rule" })).toHaveCount(0);
     await expect(member.page.getByRole("button", { name: /^Remove rule/ })).toHaveCount(0);
@@ -165,6 +165,7 @@ test.describe("access rules", () => {
     const { network } = await networkWithDevices(owner.page, ["laptop", "server"]);
     const page = owner.page;
     await page.goto(`/networks/${network.id}`);
+    await page.getByRole("tab", { name: "Access" }).click();
 
     await page.getByRole("button", { name: "Add rule" }).click();
     const dialog = page.getByRole("dialog");
@@ -305,17 +306,20 @@ test.describe("access rules", () => {
     await expect(
       owner.page.locator("li").filter({ hasText: "tag:db" }).filter({ hasText: "tag:server" }),
     ).toHaveCount(1);
+    await owner.page.getByRole("tab", { name: "Access" }).click();
     await expect(owner.page.getByText("role:admin → tag:server")).toBeVisible();
     await expect(owner.page.getByText("Alice → tag:db")).toBeVisible();
 
     // Tag from the page, then check access and view the policy file.
     const page = owner.page;
+    await page.getByRole("tab", { name: "Devices" }).click();
     await page.getByRole("button", { name: "Tags of web" }).click();
     await page.getByLabel("Tags", { exact: true }).fill("tag:server, edge");
     await page.getByRole("button", { name: "Save tags" }).click();
     await expect(
       page.locator("li").filter({ hasText: "tag:edge" }).filter({ hasText: "tag:server" }),
     ).toHaveCount(1);
+    await page.getByRole("tab", { name: "Access" }).click();
     await page.getByRole("combobox", { name: "Check from" }).click();
     await page.getByRole("option", { name: "bob-desktop" }).click();
     await page.getByRole("combobox", { name: "Check to" }).click();
