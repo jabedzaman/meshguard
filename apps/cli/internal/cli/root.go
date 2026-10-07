@@ -41,7 +41,7 @@ The agent must be running: sudo meshguard-agent install (or sudo meshguard-agent
 		"agent socket ($MESHGUARD_SOCKET)")
 
 	root.AddCommand(
-		newUp(o), newDown(o), newLogout(o),
+		newLogin(o), newUp(o), newDown(o), newLogout(o),
 		newStatus(o), newPeers(o), newIP(o), newPing(o), newNetcheck(o), newDoctor(o),
 		newVersion(o),
 	)

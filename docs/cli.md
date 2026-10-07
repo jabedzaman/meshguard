@@ -43,10 +43,11 @@ sudo meshguard-agent uninstall
 
 ### Updating dev machines
 
-From the repo (Linux/WSL with systemd):
+From the repo (Linux/WSL with systemd, or this Mac):
 
 ```sh
 scripts/reinstall-agent.sh   # build, sudo meshguard-agent install with the service's current flags
+scripts/install-mac.sh       # macOS: build, sudo meshguard-agent install with the service's current flags
 scripts/build-mac.sh         # build dist/mac (arm64; pass amd64 for Intel)
 ```
 
@@ -68,22 +69,22 @@ and the old service and binaries are removed.
 
 ### Agent flags
 
-| Flag | Default | |
-| --- | --- | --- |
-| `-socket` | `/var/run/meshguard/agent.sock` (`$MESHGUARD_SOCKET`) | local API socket |
-| `-socket-owner` | the sudo user | `uid:gid` that owns the socket and may use the agent without sudo |
-| `-state-dir` | `/var/lib/meshguard` (Linux), `/Library/Application Support/MeshGuard` (macOS) (`$MESHGUARD_STATE_DIR`) | keys and enrollment |
-| `-port` | `51820` | WireGuard UDP port |
-| `-interface` | `meshguard0` (Linux), `utunN` (macOS) | interface name |
+| Flag            | Default                                                                                                 |                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `-socket`       | `/var/run/meshguard/agent.sock` (`$MESHGUARD_SOCKET`)                                                   | local API socket                                                  |
+| `-socket-owner` | the sudo user                                                                                           | `uid:gid` that owns the socket and may use the agent without sudo |
+| `-state-dir`    | `/var/lib/meshguard` (Linux), `/Library/Application Support/MeshGuard` (macOS) (`$MESHGUARD_STATE_DIR`) | keys and enrollment                                               |
+| `-port`         | `51820`                                                                                                 | WireGuard UDP port                                                |
+| `-interface`    | `meshguard0` (Linux), `utunN` (macOS)                                                                   | interface name                                                    |
 
 Running it in the foreground instead of as a service:
 `sudo meshguard-agent -socket /tmp/meshguard.sock -state-dir $HOME/.meshguard`.
 
 ### Logs
 
-| | |
-| --- | --- |
-| macOS | `/var/log/meshguard-agent.log` |
+|       |                                    |
+| ----- | ---------------------------------- |
+| macOS | `/var/log/meshguard-agent.log`     |
 | Linux | `journalctl -u meshguard-agent -f` |
 
 ## Commands
@@ -92,16 +93,27 @@ Every command accepts `--socket` (default `$MESHGUARD_SOCKET` or
 `/var/run/meshguard/agent.sock`) and `--help`. `status`, `peers`, `netcheck`
 and `doctor` accept `--json`.
 
+### `meshguard login`
+
+Sign in through your browser and join a network as yourself: it prints a URL and a code,
+you approve the device there, and it joins. Does nothing if the device is already enrolled.
+`--no-browser` and `--server` work as for `up`, which falls back to the same flow on an
+unenrolled device.
+
 ### `meshguard up`
 
-Join a network with a token from the network page (**Add device**), or
-reconnect after `meshguard down`.
+Join a network through your browser, or with a token from the network page
+(**Add device**), or reconnect after `meshguard down`.
 
 ```sh
-meshguard up --token meshguard_enr_...                          # join
+meshguard up                                               # join through the browser; reconnect if enrolled
+meshguard up --no-browser                                  # print the URL instead of opening it
+meshguard up --token meshguard_enr_...                          # join with a token (servers, CI)
 meshguard up --token meshguard_enr_... --server https://api.example.com
-meshguard up                                               # reconnect after meshguard down
 ```
+
+On an unenrolled device `meshguard up` prints a URL and a code. Open it, check the code,
+choose a network and approve: the device joins as you. The login lasts 10 minutes.
 
 `--server` defaults to `$MESHGUARD_SERVER`, then the server baked in at build time
 (`MESHGUARD_SERVER=https://... scripts/build-agent.sh`; `http://localhost:4000` if unset). Tokens
@@ -169,11 +181,11 @@ only the network's domain and its reverse zones (e.g. `77.10.in-addr.arpa`)
 there; other lookups never touch it. Test it with
 `dig @10.77.0.53 <name>.<network domain>`.
 
-| | |
-| --- | --- |
-| macOS | writes `/etc/resolver/<network domain>` and one file per reverse zone (removed on `meshguard down`). Short names don't resolve: macOS ignores search domains from these files |
-| Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0`: the network's domain as a search domain, so short names work (`ssh laptop`), and the reverse zones as routing-only domains |
-| Other Linux | not configured; `meshguard status` says so. Query the resolver directly |
+|                             |                                                                                                                                                                               |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS                       | writes `/etc/resolver/<network domain>` and one file per reverse zone (removed on `meshguard down`). Short names don't resolve: macOS ignores search domains from these files |
+| Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0`: the network's domain as a search domain, so short names work (`ssh laptop`), and the reverse zones as routing-only domains           |
+| Other Linux                 | not configured; `meshguard status` says so. Query the resolver directly                                                                                                       |
 
 ### `meshguard peers`
 
@@ -212,11 +224,11 @@ advertised endpoints:
   203.0.113.7:51820
 ```
 
-| NAT | Meaning |
-| --- | --- |
-| endpoint-independent | Same public address for every server: hole punching can work. |
-| symmetric | A different public port per server: direct connections are unlikely; peers use the relay. |
-| unknown | Fewer than two STUN servers answered. |
+| NAT                  | Meaning                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| endpoint-independent | Same public address for every server: hole punching can work.                             |
+| symmetric            | A different public port per server: direct connections are unlikely; peers use the relay. |
+| unknown              | Fewer than two STUN servers answered.                                                     |
 
 ### `meshguard doctor [peer]`
 
@@ -247,17 +259,17 @@ meshguard doctor macbook --port 22  # ...and whether its TCP port 22 accepts con
 meshguard doctor --port 8080        # can peers reach this machine's port 8080?
 ```
 
-| Check | What it looks at |
-| --- | --- |
-| agent | The agent answers, and runs the same build as the CLI. |
-| network, wireguard | Enrolled, not down, interface up (needs root). |
-| control plane | Synced in the last 30s; otherwise why not. |
-| route | The OS sends mesh traffic through the mesh interface, not another VPN that overlaps the range. |
-| relay, nat | Relay connected; NAT type from STUN (symmetric means peers use the relay). |
-| dns | `<name>.<network domain>` resolves through the OS the way other programs resolve it, including the WSL case where systemd-resolved has the names but `/etc/resolv.conf` points elsewhere. |
-| access | This device's access rules; with `--port`, which peers may connect to it. |
-| peer | Handshake in the last 3 minutes and the path; with a peer, also ping (no reply with a live handshake usually means the peer's rules don't allow ICMP) and `--port` (refused: nothing listens there; no answer: its access rules or a firewall). |
-| listening (`--port` alone) | Something listens on the port on an address peers reach (`0.0.0.0` or the mesh IP), not only `127.0.0.1`, which is a common mistake with Docker's `-p 127.0.0.1:…`. |
+| Check                      | What it looks at                                                                                                                                                                                                                                |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| agent                      | The agent answers, and runs the same build as the CLI.                                                                                                                                                                                          |
+| network, wireguard         | Enrolled, not down, interface up (needs root).                                                                                                                                                                                                  |
+| control plane              | Synced in the last 30s; otherwise why not.                                                                                                                                                                                                      |
+| route                      | The OS sends mesh traffic through the mesh interface, not another VPN that overlaps the range.                                                                                                                                                  |
+| relay, nat                 | Relay connected; NAT type from STUN (symmetric means peers use the relay).                                                                                                                                                                      |
+| dns                        | `<name>.<network domain>` resolves through the OS the way other programs resolve it, including the WSL case where systemd-resolved has the names but `/etc/resolv.conf` points elsewhere.                                                       |
+| access                     | This device's access rules; with `--port`, which peers may connect to it.                                                                                                                                                                       |
+| peer                       | Handshake in the last 3 minutes and the path; with a peer, also ping (no reply with a live handshake usually means the peer's rules don't allow ICMP) and `--port` (refused: nothing listens there; no answer: its access rules or a firewall). |
+| listening (`--port` alone) | Something listens on the port on an address peers reach (`0.0.0.0` or the mesh IP), not only `127.0.0.1`, which is a common mistake with Docker's `-p 127.0.0.1:…`.                                                                             |
 
 Access rules are enforced by the destination, so to see whether a peer lets
 this device in, run `meshguard doctor --port N` on that peer. `--json` prints
@@ -279,17 +291,17 @@ meshguard completion bash > /etc/bash_completion.d/meshguard
 Start with `meshguard doctor` (or `meshguard doctor <peer>`): it runs the checks
 below and prints a fix for each problem.
 
-| Symptom | Fix |
-| --- | --- |
-| `agent not reachable … no agent socket here` | Start the agent: `sudo meshguard-agent install`, or point `--socket` / `MESHGUARD_SOCKET` at where it listens. |
-| `agent not reachable … permission denied` | The socket belongs to another user. Reinstall with `sudo meshguard-agent install` as yourself, or run `meshguard` with sudo. |
-| `this user may not control the mesh agent` | The socket was reachable but you aren't root, the agent's user or the socket owner. Run `meshguard` with sudo, or reinstall with `sudo meshguard-agent install` as yourself. |
-| `! WireGuard is not running … needs root` | The agent isn't running as root. Use the service, or `sudo meshguard-agent`. |
-| Peer stays `relay` | Expected behind symmetric NATs, or when both peers are behind home routers (see [architecture.md](architecture.md#hole-punching)). `meshguard netcheck` on both ends shows the NAT types. |
-| Peers drop after sleep or a Wi-Fi change | They should come back within ~15s (relay first, then direct). The agent log shows `rebinding reason=wake` or `reason="network change"`; if it doesn't, report it with the log. |
-| `dns … not set up in the OS` | No systemd-resolved (common in containers and WSL), or a file in `/etc/resolver` exists and isn't meshguard's. Use `dig @<resolver>` (from `meshguard status`), or install systemd-resolved. |
-| Mesh names don't resolve (or resolve to 127.0.0.1, from public DNS) but `dig @<resolver> <name>.<network domain>` answers | macOS: `scutil --dns` should list the resolver for the network's domain. Linux: `resolvectl status meshguard0` should show the resolver and the domain. |
-| Peer handshake `never` | The peer is offline or down (`meshguard status` on it), or the relay is unreachable from one side. |
+| Symptom                                                                                                                   | Fix                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent not reachable … no agent socket here`                                                                              | Start the agent: `sudo meshguard-agent install`, or point `--socket` / `MESHGUARD_SOCKET` at where it listens.                                                                               |
+| `agent not reachable … permission denied`                                                                                 | The socket belongs to another user. Reinstall with `sudo meshguard-agent install` as yourself, or run `meshguard` with sudo.                                                                 |
+| `this user may not control the mesh agent`                                                                                | The socket was reachable but you aren't root, the agent's user or the socket owner. Run `meshguard` with sudo, or reinstall with `sudo meshguard-agent install` as yourself.                 |
+| `! WireGuard is not running … needs root`                                                                                 | The agent isn't running as root. Use the service, or `sudo meshguard-agent`.                                                                                                                 |
+| Peer stays `relay`                                                                                                        | Expected behind symmetric NATs, or when both peers are behind home routers (see [architecture.md](architecture.md#hole-punching)). `meshguard netcheck` on both ends shows the NAT types.    |
+| Peers drop after sleep or a Wi-Fi change                                                                                  | They should come back within ~15s (relay first, then direct). The agent log shows `rebinding reason=wake` or `reason="network change"`; if it doesn't, report it with the log.               |
+| `dns … not set up in the OS`                                                                                              | No systemd-resolved (common in containers and WSL), or a file in `/etc/resolver` exists and isn't meshguard's. Use `dig @<resolver>` (from `meshguard status`), or install systemd-resolved. |
+| Mesh names don't resolve (or resolve to 127.0.0.1, from public DNS) but `dig @<resolver> <name>.<network domain>` answers | macOS: `scutil --dns` should list the resolver for the network's domain. Linux: `resolvectl status meshguard0` should show the resolver and the domain.                                      |
+| Peer handshake `never`                                                                                                    | The peer is offline or down (`meshguard status` on it), or the relay is unreachable from one side.                                                                                           |
 
 ## Testing the service
 
@@ -311,6 +323,7 @@ below and prints a fix for each problem.
 
   WSL needs systemd enabled (`/etc/wsl.conf`: `[boot]` `systemd=true`); check
   with `ps -p 1 -o comm=` (should print `systemd`).
+
 - **On macOS (launchd):**
 
   ```sh

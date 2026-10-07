@@ -6,12 +6,14 @@ import { DEFAULT_DNS_BASE_DOMAIN } from "~/lib/dns-name";
 import { PresenceStore } from "~/lib/presence";
 import { relayTokenKey } from "~/lib/relay-token";
 import { AclService } from "~/services/acl/acl.service";
+import { DeviceLoginsService } from "~/services/device-logins/device-logins.service";
 import { DevicesService } from "~/services/devices/devices.service";
 import { EnrollmentTokensService } from "~/services/enrollment-tokens/enrollment-tokens.service";
 import { type CreateNetworkInput, NetworksService } from "~/services/networks/networks.service";
 
 export { NetworksService, type CreateNetworkInput };
 export * from "~/services/acl/acl.service";
+export * from "~/services/device-logins/device-logins.service";
 export * from "~/services/devices/devices.service";
 export * from "~/services/enrollment-tokens/enrollment-tokens.service";
 
@@ -24,6 +26,8 @@ export interface ServicesOptions {
   stunServers?: string[];
   /** DNS_BASE_DOMAIN: devices resolve as `<device>.<network dns label>.<base>`. */
   dnsBaseDomain?: string;
+  /** WEB_URL: where `meshguard up` sends people to approve a browser login. */
+  webUrl?: string;
 }
 
 export interface ServicesDeps {
@@ -39,10 +43,16 @@ export function createServices(
   options: ServicesOptions = {},
 ) {
   const acl = new AclService(db, deviceEvents);
+  const enrollmentTokens = new EnrollmentTokensService(db);
   const dnsBaseDomain = options.dnsBaseDomain ?? DEFAULT_DNS_BASE_DOMAIN;
   return {
     networks: new NetworksService(db, dnsBaseDomain),
-    enrollmentTokens: new EnrollmentTokensService(db),
+    enrollmentTokens,
+    deviceLogins: new DeviceLoginsService(
+      redis,
+      enrollmentTokens,
+      options.webUrl ?? "http://localhost:3000",
+    ),
     acl,
     deviceNonces: new DeviceNonces(redis),
     devices: new DevicesService(db, new PresenceStore(redis), deviceEvents, acl, {

@@ -129,3 +129,20 @@ export const aclMutations = {
       api.v1.networks[":networkId"].acl.check.$post({ param: { networkId }, json: input }),
     ),
 };
+
+export const deviceLoginQueries = {
+  detail: (id: string) =>
+    queryOptions({
+      queryKey: ["device-logins", id],
+      queryFn: () => parseResponse(api.v1["device-logins"][":id"].$get({ param: { id } })),
+      retry: false,
+    }),
+};
+
+export const deviceLoginMutations = {
+  approve: (id: string, networkId: string) =>
+    parseResponse(
+      api.v1["device-logins"][":id"].approve.$post({ param: { id }, json: { networkId } }),
+    ),
+  deny: (id: string) => parseResponse(api.v1["device-logins"][":id"].deny.$post({ param: { id } })),
+};

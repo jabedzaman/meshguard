@@ -24,6 +24,7 @@ const services = createServices(
     relayTokenKey: env.RELAY_TOKEN_KEY,
     stunServers: env.STUN_SERVERS,
     dnsBaseDomain: env.DNS_BASE_DOMAIN,
+    webUrl: env.WEB_URL,
   },
 );
 const auth = createAuth(db, {

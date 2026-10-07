@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -24,32 +25,82 @@ func defaultServer() string {
 
 func newUp(o *options) *cobra.Command {
 	var token, server string
+	var noBrowser bool
 	cmd := &cobra.Command{
 		Use:   "up",
-		Short: "Join a network with a token, or reconnect after meshguard down",
-		Example: `  meshguard up --token meshguard_enr_...                   # join (token from the network's Add device)
+		Short: "Join a network (browser login or token), or reconnect after meshguard down",
+		Long: `Without a token, an unenrolled device is joined through your browser: the
+CLI prints a URL, you approve the device for a network there, and it joins as
+yours. Pass --token for machines without a browser (servers, CI). An enrolled
+device just reconnects.`,
+		Example: `  meshguard up                                        # join through the browser, or reconnect after meshguard down
+  meshguard up --token meshguard_enr_...                   # join with a token (the network's Add device)
   meshguard up --token meshguard_enr_... --server https://api.example.com
-  meshguard up                                        # reconnect after meshguard down`,
+`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			req := ipc.UpRequest{Token: token}
-			if token != "" {
-				req.Server = server
+			if token == "" {
+				// An enrolled device reconnects; an unenrolled one joins through the browser.
+				if before, err := o.status(); err == nil && before.Device == nil {
+					t, err := browserLogin(cmd.Context(), strings.TrimRight(server, "/"), noBrowser)
+					if err != nil {
+						return err
+					}
+					token = t
+				}
 			}
-			var s ipc.Status
-			if err := o.call(http.MethodPost, "/v1/up", req, &s); err != nil {
-				return err
-			}
-			if token != "" {
-				fmt.Printf("Joined %s as %s\n", s.Network.Name, s.Device.Name)
-			} else {
-				fmt.Printf("Reconnecting %s in %s\n", s.Device.Name, s.Network.Name)
-			}
-			fmt.Printf("  mesh IPv4  %s\n  mesh IPv6  %s\n", s.Device.MeshIPv4, s.Device.MeshIPv6)
-			return nil
+			return o.up(token, server)
 		},
 	}
 	cmd.Flags().StringVar(&token, "token", "", "enrollment token (meshguard_enr_...)")
+	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "print the login URL without opening a browser")
+	cmd.Flags().StringVar(&server, "server", defaultServer(), "control plane URL ($MESHGUARD_SERVER)")
+	return cmd
+}
+
+// up enrolls with the token, or (no token) reconnects an enrolled device.
+func (o *options) up(token, server string) error {
+	req := ipc.UpRequest{Token: token}
+	if token != "" {
+		req.Server = server
+	}
+	var s ipc.Status
+	if err := o.call(http.MethodPost, "/v1/up", req, &s); err != nil {
+		return err
+	}
+	if token != "" {
+		fmt.Printf("Joined %s as %s\n", s.Network.Name, s.Device.Name)
+	} else {
+		fmt.Printf("Reconnecting %s in %s\n", s.Device.Name, s.Network.Name)
+	}
+	fmt.Printf("  mesh IPv4  %s\n  mesh IPv6  %s\n", s.Device.MeshIPv4, s.Device.MeshIPv6)
+	return nil
+}
+
+func newLogin(o *options) *cobra.Command {
+	var server string
+	var noBrowser bool
+	cmd := &cobra.Command{
+		Use:   "login",
+		Short: "Sign in through your browser and join a network as yourself",
+		Long: `Prints a URL, you approve this device for a network there, and it joins as
+yours. For machines without a browser, use meshguard up --token. Undo with
+meshguard logout.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if before, err := o.status(); err == nil && before.Device != nil {
+				fmt.Printf("Already logged in: %s in %s. Run meshguard logout first to join another network.\n",
+					before.Device.Name, before.Network.Name)
+				return nil
+			}
+			token, err := browserLogin(cmd.Context(), strings.TrimRight(server, "/"), noBrowser)
+			if err != nil {
+				return err
+			}
+			return o.up(token, server)
+		},
+	}
+	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "print the login URL without opening a browser")
 	cmd.Flags().StringVar(&server, "server", defaultServer(), "control plane URL ($MESHGUARD_SERVER)")
 	return cmd
 }
