@@ -393,6 +393,23 @@ export class DevicesService {
     }
   }
 
+  /**
+   * Replaces a device's tags (names without "tag:"). Rules naming tags then
+   * match it, so its network's agents re-read their rules.
+   */
+  async setTags(organizationId: string, deviceId: string, tags: string[]) {
+    const [device] = await this.db
+      .update(devices)
+      .set({ tags: [...new Set(tags)].sort() })
+      .where(
+        and(eq(devices.id, deviceId), inArray(devices.networkId, this.networksIn(organizationId))),
+      )
+      .returning({ id: devices.id, networkId: devices.networkId, tags: devices.tags });
+    if (!device) throw new NotFoundError("device");
+    this.events.publish({ type: "updated", networkId: device.networkId, deviceId: device.id });
+    return device;
+  }
+
   /** Live device events for a network in the organization; call `close` when done. */
   async subscribe(organizationId: string, networkId: string) {
     await this.assertNetworkInOrganization(organizationId, networkId);
@@ -409,6 +426,7 @@ export class DevicesService {
         name: devices.name,
         hostname: devices.hostname,
         platform: devices.platform,
+        tags: devices.tags,
         meshIpv4: devices.meshIpv4,
         meshIpv6: devices.meshIpv6,
         endpoints: devices.endpoints,

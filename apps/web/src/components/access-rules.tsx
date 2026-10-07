@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@meshguard/ui/components/select";
+import { AccessCheck } from "~/components/access-check";
 import { AddAccessRuleDialog } from "~/components/add-access-rule-dialog";
 import { ConfirmDialog } from "~/components/confirm-dialog";
 import { usePermission } from "~/components/providers/organization-provider";
@@ -33,7 +34,7 @@ function describeTraffic(rule: {
   return `${protocol} ${rule.portFrom}-${rule.portTo}`;
 }
 
-/** Who may reach whom in the network. Agents pick up changes on their next sync. */
+/** Who may reach whom in the network. Agents apply changes within a second or two. */
 export function AccessRules({ networkId }: { networkId: string }) {
   const canEdit = usePermission({ network: ["update"] });
   const queryClient = useQueryClient();
@@ -94,7 +95,7 @@ export function AccessRules({ networkId }: { networkId: string }) {
       {acl.rules.length > 0 && (
         <ul className="divide-border divide-y rounded-md border">
           {acl.rules.map((rule) => {
-            const label = `${rule.source?.name ?? "Any device"} → ${rule.destination?.name ?? "every device"}`;
+            const label = `${rule.source.kind === "any" ? "Any device" : rule.source.label} → ${rule.destination.kind === "any" ? "every device" : rule.destination.label}`;
             return (
               <li key={rule.id} className="flex items-center justify-between gap-4 p-3 text-sm">
                 <div className="grid">
@@ -122,6 +123,7 @@ export function AccessRules({ networkId }: { networkId: string }) {
           })}
         </ul>
       )}
+      <AccessCheck networkId={networkId} devices={devices} />
     </div>
   );
 }

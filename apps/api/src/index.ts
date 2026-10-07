@@ -45,6 +45,8 @@ const auth = createAuth(db, {
       );
     }
   },
+  // Rules naming roles may now match other devices.
+  onMemberRoleChanged: ({ organizationId }) => services.acl.membershipChanged(organizationId),
 });
 const app = createApp({ services, auth, corsOrigins: [env.WEB_URL] });
 

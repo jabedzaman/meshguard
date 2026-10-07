@@ -1,5 +1,6 @@
 export * from "./errors";
 export * from "./events/device-events";
+export * from "./lib/acl-policy";
 export * from "./lib/device-auth";
 export * from "./lib/device-nonces";
 export * from "./lib/device-name";

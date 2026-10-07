@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
@@ -29,14 +29,23 @@ import { Input } from "@meshguard/ui/components/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@meshguard/ui/components/select";
-import { aclMutations, aclQueries, type CreateAclRuleInput } from "~/lib/queries";
+import { useOrganization } from "~/components/providers/organization-provider";
+import { aclMutations, aclQueries, type CreateAclRuleInput, memberQueries } from "~/lib/queries";
 
-/** Select value for "any device"; device ids are UUIDs, so it can't clash. */
-const ANY = "any";
+/** Selector for any device; the others are `device:<id>`, `tag:<name>`, `user:<id>`, `role:<role>`. */
+const ANY = "*";
+
+const ROLES = [
+  { value: "role:owner", label: "Owners' devices" },
+  { value: "role:admin", label: "Admins' devices" },
+  { value: "role:member", label: "Members' devices" },
+] as const;
 
 const PROTOCOLS = [
   { value: "any", label: "All traffic" },
@@ -54,7 +63,7 @@ const schema = z
     ports: z.string().trim(),
   })
   .superRefine((values, ctx) => {
-    if (values.source !== ANY && values.source === values.destination) {
+    if (values.source.startsWith("device:") && values.source === values.destination) {
       ctx.addIssue({
         code: "custom",
         path: ["destination"],
@@ -89,8 +98,8 @@ function parsePorts(ports: string) {
 
 function toRule(values: Values): CreateAclRuleInput {
   return {
-    sourceDeviceId: values.source === ANY ? null : values.source,
-    destinationDeviceId: values.destination === ANY ? null : values.destination,
+    source: values.source,
+    destination: values.destination,
     protocol: values.protocol,
     ...(values.ports ? parsePorts(values.ports) : {}),
   };
@@ -98,8 +107,8 @@ function toRule(values: Values): CreateAclRuleInput {
 
 /** API field → form field, for showing validation errors in place. */
 const FIELDS: Record<string, keyof Values> = {
-  sourceDeviceId: "source",
-  destinationDeviceId: "destination",
+  source: "source",
+  destination: "destination",
   portFrom: "ports",
   portTo: "ports",
 };
@@ -111,9 +120,12 @@ export function AddAccessRuleDialog({
   devices,
 }: {
   networkId: string;
-  devices: { id: string; name: string }[];
+  devices: { id: string; name: string; tags: string[] }[];
 }) {
   const queryClient = useQueryClient();
+  const organization = useOrganization();
+  const { data: members = [] } = useQuery(memberQueries.list(organization.id));
+  const tags = [...new Set(devices.flatMap((device) => device.tags))].sort();
   const [open, setOpen] = useState(false);
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
   const protocol = useWatch({ control: form.control, name: "protocol" });
@@ -150,11 +162,44 @@ export function AddAccessRuleDialog({
             </FormControl>
             <SelectContent>
               <SelectItem value={ANY}>{anyLabel}</SelectItem>
-              {devices.map((device) => (
-                <SelectItem key={device.id} value={device.id}>
-                  {device.name}
-                </SelectItem>
-              ))}
+              {tags.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Tags</SelectLabel>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag} value={`tag:${tag}`}>
+                      tag:{tag}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              <SelectGroup>
+                <SelectLabel>Roles</SelectLabel>
+                {ROLES.map((role) => (
+                  <SelectItem key={role.value} value={role.value}>
+                    {role.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              {members.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>People&apos;s devices</SelectLabel>
+                  {members.map((member) => (
+                    <SelectItem key={member.userId} value={`user:${member.userId}`}>
+                      {member.user.name || member.user.email}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {devices.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Devices</SelectLabel>
+                  {devices.map((device) => (
+                    <SelectItem key={device.id} value={`device:${device.id}`}>
+                      {device.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
             </SelectContent>
           </Select>
           <FormMessage />
@@ -186,8 +231,9 @@ export function AddAccessRuleDialog({
             <DialogHeader>
               <DialogTitle>Add an access rule</DialogTitle>
               <DialogDescription>
-                Lets one device open connections to another. Replies always get back, so the other
-                direction needs its own rule only if it opens connections too.
+                Lets devices open connections to others: by device, by tag, by person (their
+                devices) or by role. Replies always get back, so the other direction needs its own
+                rule only if it opens connections too.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 sm:grid-cols-2">

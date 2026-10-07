@@ -89,11 +89,14 @@ export const deviceMutations = {
   rename: (id: string, name: string) =>
     parseResponse(api.v1.devices[":id"].$patch({ param: { id }, json: { name } })),
   remove: (id: string) => parseResponse(api.v1.devices[":id"].$delete({ param: { id } })),
+  setTags: (id: string, tags: string[]) =>
+    parseResponse(api.v1.devices[":id"].tags.$put({ param: { id }, json: { tags } })),
 };
 
 type AclRoute = (typeof api.v1.networks)[":networkId"]["acl"];
 export type AclDefaultAction = InferRequestType<AclRoute["$patch"]>["json"]["defaultAction"];
 export type CreateAclRuleInput = InferRequestType<AclRoute["rules"]["$post"]>["json"];
+export type CheckAccessInput = InferRequestType<AclRoute["check"]["$post"]>["json"];
 
 export const aclQueries = {
   all: () => ["acl"] as const,
@@ -102,6 +105,12 @@ export const aclQueries = {
       queryKey: [...aclQueries.all(), networkId],
       queryFn: () =>
         parseResponse(api.v1.networks[":networkId"].acl.$get({ param: { networkId } })),
+    }),
+  document: (networkId: string) =>
+    queryOptions({
+      queryKey: [...aclQueries.all(), networkId, "document"],
+      queryFn: () =>
+        parseResponse(api.v1.networks[":networkId"].acl.document.$get({ param: { networkId } })),
     }),
 };
 
@@ -115,4 +124,8 @@ export const aclMutations = {
       api.v1.networks[":networkId"].acl.rules.$post({ param: { networkId }, json: rule }),
     ),
   removeRule: (id: string) => parseResponse(api.v1["acl-rules"][":id"].$delete({ param: { id } })),
+  check: (networkId: string, input: CheckAccessInput) =>
+    parseResponse(
+      api.v1.networks[":networkId"].acl.check.$post({ param: { networkId }, json: input }),
+    ),
 };

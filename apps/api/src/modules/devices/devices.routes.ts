@@ -9,6 +9,7 @@ export const devicesRoutes = new Hono<AppEnv>()
   .post("/self/watch", ...controller.watch)
   .delete("/self", ...controller.deleteSelf)
   .patch("/:id", ...controller.rename)
+  .put("/:id/tags", ...controller.setTags)
   .delete("/:id", ...controller.remove);
 
 /** Nested under the networks router: /v1/networks/:networkId/devices. */

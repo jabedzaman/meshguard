@@ -50,6 +50,13 @@
       "when": 1791328820148,
       "tag": "0006_device_owners",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791330947252,
+      "tag": "0007_access_rule_selectors",
+      "breakpoints": true
     }
   ]
 }

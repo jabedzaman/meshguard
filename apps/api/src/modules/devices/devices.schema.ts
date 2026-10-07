@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEVICE_NAME_PATTERN, ENROLLMENT_TOKEN_PREFIX } from "@meshguard/server-core";
+import { DEVICE_NAME_PATTERN, ENROLLMENT_TOKEN_PREFIX, TAG_PATTERN } from "@meshguard/server-core";
 
 /** Base64 (standard) encoding of exactly 32 bytes: Ed25519 and Curve25519 public keys. */
 const publicKey32 = z
@@ -44,4 +44,20 @@ export const renameDeviceBody = z.object({
 export const watchDeviceBody = z.object({
   /** The revision of the network map the agent has (from its last sync). */
   revision: z.string().min(1).max(64),
+});
+
+export const setDeviceTagsBody = z.object({
+  /** Tag names without "tag:", e.g. ["server", "db"]; replaces the device's tags. */
+  tags: z
+    .array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(
+          TAG_PATTERN,
+          "Use 1–63 letters, digits and hyphens, not starting or ending with a hyphen",
+        ),
+    )
+    .max(32),
 });

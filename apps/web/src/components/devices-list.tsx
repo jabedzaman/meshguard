@@ -5,6 +5,7 @@ import { useState } from "react";
 import { getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
 import { ConfirmDialog } from "~/components/confirm-dialog";
+import { DeviceTagsDialog } from "~/components/device-tags-dialog";
 import { useCurrentUser, usePermission } from "~/components/providers/organization-provider";
 import { RenameDeviceDialog } from "~/components/rename-device-dialog";
 import { useDeviceEvents } from "~/hooks/use-device-events";
@@ -76,6 +77,14 @@ export function DevicesList({ networkId }: { networkId: string }) {
                     className={`size-2 rounded-full ${presence(device).online ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
                   />
                   {device.name}
+                  {device.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[11px] font-normal"
+                    >
+                      tag:{tag}
+                    </span>
+                  ))}
                 </span>
                 <span className="text-muted-foreground text-xs">
                   {PLATFORM_LABELS[device.platform]} · {presence(device).label}
@@ -87,6 +96,7 @@ export function DevicesList({ networkId }: { networkId: string }) {
                   <span>{device.meshIpv4}</span>
                   <span>{device.meshIpv6}</span>
                 </span>
+                {canRenameAny && <DeviceTagsDialog device={device} />}
                 {(canRenameAny || mine(device)) && <RenameDeviceDialog device={device} />}
                 {(canRemoveAny || mine(device)) && (
                   <ConfirmDialog

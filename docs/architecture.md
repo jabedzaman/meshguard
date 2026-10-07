@@ -245,12 +245,26 @@ the same answer as an unknown device, so ids can't be probed.
 
 Each network has a default action. `allow` (the default for new networks)
 lets every device reach every other. `deny` lets traffic in only when a rule
-allows it. A rule names a source (one device, or any device), a
-destination (one device, or every device), a protocol (`any`, `tcp`, `udp`,
-`icmp`) and, for TCP/UDP, a destination port range. Owners and admins manage
-them on the network page (`GET`/`PATCH /v1/networks/:networkId/acl`,
-`POST .../acl/rules`, `DELETE /v1/acl-rules/:id`); members can read them.
-Rules naming a device are deleted with it.
+allows it. A rule has a source and a destination, a protocol (`any`, `tcp`,
+`udp`, `icmp`) and, for TCP/UDP, a destination port range. Each side is a
+selector (`packages/server-core/src/lib/acl-policy.ts`):
+
+| Selector | Matches |
+| --- | --- |
+| `*` | any device |
+| `device:<id>` | one device |
+| `tag:<name>` | devices with that tag |
+| `user:<id>` | the devices that person owns (M1.27) |
+| `role:owner`, `role:admin`, `role:member` | devices owned by members with that role |
+
+Owners and admins tag devices (`PUT /v1/devices/:id/tags`; tags grant access,
+so device owners can't tag their own) and manage rules on the network page
+(`GET`/`PATCH /v1/networks/:networkId/acl`, `POST .../acl/rules`,
+`DELETE /v1/acl-rules/:id`); members can read them. Rules naming a device or
+a user are deleted with it. `POST .../acl/check` answers whether one device
+may connect to another on a protocol and port, and by which rule;
+`GET .../acl/document` is the whole policy with names and emails instead of
+ids. Both are on the network page (Check access, View as policy file).
 
 Enforcement happens at the destination. On sync each agent gets only the rules
 that let traffic in to it, with sources resolved to mesh addresses
@@ -267,7 +281,9 @@ that let traffic in to it, with sources resolved to mesh addresses
 - Until its first sync the agent lets only replies in. A control plane that
   sends no `acl` (older API) means allow. Rules the agent can't parse are
   skipped, which can only deny more.
-- Changes reach agents on their next sync (≤10s). Removing a rule stops new
+- Changes reach agents within a second or two: rule changes publish
+  `network.<id>.acl.updated`, and tag and role changes publish events too, so
+  watching agents re-sync (see Coordination). Removing a rule stops new
   connections. A connection that is already open stays up while the
   destination keeps answering, because its replies are tracked as flows.
 

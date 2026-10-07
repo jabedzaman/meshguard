@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   inet,
   integer,
@@ -69,6 +71,11 @@ export const devices = pgTable(
      * devices that belong to no one (none yet; tagged devices later).
      */
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Tags (without "tag:") that access rules can name. Set by owners and
+     * admins only, since they grant access.
+     */
+    tags: text("tags").array().notNull().default([]),
     hostname: text("hostname").notNull(),
     platform: platform("platform").notNull(),
     // Device identity: the agent's long-lived signing key, separate from its WireGuard key.
@@ -125,10 +132,15 @@ export const enrollmentTokens = pgTable(
 
 export const aclProtocol = pgEnum("acl_protocol", ["any", "tcp", "udp", "icmp"]);
 
+/** Roles a rule can name: devices owned by members with that role. */
+export const aclRole = pgEnum("acl_role", ["owner", "admin", "member"]);
+
 /**
- * Lets a device (or any device) reach another (or every other) on a protocol
- * and port range. Only enforced when the network's default action is "deny".
- * Rules naming a device go away with it.
+ * Lets traffic from a source reach a destination on a protocol and port
+ * range. Each side names at most one of a device, a tag, a user (their
+ * devices) or a role (devices of members with it); none means any device.
+ * Only enforced when the network's default action is "deny". Rules naming a
+ * device or user go away with it.
  */
 export const aclRules = pgTable(
   "acl_rules",
@@ -137,19 +149,35 @@ export const aclRules = pgTable(
     networkId: uuid("network_id")
       .notNull()
       .references(() => networks.id, { onDelete: "cascade" }),
-    /** Null: any device in the network. */
     sourceDeviceId: uuid("source_device_id").references(() => devices.id, {
       onDelete: "cascade",
     }),
-    /** Null: every device in the network. */
+    sourceTag: text("source_tag"),
+    sourceUserId: text("source_user_id").references(() => user.id, { onDelete: "cascade" }),
+    sourceRole: aclRole("source_role"),
     destinationDeviceId: uuid("destination_device_id").references(() => devices.id, {
       onDelete: "cascade",
     }),
+    destinationTag: text("destination_tag"),
+    destinationUserId: text("destination_user_id").references(() => user.id, {
+      onDelete: "cascade",
+    }),
+    destinationRole: aclRole("destination_role"),
     protocol: aclProtocol("protocol").notNull().default("any"),
     /** TCP/UDP destination ports, inclusive; null for every port. */
     portFrom: integer("port_from"),
     portTo: integer("port_to"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("acl_rules_network_id_idx").on(t.networkId)],
+  (t) => [
+    index("acl_rules_network_id_idx").on(t.networkId),
+    check(
+      "acl_rules_one_source",
+      sql`num_nonnulls(${t.sourceDeviceId}, ${t.sourceTag}, ${t.sourceUserId}, ${t.sourceRole}) <= 1`,
+    ),
+    check(
+      "acl_rules_one_destination",
+      sql`num_nonnulls(${t.destinationDeviceId}, ${t.destinationTag}, ${t.destinationUserId}, ${t.destinationRole}) <= 1`,
+    ),
+  ],
 );

@@ -6,7 +6,9 @@ import type { AppEnv } from "~/types";
 export const networkAclRoutes = new Hono<AppEnv>()
   .get("/", ...controller.getForNetwork)
   .patch("/", ...controller.updateForNetwork)
-  .post("/rules", ...controller.createRule);
+  .post("/rules", ...controller.createRule)
+  .get("/document", ...controller.document)
+  .post("/check", ...controller.check);
 
 /** Mounted at /v1/acl-rules. */
 export const aclRulesRoutes = new Hono<AppEnv>().delete("/:id", ...controller.removeRule);

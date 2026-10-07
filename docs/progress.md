@@ -80,7 +80,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M2.8 Access rules: per-network default (allow / deny) plus rules (device or any → device or every, protocol, port range), managed by owners/admins on the network page; each agent filters traffic from peers on its TUN with flow tracking for replies (lab: deny, port and ICMP rules on real agents)
 - ⬜ M2.9 Key rotation
 - ✅ M2.10 Remove devices from the web (owners/admins): peers drop it on their next sync; the removed agent is refused and says how to re-join
-- ⬜ M2.11 Access rules by tag or group (`tag:server`), and pushing rule changes to agents instead of waiting for the next sync
+- ✅ M2.11 Access rules by tag (`tag:server`, set by owners/admins on the device row) and by role (`role:admin`: devices of members with that role; named groups of people wait for a customer that needs them), resolved to addresses server-side so agents are unchanged; rule, tag and role changes reach agents at once through the watch (M2.15)
 - ✅ M2.12 DNS resolver on a reserved mesh address: the agent answers UDP queries to the network's address + 53 (`10.77.0.53`) inside its TUN, which the API never gives a device; no socket, so the macOS `127.0.0.1:53053` workaround is gone; short names (`ssh laptop`) through the `internal` search domain on Linux; reverse lookups (PTR) for mesh addresses (lab: names and reverse lookups for every pair; systemd-resolved settings checked in a container. Not yet on the MacBook)
 - ⬜ M2.13 Full DNS: forward other names to the OS's own resolvers, admin split DNS (domain → nameserver over the mesh), override local DNS, NetworkManager / resolvconf fallbacks, Windows NRPT. Waits for exit nodes or a customer that needs it
 - ⬜ M2.14 Network map pruned by access rules: a device gets only the peers it may reach or that may reach it (today every device gets every peer's key, addresses and endpoints, even under deny)
@@ -91,7 +91,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M2.19 IPv6 resolver address (the network's IPv6 prefix + `::53`) for IPv6-only clients
 - ⬜ M2.20 Short names on macOS (`ssh laptop`): `/etc/resolver` ignores search domains, so this needs the system DNS config (`scutil`) or a Network Extension
 - ✅ M2.21 Removed the `apps/dns` stub: each agent answers DNS itself; a central forwarder, if M2.13 ever needs one, starts fresh
-- ⬜ M2.22 Access rules by user (M1.27), CIDR destinations (subnet routes, M6.1) and services (M6.4); the whole policy viewable as a file in the web, with tests ("a may reach b:22")
+- 🚧 M2.22 Access rules by user (`user:<id>`, their devices); `POST .../acl/check` and Check access on the network page; the policy as a document (View as policy file). Left: CIDR destinations (with subnet routes, M6.1), services (M6.4), and saved tests in the policy
 - ⬜ M2.23 Lazy peers: configure a peer in WireGuard only when traffic goes to it (or it handshakes), so big networks don't hold hundreds of idle peers
 - ✅ M2.24 Keep the device name in memory instead of reading `state.json` on every sync (`saveNameLocked`)
 - ⬜ M2.25 One device in several networks: profiles and `meshguard switch`

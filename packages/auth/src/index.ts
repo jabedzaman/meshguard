@@ -25,6 +25,8 @@ export interface AuthOptions {
    * or leaving (the API removes their devices). Only the API needs it.
    */
   onMemberRemoved?: (member: { userId: string; organizationId: string }) => Promise<void>;
+  /** Runs after a member's role changes (access rules can name roles). */
+  onMemberRoleChanged?: (member: { userId: string; organizationId: string }) => Promise<void>;
 }
 
 export interface InvitationEmailData {
@@ -87,6 +89,12 @@ export function createAuth(db: Db, options: AuthOptions) {
               .update(schema.session)
               .set({ activeOrganizationId: null })
               .where(eq(schema.session.activeOrganizationId, organization.id));
+          },
+          afterUpdateMemberRole: async ({ member, organization }) => {
+            await options.onMemberRoleChanged?.({
+              userId: member.userId,
+              organizationId: organization.id,
+            });
           },
           afterRemoveMember: async ({ member, organization }) => {
             await options.onMemberRemoved?.({

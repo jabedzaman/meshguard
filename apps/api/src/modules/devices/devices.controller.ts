@@ -13,6 +13,7 @@ import { requireDevice } from "~/middlewares/device.middleware";
 import {
   enrollDeviceBody,
   renameDeviceBody,
+  setDeviceTagsBody,
   syncDeviceBody,
   watchDeviceBody,
 } from "~/modules/devices/devices.schema";
@@ -68,6 +69,22 @@ export const rename = factory.createHandlers(
       c.var.organizationId,
       c.req.valid("param").id,
       c.req.valid("json").name,
+    );
+    return c.json(device, 200);
+  },
+);
+
+/** Sets a device's tags. Owners and admins only: tags grant access. */
+export const setTags = factory.createHandlers(
+  requireOrganization,
+  requirePermission({ device: ["update"] }),
+  validate("param", idParams),
+  validate("json", setDeviceTagsBody),
+  async (c) => {
+    const device = await c.var.services.devices.setTags(
+      c.var.organizationId,
+      c.req.valid("param").id,
+      c.req.valid("json").tags,
     );
     return c.json(device, 200);
   },
