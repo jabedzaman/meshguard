@@ -138,7 +138,7 @@ expect_traffic blocked "lab-b -> lab-a ping, deny without rules" can_ping lab-b 
 expect_traffic blocked "lab-a -> lab-b:8080, deny without rules" can_connect lab-a "$b4" 8080
 
 post "/v1/networks/$acl_network/acl/rules" \
-  "{\"sourceDeviceId\":\"$a_id\",\"destinationDeviceId\":\"$b_id\",\"protocol\":\"tcp\",\"portFrom\":8080}" >/dev/null
+  "{\"source\":\"device:$a_id\",\"destination\":\"device:$b_id\",\"protocol\":\"tcp\",\"portFrom\":8080}" >/dev/null
 expect_traffic allowed "lab-a -> lab-b:8080 by rule" can_connect lab-a "$b4" 8080
 expect_traffic blocked "lab-a -> lab-b:9090, not in the rule" can_connect lab-a "$b4" 9090
 expect_traffic blocked "lab-a -> lab-b ping, not in the rule" can_ping lab-a "$b4"
@@ -149,7 +149,7 @@ for check in "8080:every peer may connect" "9090:no peer may connect to tcp/9090
 done
 
 post "/v1/networks/$acl_network/acl/rules" \
-  '{"sourceDeviceId":null,"destinationDeviceId":null,"protocol":"icmp"}' >/dev/null
+  '{"source":"*","destination":"*","protocol":"icmp"}' >/dev/null
 expect_traffic allowed "lab-a -> lab-b ping by rule" can_ping lab-a "$b4"
 expect_traffic allowed "lab-b -> lab-a ping by rule" can_ping lab-b "$a4"
 dropped=$(docker exec meshguard-lab-b meshguard status --json | json .acl.dropped)
