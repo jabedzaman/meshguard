@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -36,6 +37,10 @@ type Client struct {
 	public  Key
 	// Deliver is called for every received packet. Set before Run.
 	Deliver func(Packet)
+	// OnStream is called, in its own goroutine, for each visitor the relay
+	// carries to this agent (funnel), with a connection to them and their
+	// address. The handler closes it. Set before Run; nil refuses visitors.
+	OnStream func(conn net.Conn, remote string)
 	// PingEvery is how often the connection is checked with a WebSocket
 	// ping; a connection that doesn't answer is dropped and redialed, so a
 	// half-open TCP connection (after sleep or a network change) doesn't
@@ -47,6 +52,8 @@ type Client struct {
 	mu    sync.Mutex
 	conn  *websocket.Conn
 	token string // see SetToken
+
+	streams streamTable
 }
 
 // NewClient returns a client that authenticates as the WireGuard private key.
@@ -166,6 +173,7 @@ func (c *Client) session(ctx context.Context) (connected bool, err error) {
 		c.mu.Lock()
 		c.conn = nil
 		c.mu.Unlock()
+		c.streams.closeAll()
 	}()
 	slog.Info("relay connected", "url", c.URL)
 
@@ -179,6 +187,12 @@ func (c *Client) session(ctx context.Context) (connected bool, err error) {
 			return true, err
 		}
 		if typ != websocket.MessageBinary {
+			continue
+		}
+		if IsStreamFrame(data) {
+			if f, err := DecodeStreamFrame(data); err == nil {
+				c.streamFrame(ctx, conn, f)
+			}
 			continue
 		}
 		from, packet, err := DecodeFrame(data)

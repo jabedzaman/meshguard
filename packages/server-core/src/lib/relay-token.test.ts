@@ -16,6 +16,28 @@ describe("relay tokens", () => {
     );
   });
 
+  it("matches the Go relay's token with public names", () => {
+    // Same as TestTokenWithNamesVector in internal/relay/token_test.go.
+    const key = relayTokenKey(Buffer.from("meshguard relay token test seed!").toString("base64"));
+    const wireguardKey = Buffer.from(Array.from({ length: 32 }, (_, i) => i)).toString("base64");
+    expect(
+      signRelayToken(key, wireguardKey, new Date(1_800_000_000_000), [
+        "a.example.com",
+        "b.example.com",
+      ]),
+    ).toBe(
+      "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8AAAAAa0nSAAINYS5leGFtcGxlLmNvbQ1iLmV4YW1wbGUuY29tZfKTS-r2hYKPO5PPQ3ENWLZP1mSUj4xfkwlo6NwtZdMRuO8cco56ceyudAAy_jw7aINbvVxqbKDnALa-EsDLAA",
+    );
+  });
+
+  it("refuses too many or empty public names", () => {
+    const key = relayTokenKey(Buffer.from("meshguard relay token test seed!").toString("base64"));
+    const wg = Buffer.alloc(32).toString("base64");
+    const now = new Date();
+    expect(() => signRelayToken(key, wg, now, Array(9).fill("a.example.com"))).toThrow();
+    expect(() => signRelayToken(key, wg, now, [""])).toThrow();
+  });
+
   it("rejects a seed of the wrong length", () => {
     expect(() => relayTokenKey("c2hvcnQ=")).toThrow();
   });

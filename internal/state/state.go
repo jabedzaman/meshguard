@@ -81,6 +81,9 @@ type Prefs struct {
 	ExitNode string `json:"exitNode,omitempty"`
 	// Serve exposes local TCP ports on this device's mesh addresses.
 	Serve []ServeRule `json:"serve,omitempty"`
+	// FunnelPort is the local port the internet reaches through the relay
+	// (meshguard funnel); only once an owner or admin turns the device's funnel on.
+	FunnelPort int `json:"funnelPort,omitempty"`
 }
 
 // ServeRule exposes a local TCP service to the mesh: connections to the

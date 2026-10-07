@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LaptopIcon, MonitorIcon, ServerIcon, Trash2Icon } from "lucide-react";
+import { GlobeIcon, LaptopIcon, MonitorIcon, ServerIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@meshguard/api-client";
@@ -46,12 +46,13 @@ type Device = {
   name: string;
   online: boolean;
   tags: string[];
+  funnel: boolean;
   routes: { prefix: string; approved: boolean }[];
 };
 const deviceId = (device: Device) => device.id;
 // What a viewer would notice changing: presence, name and tags.
 const deviceSignature = (device: Device) =>
-  `${device.online}|${device.name}|${device.tags.join(",")}|${device.routes
+  `${device.online}|${device.name}|${device.funnel}|${device.tags.join(",")}|${device.routes
     .map((route) => route.prefix + route.approved)
     .join(",")}`;
 
@@ -137,6 +138,16 @@ export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDo
                           tag:{tag}
                         </Badge>
                       ))}
+                      {device.funnel && (
+                        <Badge
+                          variant="outline"
+                          className="gap-1 font-normal text-amber-700 dark:text-amber-400"
+                          title={`Reachable from the internet at https://${device.name}.${dnsDomain}`}
+                        >
+                          <GlobeIcon className="size-3" />
+                          public
+                        </Badge>
+                      )}
                       {groupRoutes(device.routes).map((route) => (
                         <Badge
                           key={route.label}
@@ -170,6 +181,39 @@ export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDo
                     <span>{device.meshIpv6}</span>
                   </span>
                   <div className="flex items-center">
+                    {canRenameAny && (
+                      <ConfirmDialog
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className={
+                              device.funnel ? "text-amber-600 dark:text-amber-400" : undefined
+                            }
+                            aria-label={`Public access of ${device.name}`}
+                          >
+                            <GlobeIcon />
+                          </Button>
+                        }
+                        triggerTooltip={device.funnel ? "Public: turn off" : "Make public"}
+                        title={
+                          device.funnel
+                            ? `Stop public access to ${device.name}?`
+                            : `Let the internet reach ${device.name}?`
+                        }
+                        description={
+                          device.funnel
+                            ? `https://${device.name}.${dnsDomain} stops answering from outside the network.`
+                            : `Anyone on the internet can then open https://${device.name}.${dnsDomain}, through the relay. They reach only the local port someone chooses on the device with meshguard funnel <port>; nothing is shared until then.`
+                        }
+                        confirmLabel={device.funnel ? "Turn off" : "Turn on"}
+                        onConfirm={async () => {
+                          await deviceMutations.setFunnel(device.id, !device.funnel);
+                          toast.success(device.funnel ? "Public access off" : "Public access on");
+                          await queryClient.invalidateQueries({ queryKey: deviceQueries.all() });
+                        }}
+                      />
+                    )}
                     {canRenameAny && device.routes.length > 0 && (
                       <DeviceRoutesDialog device={device} />
                     )}

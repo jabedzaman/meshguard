@@ -52,6 +52,8 @@ type Status struct {
 	Accepted []string `json:"accepted,omitempty"`
 	// Local services shared with the mesh, and any that can't listen.
 	Serve []ServeRule `json:"serve,omitempty"`
+	// Sharing a local port with the internet through the relay.
+	Funnel *FunnelStatus `json:"funnel,omitempty"`
 	// Services in the network and who serves them.
 	Services []Service `json:"services,omitempty"`
 	// The peer all traffic goes through, once it is in use (see Prefs.ExitNode).
@@ -59,6 +61,19 @@ type Status struct {
 	// Serving is also set when this device is an approved exit node.
 	ServingExitNode bool   `json:"servingExitNode,omitempty"`
 	Peers           []Peer `json:"peers,omitempty"`
+}
+
+// FunnelStatus describes public access through the relay.
+type FunnelStatus struct {
+	// The public name, e.g. "laptop.brave-otter.mesh.jabed.dev".
+	Name string `json:"name"`
+	// An owner or admin has turned it on for this device.
+	Allowed bool `json:"allowed"`
+	// The local port shared; 0 when none is chosen.
+	Port int `json:"port"`
+	// "off", "waiting for approval", "waiting for a certificate", "live".
+	State   string `json:"state"`
+	Problem string `json:"problem,omitempty"`
 }
 
 // CertRequest is the body of POST /v1/cert.
@@ -101,6 +116,8 @@ type Prefs struct {
 	ExitNode string `json:"exitNode"`
 	// Local services shared with the mesh (meshguard serve).
 	Serve []ServeRule `json:"serve"`
+	// The local port shared with the internet (meshguard funnel); 0 for none.
+	FunnelPort int `json:"funnelPort"`
 }
 
 // ServeRule shares a local TCP service: the device's mesh address on Port
@@ -122,6 +139,8 @@ type PrefsUpdate struct {
 	ExitNode *string `json:"exitNode,omitempty"`
 	// Replaces the shared services.
 	Serve *[]ServeRule `json:"serve,omitempty"`
+	// The local port to share with the internet; 0 stops.
+	FunnelPort *int `json:"funnelPort,omitempty"`
 }
 
 // ACLStatus summarizes the access rules this device enforces.

@@ -37,51 +37,61 @@ func (a *Agent) handleCert(w http.ResponseWriter, r *http.Request) {
 	var req ipc.CertRequest
 	_ = json.NewDecoder(r.Body).Decode(&req) // empty body is fine
 
-	a.certMu.Lock() // a CA order can take a minute; one at a time, and not under a.mu
+	cert, err := a.getCert(r.Context(), req.Force)
+	var apiErr *coordination.Error
+	switch {
+	case errors.Is(err, state.ErrNotEnrolled):
+		writeError(w, http.StatusConflict, "not_enrolled", "this machine isn't in a network")
+	case errors.Is(err, errNoDomain):
+		writeError(w, http.StatusConflict, "no_domain", err.Error())
+	case errors.As(err, &apiErr):
+		writeError(w, http.StatusBadGateway, apiErr.Code, apiErr.Message)
+	case err != nil:
+		writeError(w, http.StatusBadGateway, "certificate_failed", err.Error())
+	default:
+		writeJSON(w, http.StatusOK, cert)
+	}
+}
+
+var errNoDomain = errors.New("the network's domain hasn't arrived from the control plane yet: try again in a few seconds")
+
+// getCert returns the device's certificate, ordering a new one when there is
+// none that is good or force is set. A CA order can take a minute, so it runs
+// one at a time and not under a.mu.
+func (a *Agent) getCert(ctx context.Context, force bool) (ipc.Cert, error) {
+	a.certMu.Lock()
 	defer a.certMu.Unlock()
 
 	a.mu.Lock()
 	st, err := state.Load(a.StateDir)
 	a.mu.Unlock()
 	if err != nil {
-		writeError(w, http.StatusConflict, "not_enrolled", "this machine isn't in a network")
-		return
+		return ipc.Cert{}, err
 	}
 	if st.Network.DNSDomain == "" {
-		writeError(w, http.StatusConflict, "no_domain", "the network's domain hasn't arrived from the control plane yet: try again in a few seconds")
-		return
+		return ipc.Cert{}, errNoDomain
 	}
 	name := dns.Name(st.Device.Name, st.Network.DNSDomain)
 	dir := filepath.Join(a.StateDir, "certs")
 
-	if !req.Force {
+	if !force {
 		if cert, ok := loadSavedCert(dir, name, time.Now()); ok {
-			writeJSON(w, http.StatusOK, cert)
-			return
+			return cert, nil
 		}
 	}
-
 	cl, _, err := client(st)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "keys_unreadable", err.Error())
-		return
+		return ipc.Cert{}, err
 	}
-	cert, err := requestCert(r.Context(), cl, name)
-	var apiErr *coordination.Error
-	switch {
-	case errors.As(err, &apiErr):
-		writeError(w, http.StatusBadGateway, apiErr.Code, apiErr.Message)
-		return
-	case err != nil:
-		writeError(w, http.StatusBadGateway, "certificate_failed", err.Error())
-		return
+	cert, err := requestCert(ctx, cl, name)
+	if err != nil {
+		return ipc.Cert{}, err
 	}
 	if err := saveCert(dir, cert); err != nil {
-		writeError(w, http.StatusInternalServerError, "state_unwritable", err.Error())
-		return
+		return ipc.Cert{}, err
 	}
 	cert.Renewed = true
-	writeJSON(w, http.StatusOK, cert)
+	return cert, nil
 }
 
 // requestCert makes a key and a request for name, has the control plane get it
@@ -191,3 +201,5 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 	}
 	return os.Rename(tmp.Name(), path)
 }
+
+func parseLeaf(der []byte) (*x509.Certificate, error) { return x509.ParseCertificate(der) }

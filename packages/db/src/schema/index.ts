@@ -90,6 +90,11 @@ export const devices = pgTable(
     wireguardPublicKey: text("wireguard_public_key").notNull().unique(),
     meshIpv4: inet("mesh_ipv4"),
     meshIpv6: inet("mesh_ipv6"),
+    /**
+     * An owner or admin lets the internet reach this device through the relay
+     * (funnel) at its mesh name; the device also has to choose a port to share.
+     */
+    funnelEnabled: boolean("funnel_enabled").notNull().default(false),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
     /** UDP "host:port" addresses peers can try to reach this device's WireGuard on, best first. */
     endpoints: jsonb("endpoints").$type<string[]>().notNull().default([]),

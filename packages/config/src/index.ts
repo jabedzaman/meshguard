@@ -62,6 +62,12 @@ export const serverEnvSchema = z.object({
   CHALLTESTSRV_URL: optional.pipe(z.url().optional()),
   /** Trust any TLS certificate from the ACME directory. For Pebble in tests only. */
   ACME_INSECURE_TLS: optional,
+  /**
+   * The relay's public address (IPv4), where funnel names point. When set, and
+   * a DNS provider is configured, the control plane writes the A record of a
+   * device's name when an admin turns its funnel on.
+   */
+  FUNNEL_PUBLIC_IP: optional,
   /** Comma-separated host:port STUN servers agents use to find their public address. */
   STUN_SERVERS: z
     .string()

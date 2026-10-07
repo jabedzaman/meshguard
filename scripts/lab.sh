@@ -37,6 +37,17 @@ echo "==> migrating the e2e database"
 DATABASE_URL=${E2E_DATABASE_URL:-postgres://meshguard:meshguard@localhost:5432/meshguard_test} \
   pnpm --silent --filter @meshguard/db db:migrate >/dev/null
 
+# The relay only serves agents the control plane signed tokens for, and its public
+# funnel listener needs that: a key pair for this run, shared by both.
+read -r LAB_RELAY_TOKEN_KEY RELAY_TRUST_KEY < <(node -e '
+  const c = require("crypto");
+  const seed = c.randomBytes(32);
+  const key = c.createPrivateKey({ key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]), format: "der", type: "pkcs8" });
+  const pub = c.createPublicKey(key).export({ format: "der", type: "spki" }).subarray(-32);
+  console.log(seed.toString("base64"), pub.toString("base64"));')
+export LAB_RELAY_TOKEN_KEY RELAY_TRUST_KEY
+export RELAY_FUNNEL_ADDR=:8443
+
 echo "==> starting relay, api-e2e and the lab"
 docker rm -f meshguard-lab-c meshguard-lab-d >/dev/null 2>&1 || true   # from the previous lab layout
 docker compose up -d --build relay >/dev/null
@@ -395,6 +406,49 @@ if [ -z "$cert_json" ]; then fail "meshguard cert: $(cat /tmp/cert.err)"; else
   forced=$(docker exec meshguard-lab-a meshguard cert --out /tmp/certs --json --force)
   [ "$(json .renewed <<<"$forced")" = true ] && ok "--force issues a new certificate" || fail "forced call: $forced"
 fi
+
+# Funnel: lab-f, on the "internet", reaches a service that only listens on lab-a's
+# localhost through the relay at lab-a's mesh name. The relay passes TLS through;
+# lab-a ends it with its certificate. Nothing is public until an admin allows it.
+echo
+echo "==> funnel (lab-f reaches lab-a's localhost service through the relay)"
+docker exec meshguard-lab-a sh -c 'printf "HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: close\r\n\r\nhello funnel\n" > /tmp/funnel-response'
+docker exec -d meshguard-lab-a socat TCP-LISTEN:3000,bind=127.0.0.1,fork,reuseaddr 'SYSTEM:read line; cat /tmp/funnel-response'
+curl -sk https://localhost:15000/roots/0 | docker exec -i meshguard-lab-f sh -c 'cat > /tmp/pebble-root.pem'
+visit() { docker exec meshguard-lab-f curl -sS -m 8 --cacert /tmp/pebble-root.pem --resolve "$a_name:8443:10.200.0.11" "https://$a_name:8443/" 2>/dev/null; }
+expect_visit() {
+  local what=$1 want=$2 seconds=${3:-40} got=""
+  for _ in $(seq "$seconds"); do
+    got=$(visit || true)
+    [ "$got" = "$want" ] && { ok "$what: ${want:-nothing}"; return; }
+    sleep 1
+  done
+  fail "$what: '$got', want '$want'"
+}
+
+docker exec meshguard-lab-a meshguard funnel 3000 | sed -n 1p
+expect_visit "lab-f -> https://$a_name before an admin allows it" "" 5
+put "/v1/devices/$a_id/funnel" '{"enabled":true}' >/dev/null
+expect_visit "lab-f -> https://$a_name through the relay" "hello funnel" 90
+funnel_state=$(docker exec meshguard-lab-a meshguard status --json | json .funnel.state)
+if [ "$funnel_state" = live ]; then ok "lab-a says its funnel is live"; else fail "lab-a funnel state '$funnel_state'"; fi
+docker exec meshguard-lab-a meshguard funnel | sed -n 1p
+if docker exec meshguard-lab-f curl -sS -m 5 --cacert /tmp/pebble-root.pem --resolve "lab-b.x:8443:10.200.0.11" https://lab-b.x:8443/ >/dev/null 2>&1; then
+  fail "the relay answered for a name no agent may serve"; else ok "the relay refuses a name no agent may serve"; fi
+if docker exec meshguard-lab-f curl -sS -m 5 "http://10.200.0.11:8443/" >/dev/null 2>&1; then
+  fail "the relay answered plain HTTP"; else ok "the relay doesn't answer plain HTTP"; fi
+many=0
+for i in $(seq 6); do [ "$(visit || true)" = "hello funnel" ] && many=$((many + 1)); done
+if [ "$many" = 6 ]; then ok "six visits in a row all arrive"; else fail "only $many of 6 visits arrived"; fi
+
+# Stopping on the device, or by the admin, ends it.
+docker exec meshguard-lab-a meshguard funnel off >/dev/null
+expect_visit "lab-f -> https://$a_name after meshguard funnel off" "" 20
+docker exec meshguard-lab-a meshguard funnel 3000 >/dev/null
+expect_visit "lab-f -> https://$a_name when shared again" "hello funnel" 40
+put "/v1/devices/$a_id/funnel" '{"enabled":false}' >/dev/null
+expect_visit "lab-f -> https://$a_name after the admin turns it off" "" 30
+docker exec meshguard-lab-a meshguard funnel off >/dev/null
 
 # Sanity: lab-f can't open a connection into lab-e's NAT on its own. (Same
 # reason for the unreachable route as above.)

@@ -20,7 +20,7 @@ func prefsStatus(p state.Prefs) *ipc.Prefs {
 	for i, r := range p.Serve {
 		serve[i] = ipc.ServeRule{Port: r.Port, Target: r.Target}
 	}
-	return &ipc.Prefs{AdvertiseRoutes: routes, AcceptRoutes: p.AcceptRoutes, AdvertiseExitNode: p.AdvertiseExitNode, ExitNode: p.ExitNode, Serve: serve}
+	return &ipc.Prefs{AdvertiseRoutes: routes, AcceptRoutes: p.AcceptRoutes, AdvertiseExitNode: p.AdvertiseExitNode, ExitNode: p.ExitNode, Serve: serve, FunnelPort: p.FunnelPort}
 }
 
 func (a *Agent) handleGetPrefs(w http.ResponseWriter, _ *http.Request) {
@@ -71,6 +71,13 @@ func (a *Agent) handleSetPrefs(w http.ResponseWriter, r *http.Request) {
 		}
 		next.Serve = rules
 	}
+	if req.FunnelPort != nil {
+		if *req.FunnelPort < 0 || *req.FunnelPort > 65535 {
+			writeError(w, http.StatusBadRequest, "invalid_funnel", "the port must be 1-65535 (0 to stop)")
+			return
+		}
+		next.FunnelPort = *req.FunnelPort
+	}
 	if req.AdvertiseExitNode != nil {
 		next.AdvertiseExitNode = *req.AdvertiseExitNode
 	}
@@ -83,7 +90,7 @@ func (a *Agent) handleSetPrefs(w http.ResponseWriter, r *http.Request) {
 	}
 	if slices.Equal(next.AdvertiseRoutes, st.Prefs.AdvertiseRoutes) && next.AcceptRoutes == st.Prefs.AcceptRoutes &&
 		next.AdvertiseExitNode == st.Prefs.AdvertiseExitNode && next.ExitNode == st.Prefs.ExitNode &&
-		slices.Equal(next.Serve, st.Prefs.Serve) {
+		slices.Equal(next.Serve, st.Prefs.Serve) && next.FunnelPort == st.Prefs.FunnelPort {
 		writeJSON(w, http.StatusOK, prefsStatus(next))
 		return
 	}
@@ -98,6 +105,7 @@ func (a *Agent) handleSetPrefs(w http.ResponseWriter, r *http.Request) {
 		if c.serve != nil {
 			c.serve.set(next.Serve)
 		}
+		a.ensureFunnelCertLocked(c)
 		select {
 		case c.syncNow <- struct{}{}:
 		default:

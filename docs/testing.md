@@ -39,7 +39,7 @@ symmetric NAT. On the LAN pair it also turns on access rules and checks that
 pings and TCP ports are blocked and allowed as the rules say. A subnet router
 (`lab-r`, with a plain host `lab-s` on a LAN only it can reach) checks that a
 route waits for approval, carries traffic once approved and stops when revoked,
-when accept-routes is off or when access rules don't allow it. A service hosted by `lab-r` and `lab-a` is used by `lab-b` (names, failover, rules), and `lab-a` shares a localhost-only service with `meshguard serve`. Pebble (a test CA) and its DNS server run in the e2e stack, and `lab-a` gets an HTTPS certificate for its mesh name that `lab-b` verifies against Pebble's root. The same router is an exit node for `lab-b`, whose own traffic to the control plane and relay must keep working around the tunnel.
+when accept-routes is off or when access rules don't allow it. A service hosted by `lab-r` and `lab-a` is used by `lab-b` (names, failover, rules), and `lab-a` shares a localhost-only service with `meshguard serve`. Pebble (a test CA) and its DNS server run in the e2e stack, and `lab-a` gets an HTTPS certificate for its mesh name that `lab-b` verifies against Pebble's root. The relay runs with a trust key and a public funnel listener, and `lab-f` (on the "internet") reaches a localhost-only service on `lab-a` through it. The same router is an exit node for `lab-b`, whose own traffic to the control plane and relay must keep working around the tunnel.
 
 ## Agent service
 

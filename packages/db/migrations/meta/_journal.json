@@ -85,6 +85,13 @@
       "when": 1791411782025,
       "tag": "0011_acme_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791413169228,
+      "tag": "0012_device_funnel",
+      "breakpoints": true
     }
   ]
 }

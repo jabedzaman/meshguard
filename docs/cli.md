@@ -244,6 +244,24 @@ certificate authority. Run it again to renew: the saved certificate is returned
 until a third of its life is left, `--force` always gets a new one. The control plane
 must have certificates turned on (`ACME_DIRECTORY_URL`, see `.env.example`).
 
+### `meshguard funnel`
+
+Shares a service on this machine with anyone on the internet, at
+`https://<this device's mesh name>`, through the relay. Visitors' TLS goes through
+the relay untouched and ends on this device with its own certificate, so the service
+can speak plain HTTP.
+
+```sh
+meshguard funnel 3000   # share local port 3000
+meshguard funnel        # live, or what it waits for
+meshguard funnel off
+```
+
+Nothing is exposed until an owner or admin turns on public access for the device in
+the web (the globe icon); the state shows `waiting for an owner or admin to turn it
+on` until then. It also needs the control plane's relay to listen publicly
+(`RELAY_FUNNEL_ADDR`) and certificates (`ACME_DIRECTORY_URL`).
+
 ### `meshguard services`
 
 Lists the network's services: name, DNS name, address and the device serving it

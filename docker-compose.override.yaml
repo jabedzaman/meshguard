@@ -127,6 +127,8 @@ services:
       - STUN_ADDR=:3478,:3479
       # Pair of RELAY_TOKEN_KEY (api, from .env); empty serves any agent.
       - RELAY_TRUST_KEY=${RELAY_TRUST_KEY:-}
+      # Public TLS listener for funnels (":443" in production); needs RELAY_TRUST_KEY.
+      - RELAY_FUNNEL_ADDR=${RELAY_FUNNEL_ADDR:-}
     ports:
       - "${RELAY_HOST_PORT:-3340}:3340"
     # Also on the lab's "internet", where lab devices reach it (relay + STUN).
@@ -157,6 +159,8 @@ services:
       - STUN_SERVERS=10.200.0.11:3478,10.200.0.11:3479
       # HTTPS certificates for mesh names come from Pebble, a test CA that
       # reads DNS-01 answers from challtestsrv.
+      # Set by `pnpm lab` (with the relay's RELAY_TRUST_KEY) so funnels can be tested.
+      - RELAY_TOKEN_KEY=${LAB_RELAY_TOKEN_KEY:-${RELAY_TOKEN_KEY:-}}
       - ACME_DIRECTORY_URL=https://pebble:14000/dir
       - ACME_EMAIL=lab@e2e.test
       - ACME_DNS_PROVIDER=challtestsrv

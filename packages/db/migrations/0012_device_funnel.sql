@@ -1,0 +1,1 @@
+ALTER TABLE "devices" ADD COLUMN "funnel_enabled" boolean DEFAULT false NOT NULL;

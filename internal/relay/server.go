@@ -25,6 +25,9 @@ type Server struct {
 
 	mu      sync.Mutex
 	clients map[Key]*serverClient
+	// hostnames maps the public names agents may serve (from their tokens) to them.
+	hostnames   map[string]*serverClient
+	streamCount int
 }
 
 type serverClient struct {
@@ -33,11 +36,16 @@ type serverClient struct {
 	conn *websocket.Conn
 	// expires is the token's expiry (unix seconds); unused without Trust.
 	expires atomic.Int64
+	// ctx ends with the connection.
+	ctx context.Context
+	// streams are the visitors being carried to this agent (guarded by Server.mu).
+	streams    map[uint32]*funnelStream
+	nextStream uint32
 }
 
 // NewServer creates a relay with a fresh key, used only for handshakes.
 func NewServer() (*Server, error) {
-	s := &Server{clients: map[Key]*serverClient{}}
+	s := &Server{clients: map[Key]*serverClient{}, hostnames: map[string]*serverClient{}}
 	if _, err := rand.Read(s.private[:]); err != nil {
 		return nil, err
 	}
@@ -67,7 +75,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	defer conn.CloseNow()
 
-	key, expires, err := s.handshake(ctx, conn)
+	key, claims, err := s.handshake(ctx, conn)
 	if err != nil {
 		slog.Debug("relay handshake failed", "err", err)
 		reason := "handshake failed"
@@ -78,10 +86,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := &serverClient{key: key, out: make(chan []byte, 256), conn: conn}
-	c.expires.Store(expires.Unix())
+	c := &serverClient{key: key, out: make(chan []byte, 256), conn: conn, ctx: ctx, streams: map[uint32]*funnelStream{}}
+	c.expires.Store(claims.Expires.Unix())
 	s.register(c)
 	defer s.unregister(c)
+	defer s.dropStreams(c)
+	if len(claims.Hostnames) > 0 {
+		s.setHostnames(c, claims.Hostnames)
+	}
 	if s.Trust != nil {
 		go s.expire(ctx, cancel, c)
 	}
@@ -112,6 +124,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.refresh(c, data)
 			continue
 		}
+		if IsStreamFrame(data) {
+			if f, err := DecodeStreamFrame(data); err == nil {
+				s.streamFrame(c, f)
+			}
+			continue
+		}
 		dst, packet, err := DecodeFrame(data)
 		if err != nil {
 			continue
@@ -126,8 +144,11 @@ func (s *Server) refresh(c *serverClient, data []byte) {
 	if s.Trust == nil || json.Unmarshal(data, &r) != nil {
 		return
 	}
-	if exp, ok := VerifyToken(s.Trust, r.Token, c.key, time.Now()); ok && exp.Unix() > c.expires.Load() {
-		c.expires.Store(exp.Unix())
+	// The same expiry still counts: tokens expire at period boundaries, so a
+	// change of public names within one period carries the period's expiry.
+	if claims, ok := VerifyTokenClaims(s.Trust, r.Token, c.key, time.Now()); ok && claims.Expires.Unix() >= c.expires.Load() {
+		c.expires.Store(claims.Expires.Unix())
+		s.setHostnames(c, claims.Hostnames)
 	}
 }
 
@@ -152,42 +173,42 @@ func (s *Server) expire(ctx context.Context, cancel context.CancelFunc, c *serve
 // handshake authenticates a client: it proves it holds its key's private
 // key, and with Trust set, that the control plane let it use the relay (the
 // token's expiry is returned).
-func (s *Server) handshake(ctx context.Context, conn *websocket.Conn) (Key, time.Time, error) {
+func (s *Server) handshake(ctx context.Context, conn *websocket.Conn) (Key, Claims, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var h hello
 	if err := readJSON(ctx, conn, &h); err != nil {
-		return Key{}, time.Time{}, err
+		return Key{}, Claims{}, err
 	}
 	if len(h.PublicKey) != KeyLen {
-		return Key{}, time.Time{}, errInvalid
+		return Key{}, Claims{}, errInvalid
 	}
 	key := Key(h.PublicKey)
-	var expires time.Time
+	var claims Claims
 	if s.Trust != nil {
-		exp, ok := VerifyToken(s.Trust, h.Token, key, time.Now())
+		verified, ok := VerifyTokenClaims(s.Trust, h.Token, key, time.Now())
 		if !ok {
-			return Key{}, time.Time{}, errToken
+			return Key{}, Claims{}, errToken
 		}
-		expires = exp
+		claims = verified
 	}
 
 	nonce := make([]byte, 32)
 	if _, err := rand.Read(nonce); err != nil {
-		return Key{}, time.Time{}, err
+		return Key{}, Claims{}, err
 	}
 	if err := writeJSON(ctx, conn, challenge{ServerKey: s.public[:], Challenge: nonce}); err != nil {
-		return Key{}, time.Time{}, err
+		return Key{}, Claims{}, err
 	}
 	var p proof
 	if err := readJSON(ctx, conn, &p); err != nil {
-		return Key{}, time.Time{}, err
+		return Key{}, Claims{}, err
 	}
 	if !openProof(p, nonce, key, s.private) {
-		return Key{}, time.Time{}, errInvalid
+		return Key{}, Claims{}, errInvalid
 	}
-	return key, expires, writeJSON(ctx, conn, welcome{})
+	return key, claims, writeJSON(ctx, conn, welcome{})
 }
 
 func (s *Server) register(c *serverClient) {
@@ -205,6 +226,11 @@ func (s *Server) unregister(c *serverClient) {
 	defer s.mu.Unlock()
 	if s.clients[c.key] == c {
 		delete(s.clients, c.key)
+	}
+	for name, owner := range s.hostnames {
+		if owner == c {
+			delete(s.hostnames, name)
+		}
 	}
 }
 

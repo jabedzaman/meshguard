@@ -1,4 +1,14 @@
 /**
+ * Address records for names that are public (funnels): the name points at the
+ * relay. Mesh names have none otherwise, so a machine without the agent gets
+ * NXDOMAIN rather than someone's address.
+ */
+export interface DnsAddressProvider {
+  setA(host: string, address: string): Promise<void>;
+  clearA(host: string): Promise<void>;
+}
+
+/**
  * Where ACME DNS-01 challenges are answered. The control plane only ever
  * writes `_acme-challenge` TXT records: mesh names have no public address
  * records, so nothing else is published.
@@ -20,12 +30,22 @@ export function cloudflareDns(options: {
   apiToken: string;
   zoneId: string;
   fetch?: typeof fetch;
-}): DnsChallengeProvider {
+}): DnsChallengeProvider & DnsAddressProvider {
   const fetcher = options.fetch ?? fetch;
   const base = `https://api.cloudflare.com/client/v4/zones/${options.zoneId}/dns_records`;
   const headers = {
     Authorization: `Bearer ${options.apiToken}`,
     "Content-Type": "application/json",
+  };
+  const list = async (type: string, host: string) =>
+    (
+      (await json(
+        await fetcher(`${base}?type=${type}&name=${encodeURIComponent(host)}`, { headers }),
+        `Cloudflare ${type} list`,
+      )) as { result: { id: string; content: string }[] }
+    ).result;
+  const remove = async (id: string, what: string) => {
+    await json(await fetcher(`${base}/${id}`, { method: "DELETE", headers }), what);
   };
   return {
     async setTxt(host, value) {
@@ -39,18 +59,34 @@ export function cloudflareDns(options: {
       );
     },
     async clearTxt(host, value) {
-      const found = (await json(
-        await fetcher(`${base}?type=TXT&name=${encodeURIComponent(host)}`, { headers }),
-        "Cloudflare TXT list",
-      )) as { result: { id: string; content: string }[] };
-      for (const record of found.result) {
+      for (const record of await list("TXT", host)) {
         // Cloudflare returns TXT content quoted.
-        if (record.content.replaceAll('"', "") !== value) continue;
-        await json(
-          await fetcher(`${base}/${record.id}`, { method: "DELETE", headers }),
-          "Cloudflare TXT delete",
-        );
+        if (record.content.replaceAll('"', "") === value)
+          await remove(record.id, "Cloudflare TXT delete");
       }
+    },
+    async setA(host, address) {
+      const existing = await list("A", host);
+      if (existing.some((record) => record.content === address) && existing.length === 1) return;
+      for (const record of existing) await remove(record.id, "Cloudflare A delete");
+      await json(
+        await fetcher(base, {
+          method: "POST",
+          headers,
+          // Not proxied: the relay passes TLS through and Cloudflare can't.
+          body: JSON.stringify({
+            type: "A",
+            name: host,
+            content: address,
+            ttl: 60,
+            proxied: false,
+          }),
+        }),
+        "Cloudflare A create",
+      );
+    },
+    async clearA(host) {
+      for (const record of await list("A", host)) await remove(record.id, "Cloudflare A delete");
     },
   };
 }
@@ -59,7 +95,7 @@ export function cloudflareDns(options: {
 export function challtestsrvDns(options: {
   url: string;
   fetch?: typeof fetch;
-}): DnsChallengeProvider {
+}): DnsChallengeProvider & DnsAddressProvider {
   const fetcher = options.fetch ?? fetch;
   const post = async (path: string, body: unknown) => {
     await json(
@@ -75,5 +111,7 @@ export function challtestsrvDns(options: {
   return {
     setTxt: (host, value) => post("/set-txt", { host: fqdn(host), value }),
     clearTxt: (host) => post("/clear-txt", { host: fqdn(host) }),
+    setA: (host, address) => post("/add-a", { host: fqdn(host), addresses: [address] }),
+    clearA: (host) => post("/clear-a", { host: fqdn(host) }),
   };
 }

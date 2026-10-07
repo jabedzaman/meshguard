@@ -2,6 +2,7 @@ import type { Db } from "@meshguard/db";
 import type { Redis } from "ioredis";
 import type { DeviceEvents } from "~/events/device-events";
 import { DeviceNonces } from "~/lib/device-nonces";
+import type { DnsAddressProvider } from "~/lib/acme-dns";
 import { DEFAULT_DNS_BASE_DOMAIN, networkDnsDomain } from "~/lib/dns-name";
 import { PresenceStore } from "~/lib/presence";
 import { RateLimiter } from "~/lib/rate-limiter";
@@ -34,6 +35,8 @@ export interface ServicesOptions {
   stunServers?: string[];
   /** DNS_BASE_DOMAIN: devices resolve as `<device>.<network dns label>.<base>`. */
   dnsBaseDomain?: string;
+  /** Where funnel names point (the relay's public address) and who writes the record. */
+  funnelDns?: { provider: DnsAddressProvider; address: string };
   /** Issues HTTPS certificates for mesh names; off when unset. */
   certificates?: CertificatesConfig;
   /** WEB_URL: where `meshguard up` sends people to approve a browser login. */
@@ -79,6 +82,7 @@ export function createServices(
       relayTokenKey: options.relayTokenKey ? relayTokenKey(options.relayTokenKey) : undefined,
       stunServers: options.stunServers,
       dnsBaseDomain,
+      funnelDns: options.funnelDns,
     }),
   };
 }

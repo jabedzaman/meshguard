@@ -15,6 +15,7 @@ import {
   deviceCertificateBody,
   enrollDeviceBody,
   renameDeviceBody,
+  setDeviceFunnelBody,
   setDeviceRoutesBody,
   setDeviceTagsBody,
   syncDeviceBody,
@@ -94,6 +95,25 @@ export const setTags = factory.createHandlers(
       c.req.valid("json").tags,
     );
     return c.json(device, 200);
+  },
+);
+
+/**
+ * Lets the internet reach a device through the relay at its mesh name, or
+ * stops it. Owners and admins only: it exposes whatever the device shares.
+ */
+export const setFunnel = factory.createHandlers(
+  requireOrganization,
+  requirePermission({ device: ["update"] }),
+  validate("param", idParams),
+  validate("json", setDeviceFunnelBody),
+  async (c) => {
+    const result = await c.var.services.devices.setFunnel(
+      c.var.organizationId,
+      c.req.valid("param").id,
+      c.req.valid("json").enabled,
+    );
+    return c.json(result, 200);
   },
 );
 

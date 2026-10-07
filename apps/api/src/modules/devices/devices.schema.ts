@@ -60,6 +60,10 @@ export const watchDeviceBody = z.object({
   revision: z.string().min(1).max(64),
 });
 
+export const setDeviceFunnelBody = z.object({
+  enabled: z.boolean(),
+});
+
 export const setDeviceTagsBody = z.object({
   /** Tag names without "tag:", e.g. ["server", "db"]; replaces the device's tags. */
   tags: z

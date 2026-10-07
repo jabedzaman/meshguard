@@ -6,6 +6,7 @@ import { isUniqueViolation } from "~/lib/db-errors";
 import { deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
 import { DEFAULT_DNS_BASE_DOMAIN, networkDnsDomain } from "~/lib/dns-name";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
+import type { DnsAddressProvider } from "~/lib/acme-dns";
 import type { PresenceStore } from "~/lib/presence";
 import { EXIT_NODE_ROUTES, MAX_DEVICE_ROUTES, parseRoutePrefix } from "~/lib/route-prefix";
 import { relayTokenExpiry, signRelayToken } from "~/lib/relay-token";
@@ -40,6 +41,11 @@ export class DevicesService {
       stunServers?: string[];
       /** DNS_BASE_DOMAIN: devices resolve as `<device>.<network dns label>.<base>`. */
       dnsBaseDomain?: string;
+      /**
+       * Funnels: where public names point (the relay's address) and who writes
+       * the record. Without it the operator manages DNS for funnel names.
+       */
+      funnelDns?: { provider: DnsAddressProvider; address: string };
     } = {},
   ) {}
 
@@ -377,6 +383,7 @@ export class DevicesService {
         meshIpv4: devices.meshIpv4,
         meshIpv6: devices.meshIpv6,
         wireguardPublicKey: devices.wireguardPublicKey,
+        funnelEnabled: devices.funnelEnabled,
       })
       .from(devices)
       .where(eq(devices.id, deviceId));
@@ -468,6 +475,8 @@ export class DevicesService {
         meshIpv4: self.meshIpv4,
         meshIpv6: self.meshIpv6,
         routes: routesOf(self.id),
+        /** The internet reaches this device at its mesh name through the relay. */
+        funnel: self.funnelEnabled,
       },
       network: {
         id: network!.id,
@@ -485,7 +494,11 @@ export class DevicesService {
       /** Traffic from peers the agent lets in. */
       acl: policy.acl,
       /** Where to relay WireGuard packets for peers that can't be reached directly. */
-      relay: this.relayFor(self.wireguardPublicKey, new Date()),
+      relay: this.relayFor(
+        self.wireguardPublicKey,
+        new Date(),
+        self.funnelEnabled ? [`${self.name}.${this.dnsDomain(network!.dnsLabel)}`] : [],
+      ),
       /** STUN servers for discovering this device's public address. */
       stun: this.options.stunServers ?? [],
     };
@@ -498,13 +511,13 @@ export class DevicesService {
   }
 
   /** The relay and, with a token key, this device's permission to use it. */
-  private relayFor(wireguardPublicKey: string, now: Date) {
+  private relayFor(wireguardPublicKey: string, now: Date, publicNames: string[] = []) {
     const { relayUrl, relayTokenKey } = this.options;
     if (!relayUrl) return null;
     if (!relayTokenKey) return { url: relayUrl };
     return {
       url: relayUrl,
-      token: signRelayToken(relayTokenKey, wireguardPublicKey, relayTokenExpiry(now)),
+      token: signRelayToken(relayTokenKey, wireguardPublicKey, relayTokenExpiry(now), publicNames),
     };
   }
 
@@ -606,6 +619,60 @@ export class DevicesService {
     return device;
   }
 
+  /**
+   * Lets the internet reach a device through the relay at its mesh name (or
+   * stops it). Owners and admins only: it exposes whatever the device shares.
+   * Needs a relay that signs tokens, since the name travels in the device's
+   * relay token. Points the name at the relay when a DNS provider is set.
+   */
+  async setFunnel(organizationId: string, deviceId: string, enabled: boolean) {
+    if (enabled && !this.options.relayTokenKey) {
+      throw new AppError(
+        409,
+        "funnel_unavailable",
+        "This control plane has no relay that can carry public traffic (RELAY_TOKEN_KEY)",
+      );
+    }
+    const [device] = await this.db
+      .update(devices)
+      .set({ funnelEnabled: enabled })
+      .where(
+        and(eq(devices.id, deviceId), inArray(devices.networkId, this.networksIn(organizationId))),
+      )
+      .returning({ id: devices.id, networkId: devices.networkId, name: devices.name });
+    if (!device) throw new NotFoundError("device");
+    await this.syncFunnelDns(device.id, enabled);
+    this.events.publish({ type: "updated", networkId: device.networkId, deviceId: device.id });
+    return { id: device.id, funnel: enabled, name: await this.publicName(device.id) };
+  }
+
+  /** The name a device is public at when its funnel is on. */
+  private async publicName(deviceId: string) {
+    const [row] = await this.db
+      .select({ name: devices.name, dnsLabel: networks.dnsLabel })
+      .from(devices)
+      .innerJoin(networks, eq(networks.id, devices.networkId))
+      .where(eq(devices.id, deviceId));
+    return row ? `${row.name}.${this.dnsDomain(row.dnsLabel)}` : null;
+  }
+
+  /** Writes or removes the address record for a funnel name, if we manage DNS. */
+  private async syncFunnelDns(deviceId: string, enabled: boolean) {
+    const dns = this.options.funnelDns;
+    const name = await this.publicName(deviceId);
+    if (!dns || !name) return;
+    try {
+      if (enabled) await dns.provider.setA(name, dns.address);
+      else await dns.provider.clearA(name);
+    } catch (error) {
+      throw new AppError(
+        502,
+        "funnel_dns_failed",
+        `Couldn't update DNS for ${name}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   /** Live device events for a network in the organization; call `close` when done. */
   async subscribe(organizationId: string, networkId: string) {
     await this.assertNetworkInOrganization(organizationId, networkId);
@@ -623,6 +690,7 @@ export class DevicesService {
         hostname: devices.hostname,
         platform: devices.platform,
         tags: devices.tags,
+        funnel: devices.funnelEnabled,
         meshIpv4: devices.meshIpv4,
         meshIpv6: devices.meshIpv6,
         endpoints: devices.endpoints,

@@ -116,6 +116,8 @@ export const deviceMutations = {
   remove: (id: string) => parseResponse(api.v1.devices[":id"].$delete({ param: { id } })),
   setTags: (id: string, tags: string[]) =>
     parseResponse(api.v1.devices[":id"].tags.$put({ param: { id }, json: { tags } })),
+  setFunnel: (id: string, enabled: boolean) =>
+    parseResponse(api.v1.devices[":id"].funnel.$put({ param: { id }, json: { enabled } })),
   setRoutes: (id: string, approved: string[]) =>
     parseResponse(api.v1.devices[":id"].routes.$put({ param: { id }, json: { approved } })),
 };

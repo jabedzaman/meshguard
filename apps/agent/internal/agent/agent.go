@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/netip"
 	"reflect"
@@ -124,6 +125,8 @@ type connection struct {
 	services []coordination.Service
 	// serve shares local services with the mesh; nil without WireGuard.
 	serve *serveManager
+	// funnel is public access through the relay.
+	funnel funnelState
 	// routeProblem says why subnet routes could not be applied.
 	routeProblem string
 	acl          *coordination.ACL
@@ -541,6 +544,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	}
 	c.acl = nm.ACL
 	a.updateDNSLocked(c, nm)
+	a.updateFunnelLocked(c, nm.Self.Funnel)
 	a.saveMapLocked(c, nm)
 	switch {
 	case applyErr != nil:
@@ -613,6 +617,7 @@ func (a *Agent) ensureRelay(c *connection, cfg *coordination.Relay, wgPrivate [3
 		return false
 	}
 	rc.Deliver = c.engine.DeliverRelay
+	rc.OnStream = func(conn net.Conn, remote string) { a.handleFunnelStream(c, conn, remote) }
 	rc.SetToken(token)
 	relayCtx, cancel := context.WithCancel(c.ctx)
 	c.engine.SetRelay(func(dst relay.Key, packet []byte) error {
@@ -716,6 +721,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	if c.serve != nil {
 		s.Serve = c.serve.status()
 	}
+	s.Funnel = c.funnelStatusLocked()
 	s.Serving, s.Accepted, s.ExitNode = c.serving, c.accepted, c.exitNode
 	s.ServingExitNode = slices.Contains(c.serving, "0.0.0.0/0")
 	if !c.lastSync.IsZero() {

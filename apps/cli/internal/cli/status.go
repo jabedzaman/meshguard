@@ -60,6 +60,13 @@ func printStatus(s ipc.Status) {
 	if s.Prefs != nil && (len(s.Prefs.AdvertiseRoutes) > 0 || s.Prefs.AcceptRoutes || s.Prefs.AdvertiseExitNode || s.Prefs.ExitNode != "") {
 		printPrefs(*s.Prefs)
 	}
+	if s.Funnel != nil {
+		if s.Funnel.State == "live" {
+			fmt.Printf("  funnel     live at https://%s (port %d)\n", s.Funnel.Name, s.Funnel.Port)
+		} else {
+			fmt.Printf("  funnel     port %d: %s\n", s.Funnel.Port, s.Funnel.State)
+		}
+	}
 	if len(s.Serve) > 0 {
 		fmt.Printf("  sharing    %d local port(s): meshguard serve\n", len(s.Serve))
 	}

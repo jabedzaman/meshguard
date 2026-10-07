@@ -89,6 +89,8 @@ type Self struct {
 	state.Device
 	// Approved subnets this device is to route for its peers.
 	Routes []string `json:"routes"`
+	// An owner or admin lets the internet reach this device through the relay.
+	Funnel bool `json:"funnel"`
 }
 
 // Relay is where to send packets for peers that can't be reached directly.

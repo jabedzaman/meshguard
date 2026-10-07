@@ -145,3 +145,42 @@ func TestTrustedRelayDropsExpiredTokensUnlessRefreshed(t *testing.T) {
 	srv.mu.Unlock()
 	assert.True(t, stillServed, "the refreshed client stays")
 }
+
+func TestTokenWithPublicNames(t *testing.T) {
+	signer := ed25519.NewKeyFromSeed(tokenSeed)
+	trust := signer.Public().(ed25519.PublicKey)
+	key, _ := PublicKey(newKey(t))
+	now := time.Now()
+
+	token := SignToken(signer, key, now.Add(time.Hour), "Laptop.Brave-Otter.mesh.example.com", "b.example.com")
+	claims, ok := VerifyTokenClaims(trust, token, key, now)
+	require.True(t, ok)
+	assert.Equal(t, []string{"laptop.brave-otter.mesh.example.com", "b.example.com"}, claims.Hostnames)
+	assert.Equal(t, now.Add(time.Hour).Unix(), claims.Expires.Unix())
+	_, ok = VerifyToken(trust, token, key, now)
+	assert.True(t, ok, "the plain check accepts it too")
+
+	plain, ok := VerifyTokenClaims(trust, SignToken(signer, key, now.Add(time.Hour)), key, now)
+	require.True(t, ok)
+	assert.Empty(t, plain.Hostnames)
+
+	// The names can't be stripped or changed without the signature failing.
+	raw := []byte(token)
+	raw[len(raw)-90] ^= 1
+	_, ok = VerifyTokenClaims(trust, string(raw), key, now)
+	assert.False(t, ok)
+}
+
+const tokenWithNamesVector = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8AAAAAa0nSAAINYS5leGFtcGxlLmNvbQ1iLmV4YW1wbGUuY29tZfKTS-r2hYKPO5PPQ3ENWLZP1mSUj4xfkwlo6NwtZdMRuO8cco56ceyudAAy_jw7aINbvVxqbKDnALa-EsDLAA"
+
+// tokenWithNamesVector is shared with "matches the Go relay's token with names" in
+// packages/server-core/src/lib/relay-token.test.ts.
+func TestTokenWithNamesVector(t *testing.T) {
+	signer := ed25519.NewKeyFromSeed(tokenSeed)
+	var key Key
+	for i := range key {
+		key[i] = byte(i)
+	}
+	token := SignToken(signer, key, time.Unix(1_800_000_000, 0), "a.example.com", "b.example.com")
+	assert.Equal(t, tokenWithNamesVector, token)
+}
