@@ -145,7 +145,7 @@ func signedControlPlane(t *testing.T) (url string, syncs *atomic.Int32) {
 			if watchable.Load() {
 				revision = selfName.Load().(string)
 			}
-			_, _ = w.Write([]byte(`{"revision":"` + revision + `","self":{"id":"d1","name":"` + selfName.Load().(string) + `","meshIpv4":"10.77.0.2"},"network":{"id":"n1","name":"home"},"peers":[{"id":"d2","name":"server","wireguardPublicKey":"` + peerKey + `","meshIpv4":"10.77.0.3","meshIpv6":"fd00:1:2:0::3","endpoints":["192.168.1.9:51820","[2001:db8::9]:51820"]}]}`))
+			_, _ = w.Write([]byte(`{"revision":"` + revision + `","self":{"id":"d1","name":"` + selfName.Load().(string) + `","meshIpv4":"10.77.0.2"},"network":{"id":"n1","name":"home","dnsDomain":"brave-otter.lvh.me"},"peers":[{"id":"d2","name":"server","wireguardPublicKey":"` + peerKey + `","meshIpv4":"10.77.0.3","meshIpv6":"fd00:1:2:0::3","endpoints":["192.168.1.9:51820","[2001:db8::9]:51820"]}]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -226,27 +226,29 @@ func TestServesPeersOverDNS(t *testing.T) {
 	rec, _, _ := call(t, a.Handler(), http.MethodPost, "/v1/up", ipc.UpRequest{Token: "good", Server: server})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	// The peer appears after the first sync.
+	// The peer and the network's domain arrive with the first sync (enrollment
+	// here sends no domain).
 	require.Eventually(t, func() bool {
-		return len(engine.lookup(t, "server.internal.", dnsmessage.TypeA)) == 1
+		return len(engine.lookup(t, "server.brave-otter.lvh.me.", dnsmessage.TypeA)) == 1
 	}, 2*time.Second, 20*time.Millisecond)
-	answers := engine.lookup(t, "server.internal.", dnsmessage.TypeAAAA)
+	answers := engine.lookup(t, "server.brave-otter.lvh.me.", dnsmessage.TypeAAAA)
 	require.Len(t, answers, 1)
 	assert.Equal(t, netip.MustParseAddr("fd00:1:2::3").As16(), answers[0].Body.(*dnsmessage.AAAAResource).AAAA)
-	answers = engine.lookup(t, "laptop.internal.", dnsmessage.TypeA)
+	answers = engine.lookup(t, "laptop.brave-otter.lvh.me.", dnsmessage.TypeA)
 	require.Len(t, answers, 1)
 	assert.Equal(t, [4]byte{10, 77, 0, 2}, answers[0].Body.(*dnsmessage.AResource).A)
 	// The network's reverse zone comes from the state file.
 	answers = engine.lookup(t, "3.0.77.10.in-addr.arpa.", dnsmessage.TypePTR)
 	require.Len(t, answers, 1)
-	assert.Equal(t, "server.internal.", answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
+	assert.Equal(t, "server.brave-otter.lvh.me.", answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
 
 	_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
 	require.NotNil(t, status.DNS)
-	assert.Equal(t, "laptop.internal", status.DNS.Name)
+	assert.Equal(t, "laptop.brave-otter.lvh.me", status.DNS.Name)
+	assert.Equal(t, "brave-otter.lvh.me", status.DNS.Domain)
 	assert.Equal(t, "10.77.0.53", status.DNS.Resolver)
 	assert.Empty(t, status.DNS.Configured, "tests leave the OS resolver alone")
-	assert.Equal(t, "server.internal", status.Peers[0].DNSName)
+	assert.Equal(t, "server.brave-otter.lvh.me", status.Peers[0].DNSName)
 }
 
 func TestRenameFromControlPlaneIsSaved(t *testing.T) {
@@ -268,13 +270,14 @@ func TestRenameFromControlPlaneIsSaved(t *testing.T) {
 	selfName.Store("workstation")
 	require.Eventually(t, func() bool {
 		_, status, _ := call(t, a.Handler(), http.MethodGet, "/v1/status", nil)
-		return status.Device.Name == "workstation" && status.DNS != nil && status.DNS.Name == "workstation.internal"
+		return status.Device.Name == "workstation" && status.DNS != nil && status.DNS.Name == "workstation.brave-otter.lvh.me"
 	}, 2*time.Second, 20*time.Millisecond)
 
-	// Saved, so it survives a restart before the next sync.
+	// Saved with the network's domain, so they survive a restart before the next sync.
 	st, err := stateLoad(a)
 	require.NoError(t, err)
 	assert.Equal(t, "workstation", st.Device.Name)
+	assert.Equal(t, "brave-otter.lvh.me", st.Network.DNSDomain)
 }
 
 func TestWatchSyncsAsSoonAsTheMapChanges(t *testing.T) {

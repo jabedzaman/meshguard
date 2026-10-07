@@ -13,19 +13,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/jabedzaman/meshguard/internal/dns"
 	"github.com/jabedzaman/meshguard/internal/ipc"
 )
 
-// findPeer resolves a peer by name (case-insensitive, unique prefix, with or
-// without ".internal") or mesh IP.
+// findPeer resolves a peer by name (case-insensitive, unique prefix), DNS
+// name (laptop.brave-otter.lvh.me) or mesh IP.
 func findPeer(peers []ipc.Peer, query string) (ipc.Peer, error) {
-	q := strings.TrimSuffix(strings.TrimSuffix(strings.ToLower(query), "."), "."+dns.Domain)
+	q := strings.TrimSuffix(strings.ToLower(query), ".")
 	var matches []ipc.Peer
 	for _, p := range peers {
 		name := strings.ToLower(p.Name)
 		switch {
-		case name == q || p.MeshIPv4 == query || p.MeshIPv6 == query:
+		case name == q || strings.ToLower(p.DNSName) == q || p.MeshIPv4 == query || p.MeshIPv6 == query:
 			return p, nil
 		case strings.HasPrefix(name, q):
 			matches = append(matches, p)

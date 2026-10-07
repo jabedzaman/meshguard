@@ -1,9 +1,9 @@
 // Package dns answers private mesh names: every device in the network
-// resolves as <name>.internal (".internal" is reserved by ICANN for private
-// use), and its mesh addresses resolve back to that name. The agent answers
-// queries the OS sends to the network's resolver address (ResolverAddr) inside
-// its TUN, so no socket is bound, and points the OS resolver there for those
-// zones only.
+// resolves as <name>.<network domain>, e.g. laptop.brave-otter.lvh.me (the
+// control plane picks the domain), and its mesh addresses resolve back to that
+// name. The agent answers queries the OS sends to the network's resolver
+// address (ResolverAddr) inside its TUN, so no socket is bound, and points the
+// OS resolver there for those zones only.
 package dns
 
 import (
@@ -16,9 +16,6 @@ import (
 
 	"golang.org/x/net/dns/dnsmessage"
 )
-
-// Domain is the zone the server answers, without the trailing dot.
-const Domain = "internal"
 
 // TTL of answers. Short: names follow devices that come and go.
 const TTL = 30
@@ -47,7 +44,7 @@ type Record struct {
 	IPv6 netip.Addr
 }
 
-// Server answers A and AAAA queries for <name>.internal and PTR queries for
+// Server answers A and AAAA queries for <name>.<domain> and PTR queries for
 // the mesh's addresses from the records it was last given, NXDOMAIN for
 // unknown names and REFUSED outside its zones.
 type Server struct {
@@ -56,6 +53,22 @@ type Server struct {
 	names   map[netip.Addr]string // reverse of records
 	reverse []string              // reverse zones, see SetNetworks
 	addr    netip.Addr            // where queries arrive, see SetNetworks
+	domain  string                // see SetDomain
+}
+
+// SetDomain sets the network's domain, without the trailing dot, e.g.
+// "brave-otter.lvh.me". Until it's set, no name or address resolves.
+func (s *Server) SetDomain(domain string) {
+	s.mu.Lock()
+	s.domain = strings.ToLower(strings.TrimSuffix(domain, "."))
+	s.mu.Unlock()
+}
+
+// Domain is the network's domain; empty until SetDomain.
+func (s *Server) Domain() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.domain
 }
 
 // SetRecords replaces the records, keyed by device name (a DNS label).
@@ -98,9 +111,13 @@ func (s *Server) Addr() netip.Addr {
 	return s.addr
 }
 
-// Name returns the fully qualified name for a device, e.g. "laptop.internal".
-func Name(device string) string {
-	return strings.ToLower(device) + "." + Domain
+// Name returns the fully qualified name for a device in domain, e.g.
+// "laptop.brave-otter.lvh.me". Just the device's name without a domain.
+func Name(device, domain string) string {
+	if domain == "" {
+		return strings.ToLower(device)
+	}
+	return strings.ToLower(device) + "." + strings.ToLower(domain)
 }
 
 // Answer builds the response to one DNS query message.
@@ -124,10 +141,12 @@ func (s *Server) Answer(query []byte) ([]byte, error) {
 	name := strings.ToLower(strings.TrimSuffix(q.Name.String(), "."))
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if label, ok := strings.CutSuffix(name, "."+Domain); ok {
-		return s.answerName(header, q, label)
+	if s.domain != "" {
+		if label, ok := strings.CutSuffix(name, "."+s.domain); ok {
+			return s.answerName(header, q, label)
+		}
 	}
-	if name == Domain || slices.Contains(s.reverse, name) {
+	if (s.domain != "" && name == s.domain) || slices.Contains(s.reverse, name) {
 		return reply(header, &q, dnsmessage.RCodeSuccess, nil)
 	}
 	for _, zone := range s.reverse {
@@ -138,7 +157,7 @@ func (s *Server) Answer(query []byte) ([]byte, error) {
 	return reply(header, &q, dnsmessage.RCodeRefused, nil)
 }
 
-// answerName answers <label>.internal. Caller holds s.mu.
+// answerName answers <label>.<domain>. Caller holds s.mu.
 func (s *Server) answerName(header dnsmessage.Header, q dnsmessage.Question, label string) ([]byte, error) {
 	r, ok := s.records[label]
 	if !ok || strings.Contains(label, ".") {
@@ -163,12 +182,12 @@ func (s *Server) answerName(header dnsmessage.Header, q dnsmessage.Question, lab
 func (s *Server) answerAddr(header dnsmessage.Header, q dnsmessage.Question, name string) ([]byte, error) {
 	ip, ok := parseReverse(name)
 	device, known := s.names[ip]
-	if !ok || !known {
+	if !ok || !known || s.domain == "" {
 		return reply(header, &q, dnsmessage.RCodeNameError, nil)
 	}
 	var answers []dnsmessage.Resource
 	if q.Type == dnsmessage.TypePTR || q.Type == dnsmessage.TypeALL {
-		target, err := dnsmessage.NewName(Name(device) + ".")
+		target, err := dnsmessage.NewName(Name(device, s.domain) + ".")
 		if err != nil {
 			return nil, err
 		}

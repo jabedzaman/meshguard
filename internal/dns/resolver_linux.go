@@ -7,11 +7,11 @@ import (
 	"os/exec"
 )
 
-// ConfigureOS points the system resolver at resolver on iface, for
-// Domain and the reverse zones only. Domain is also a search domain, so short
-// names like "laptop" resolve. It needs systemd-resolved; the settings go
+// ConfigureOS points the system resolver at resolver on iface, for domain
+// and the reverse zones only. domain is also a search domain, so short names
+// like "laptop" resolve. It needs systemd-resolved; the settings go
 // away with the interface. It returns a short description of how, for status.
-func ConfigureOS(iface string, resolver netip.Addr, reverseZones []string) (string, error) {
+func ConfigureOS(iface string, resolver netip.Addr, domain string, reverseZones []string) (string, error) {
 	if _, err := exec.LookPath("resolvectl"); err != nil {
 		return "", errors.New("split DNS needs systemd-resolved (resolvectl not found)")
 	}
@@ -19,7 +19,7 @@ func ConfigureOS(iface string, resolver netip.Addr, reverseZones []string) (stri
 		return "", err
 	}
 	// A plain domain is both a search and a routing domain; "~" ones only route.
-	domains := []string{"domain", iface, Domain}
+	domains := []string{"domain", iface, domain}
 	for _, zone := range reverseZones {
 		domains = append(domains, "~"+zone)
 	}

@@ -106,9 +106,10 @@ type connection struct {
 	peers    []coordination.Peer
 	stun     []string
 	acl      *coordination.ACL
-	// savedName is the device name in the state file, so a sync only
-	// touches the file when the control plane renamed the device.
-	savedName string
+	// savedName and savedDNSDomain are in the state file, so a sync only
+	// touches the file when the control plane changed them.
+	savedName      string
+	savedDNSDomain string
 
 	relayClient *relay.Client
 	relayURL    string
@@ -143,7 +144,7 @@ func (a *Agent) startLocked(st *state.State) {
 	c := &connection{
 		ctx: ctx, cancel: cancel,
 		syncNow: make(chan struct{}, 1), synced: make(chan struct{}, 1),
-		savedName: st.Device.Name,
+		savedName: st.Device.Name, savedDNSDomain: st.Network.DNSDomain,
 	}
 	a.conn = c
 
@@ -502,7 +503,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	}
 	c.acl = nm.ACL
 	a.updateDNSLocked(c, nm)
-	a.saveNameLocked(c, nm.Self.Name)
+	a.saveMapLocked(c, nm)
 	switch {
 	case applyErr != nil:
 		c.problem = "cannot apply peers: " + applyErr.Error()
@@ -604,10 +605,13 @@ func syncProblem(err error) string {
 	return "cannot reach the control plane: " + err.Error()
 }
 
-// saveNameLocked keeps the saved device name in step with the control plane,
-// where it can be renamed. Caller holds a.mu.
-func (a *Agent) saveNameLocked(c *connection, name string) {
-	if name == "" || name == c.savedName {
+// saveMapLocked keeps the state file's device name and network domain in
+// step with the network map, so a restart starts with them. Caller holds a.mu.
+func (a *Agent) saveMapLocked(c *connection, nm *coordination.NetworkMap) {
+	name, domain := nm.Self.Name, nm.Network.DNSDomain
+	nameChanged := name != "" && name != c.savedName
+	domainChanged := domain != "" && domain != c.savedDNSDomain
+	if !nameChanged && !domainChanged {
 		return
 	}
 	st, err := state.Load(a.StateDir)
@@ -615,15 +619,20 @@ func (a *Agent) saveNameLocked(c *connection, name string) {
 		return
 	}
 	old := st.Device.Name
-	if old != name {
+	if nameChanged {
 		st.Device.Name = name
-		if err := state.Save(a.StateDir, st); err != nil {
-			slog.Warn("cannot save renamed device", "err", err)
-			return
-		}
-		slog.Info("device renamed", "from", old, "to", name)
 	}
-	c.savedName = name
+	if domainChanged {
+		st.Network.DNSDomain = domain
+	}
+	if err := state.Save(a.StateDir, st); err != nil {
+		slog.Warn("cannot save network map changes", "err", err)
+		return
+	}
+	if old != st.Device.Name {
+		slog.Info("device renamed", "from", old, "to", st.Device.Name)
+	}
+	c.savedName, c.savedDNSDomain = st.Device.Name, st.Network.DNSDomain
 }
 
 // pathLocked reports the path a peer's packets take now: its direct address,
@@ -685,7 +694,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		}
 	}
 	for _, p := range c.peers {
-		peer := ipc.Peer{Name: p.Name, DNSName: dns.Name(p.Name), MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6}
+		peer := ipc.Peer{Name: p.Name, DNSName: dns.Name(p.Name, c.dns.domain), MeshIPv4: p.MeshIPv4, MeshIPv6: p.MeshIPv6}
 		if hexKey, err := wireguard.KeyToHex(p.WireGuardPublicKey); err == nil {
 			if ps, ok := stats[hexKey]; ok {
 				peer.Endpoint, peer.ViaRelay = a.pathLocked(c, p, ps.Endpoint)

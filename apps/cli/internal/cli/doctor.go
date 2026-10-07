@@ -314,20 +314,34 @@ func (d *doctor) resolves(check, name, ip string, s ipc.Status) {
 	} else {
 		detail += fmt.Sprintf(" (got %s, want %s)", orDefault(strings.Join(addrs, ", "), "nothing"), ip)
 	}
-	fix := ""
+	fix := resolverFix(s, d.nameservers(), name)
+	if slices.ContainsFunc(addrs, isLoopback) {
+		// e.g. lvh.me: public DNS answers every name with 127.0.0.1.
+		fix = "the public DNS answered, not the agent: " + fix
+	}
+	d.add(checkWarn, check, detail, fix)
+}
+
+// resolverFix says how to check the OS sends the mesh domain to the agent.
+func resolverFix(s ipc.Status, nameservers []string, name string) string {
+	domain := orDefault(s.DNS.Domain, "the mesh domain")
 	switch {
 	case s.DNS.Configured == "":
-		fix = orDefault(s.DNS.Problem, "split DNS isn't set up") + "; meshguard ip <peer> works without DNS"
-	case s.DNS.Configured == "systemd-resolved" && !slices.Contains(d.nameservers(), "127.0.0.53"):
-		fix = "systemd-resolved has the .internal names (resolvectl query " + name + "), but /etc/resolv.conf " +
+		return orDefault(s.DNS.Problem, "split DNS isn't set up") + "; meshguard ip <peer> works without DNS"
+	case s.DNS.Configured == "systemd-resolved" && !slices.Contains(nameservers, "127.0.0.53"):
+		return "systemd-resolved has the mesh names (resolvectl query " + name + "), but /etc/resolv.conf " +
 			"doesn't send programs to it: sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf " +
 			"(on WSL, first set generateResolvConf = false under [network] in /etc/wsl.conf)"
 	case s.DNS.Configured == "systemd-resolved":
-		fix = "resolvectl status " + s.Interface + " should show " + s.DNS.Resolver + " and the internal domain"
+		return "resolvectl status " + s.Interface + " should show " + s.DNS.Resolver + " and " + domain
 	default:
-		fix = "scutil --dns should list a resolver for internal"
+		return "scutil --dns should list a resolver for " + domain
 	}
-	d.add(checkWarn, check, detail, fix)
+}
+
+func isLoopback(addr string) bool {
+	ip, err := netip.ParseAddr(addr)
+	return err == nil && ip.IsLoopback()
 }
 
 func (d *doctor) acl(s ipc.Status) {

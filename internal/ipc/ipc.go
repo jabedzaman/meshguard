@@ -56,14 +56,17 @@ type ACLStatus struct {
 	Dropped uint64 `json:"dropped"`
 }
 
-// DNSStatus describes private DNS: devices resolve as <name>.internal.
+// DNSStatus describes private DNS: devices resolve as <name>.<domain>.
 type DNSStatus struct {
-	// This device's name, e.g. "laptop.internal".
+	// This device's name, e.g. "laptop.brave-otter.lvh.me".
 	Name string `json:"name"`
+	// The network's domain, e.g. "brave-otter.lvh.me"; empty until the
+	// control plane sends one.
+	Domain string `json:"domain,omitempty"`
 	// Where the agent answers inside its TUN, e.g. "10.77.0.53" (the
 	// network's address + 53); empty if it doesn't.
 	Resolver string `json:"resolver,omitempty"`
-	// How the OS sends .internal queries to it, e.g. "systemd-resolved";
+	// How the OS sends the domain's queries to it, e.g. "systemd-resolved";
 	// empty if it doesn't (see Problem).
 	Configured string `json:"configured,omitempty"`
 	Problem    string `json:"problem,omitempty"`
@@ -78,7 +81,7 @@ type RelayStatus struct {
 // Peer is another device in the network, as this agent sees it.
 type Peer struct {
 	Name string `json:"name"`
-	// e.g. "laptop.internal".
+	// e.g. "laptop.brave-otter.lvh.me".
 	DNSName  string `json:"dnsName"`
 	MeshIPv4 string `json:"meshIpv4"`
 	MeshIPv6 string `json:"meshIpv6"`

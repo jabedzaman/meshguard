@@ -16,17 +16,17 @@ const resolverDir = "/etc/resolver"
 
 const managedMarker = "# Managed by meshguard-agent"
 
-// ConfigureOS points the system resolver at resolver for Domain and the
+// ConfigureOS points the system resolver at resolver for domain and the
 // reverse zones only. It returns a short description of how, for status.
 // Short names don't resolve on macOS: it ignores search domains from these
 // files for unqualified names.
-func ConfigureOS(_ string, resolver netip.Addr, reverseZones []string) (string, error) {
+func ConfigureOS(_ string, resolver netip.Addr, domain string, reverseZones []string) (string, error) {
 	if err := os.MkdirAll(resolverDir, 0o755); err != nil {
 		return "", err
 	}
-	removeManaged() // reverse zones from an earlier network
+	removeManaged() // zones from an earlier network or domain
 	content := fmt.Sprintf("%s\nnameserver %s\n", managedMarker, resolver)
-	for _, zone := range append([]string{Domain}, reverseZones...) {
+	for _, zone := range append([]string{domain}, reverseZones...) {
 		file := filepath.Join(resolverDir, zone)
 		if b, err := os.ReadFile(file); err == nil && !strings.HasPrefix(string(b), managedMarker) {
 			return "", fmt.Errorf("%s exists and isn't managed by meshguard", file)
@@ -35,7 +35,7 @@ func ConfigureOS(_ string, resolver netip.Addr, reverseZones []string) (string, 
 			return "", err
 		}
 	}
-	return filepath.Join(resolverDir, Domain), nil
+	return filepath.Join(resolverDir, domain), nil
 }
 
 // UnconfigureOS removes what ConfigureOS set up.

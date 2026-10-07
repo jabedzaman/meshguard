@@ -28,14 +28,14 @@ func healthy() (*ipc.Status, probes) {
 		Interface:  "meshguard0",
 		LastSyncAt: ago(4 * time.Second),
 		Relay:      &ipc.RelayStatus{URL: "wss://relay.example.com/relay", Connected: true},
-		DNS:        &ipc.DNSStatus{Name: "thinkpad.internal", Resolver: "10.77.0.2:53", Configured: "systemd-resolved"},
+		DNS:        &ipc.DNSStatus{Name: "thinkpad.brave-otter.lvh.me", Domain: "brave-otter.lvh.me", Resolver: "10.77.0.2:53", Configured: "systemd-resolved"},
 		ACL:        &ipc.ACLStatus{DefaultAction: "allow"},
 		Peers: []ipc.Peer{
-			{Name: "macbook", DNSName: "macbook.internal", MeshIPv4: "10.77.0.3", Endpoint: "192.168.1.5:51820", LastHandshake: ago(12 * time.Second)},
-			{Name: "server", DNSName: "server.internal", MeshIPv4: "10.77.0.4", ViaRelay: true, LastHandshake: ago(time.Minute)},
+			{Name: "macbook", DNSName: "macbook.brave-otter.lvh.me", MeshIPv4: "10.77.0.3", Endpoint: "192.168.1.5:51820", LastHandshake: ago(12 * time.Second)},
+			{Name: "server", DNSName: "server.brave-otter.lvh.me", MeshIPv4: "10.77.0.4", ViaRelay: true, LastHandshake: ago(time.Minute)},
 		},
 	}
-	records := map[string]string{"thinkpad.internal": "10.77.0.2", "macbook.internal": "10.77.0.3", "server.internal": "10.77.0.4"}
+	records := map[string]string{"thinkpad.brave-otter.lvh.me": "10.77.0.2", "macbook.brave-otter.lvh.me": "10.77.0.3", "server.brave-otter.lvh.me": "10.77.0.4"}
 	return s, probes{
 		status: func() (ipc.Status, error) { return *s, nil },
 		netcheck: func() (ipc.Netcheck, error) {
@@ -81,7 +81,7 @@ func TestDoctorHealthy(t *testing.T) {
 	for _, c := range checks {
 		assert.Equal(t, checkOK, c.Status, "%+v", c)
 	}
-	assert.Equal(t, "thinkpad.internal → 10.77.0.2", find(t, checks, "dns").Detail)
+	assert.Equal(t, "thinkpad.brave-otter.lvh.me → 10.77.0.2", find(t, checks, "dns").Detail)
 	assert.Equal(t, "direct 192.168.1.5:51820, handshake 12s ago", find(t, checks, "macbook").Detail)
 	assert.Equal(t, "relay, handshake 1m0s ago", find(t, checks, "server").Detail)
 	assert.Equal(t, "peers", find(t, checks, "server").Section)
@@ -139,6 +139,12 @@ func TestDoctorDeviceProblems(t *testing.T) {
 	p.nameservers = func() []string { return []string{"100.100.100.100"} }
 	c = find(t, runDoctor(p, "", 0), "dns")
 	assert.Contains(t, c.Fix, "ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf")
+
+	// The OS asked public DNS, where lvh.me names are all 127.0.0.1.
+	p.resolve = func(string) ([]string, error) { return []string{"127.0.0.1"}, nil }
+	c = find(t, runDoctor(p, "", 0), "dns")
+	assert.Contains(t, c.Detail, "got 127.0.0.1")
+	assert.Contains(t, c.Fix, "the public DNS answered, not the agent")
 	assert.Contains(t, find(t, checks, "access").Detail, "no peer can open connections")
 	assert.Equal(t, checkOK, find(t, checks, "macbook").Status)
 	assert.Equal(t, "no handshake yet", find(t, checks, "server").Detail)
