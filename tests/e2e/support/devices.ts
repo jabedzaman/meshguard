@@ -79,12 +79,23 @@ export function watch(device: { id: string; privateKey: KeyObject }, revision: s
   return signedPost("/v1/devices/self/watch", device, { revision });
 }
 
-/** What `meshguard up` sends. No session: the token is the credential. */
-export async function enroll(body: Record<string, unknown>) {
+/** A made-up client address, so each call looks like a different machine to the rate limits. */
+export function randomClientIp() {
+  const octet = () => 1 + Math.floor(Math.random() * 253);
+  return `198.51.${octet()}.${octet()}`;
+}
+
+/**
+ * What `meshguard up` sends. No session: the token is the credential. Each call
+ * comes from its own made-up address (`clientIp` to choose it): enrollment is
+ * limited per address, and a test suite enrolls far more devices than one
+ * address may in a minute.
+ */
+export async function enroll(body: Record<string, unknown>, clientIp = randomClientIp()) {
   const res = await fetch(`${E2E.apiUrl}/v1/devices/enroll`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Forwarded-For": clientIp },
     body: JSON.stringify(body),
   });
-  return { status: res.status, body: (await res.json()) as any };
+  return { status: res.status, headers: res.headers, body: (await res.json()) as any };
 }

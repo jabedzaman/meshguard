@@ -11,7 +11,6 @@ API=${E2E_API_URL:-http://localhost:4200}
 WEB=${E2E_WEB_URL:-http://localhost:3200}
 LAB_API=http://10.200.0.10:4000   # api-e2e on the lab "internet"
 COOKIES=$(mktemp)
-trap 'rm -f "$COOKIES"' EXIT
 
 json() { node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8'))$1"; }
 post() { curl -sf -m 15 -b "$COOKIES" -c "$COOKIES" -H "Origin: $WEB" -H 'Content-Type: application/json' -d "$2" "$API$1"; }
@@ -60,6 +59,14 @@ echo "==> creating an organization on $API"
 id="lab-$(date +%s)"
 post /api/auth/sign-up/email "{\"name\":\"Lab\",\"email\":\"$id@e2e.test\",\"password\":\"correct-horse-battery\"}" >/dev/null
 post /api/auth/organization/create "{\"name\":\"Lab $id\",\"slug\":\"$id\"}" >/dev/null
+
+# The lab runs the relay and API with a trust key of its own; put the shared stack
+# back as it was when done, so the e2e tests (and dev) see what they expect.
+restore_stack() {
+  unset LAB_RELAY_TOKEN_KEY RELAY_TRUST_KEY RELAY_FUNNEL_ADDR
+  docker compose --profile e2e up -d --force-recreate relay api-e2e >/dev/null 2>&1 || true
+}
+trap 'rm -f "$COOKIES"; restore_stack' EXIT
 
 status=0
 ok() { echo "  ok    $*"; }

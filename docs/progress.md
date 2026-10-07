@@ -64,7 +64,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.28 Browser login: `meshguard up` on an unenrolled device prints a URL (and opens the browser); a signed-in user checks the code, picks a network on `/connect` and approves; the CLI collects an enrollment token minted for the approver, so the device is theirs. Device-code flow (RFC 8628 style) kept in Redis for 10 minutes (`/v1/device-logins`); `--token` stays for headless machines. The start and poll routes are public, so they need the rate limits in M1.31
 - ⬜ M1.29 Auth keys beyond single-use tokens: reusable, ephemeral (device deleted after being offline a while), pre-approved and tagged; for servers, CI and containers
 - ⬜ M1.30 Device approval (optional per network) and key expiry (e.g. 180 days, renewed by browser login, can be turned off per device), so a copied `state.json` stops working
-- 🚧 M1.31 Rate limits (Redis, sliding window; `429` with `Retry-After`). Done: the limiter (`RateLimiter`, `rateLimitByIp`) and the public routes `POST /v1/device-logins` (10/min per IP), `.../poll` (60/min per IP) and `POST /v1/devices/enroll` (20/min per IP). Left: the rest below. Where they are needed, most urgent first:
+- 🚧 M1.31 Rate limits (Redis, sliding window; `429` with `Retry-After`). Done: the limiter (`RateLimiter`, `rateLimitByIp`; e2e tests enroll from made-up client addresses and `rate-limits.spec.ts` checks the 429) and the public routes `POST /v1/device-logins` (10/min per IP), `.../poll` (60/min per IP) and `POST /v1/devices/enroll` (20/min per IP). Left: the rest below. Where they are needed, most urgent first:
   - **Public, unauthenticated API routes**, limited per client IP: `POST /v1/device-logins` (each call writes Redis keys), `POST /v1/device-logins/poll` (also per secret, to keep to the 2s interval), `POST /v1/devices/enroll` (token guessing)
   - **Device-login approval**, per user and per IP: `GET /v1/device-logins/:id`, `.../approve`, `.../deny`; delete a login after about 5 failed lookups. The id is 128 bits, so this guards against abuse, not guessing
   - **Auth routes** (Better Auth `/api/auth/*`): sign-in, sign-up, password reset, invitation accept; turn on Better Auth's own `rateLimit` with Redis as secondary storage (it is not configured today; its default is memory-only, which fails with several API replicas)
@@ -132,9 +132,9 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ⬜ M5.3 MCP mutating tools behind explicit approval
 - ⬜ M5.4 AI network doctor built on `meshguard doctor`
 
-### M6 — Routes, services and apps ⬜
+### M6 — Routes, services and apps ✅
 
-What Tailscale calls subnet routers, exit nodes, Services, serve/funnel and app connectors. Each builds on the one before; M4 workspaces build on M6.4 and M6.5.
+What Tailscale calls subnet routers, exit nodes, Services, serve/funnel and app connectors. Each builds on the one before; M4 workspaces build on M6.4 and M6.5. All of it runs in the lab (`pnpm lab`) and has a hands-on guide in [testing.md](testing.md#trying-the-routes-and-services-by-hand).
 
 - ✅ M6.1 Subnet routers: `device_routes` (device, prefix, approved); `meshguard set --advertise-routes 192.168.50.0/24` reports them on sync; owners/admins approve on the network page (`PUT /v1/devices/:id/routes`, the route icon on a device); the router agent turns on IP forwarding and masquerades the mesh's traffic to each approved subnet. Linux routers only: macOS can't (a `pf` anchor would be needed). Access rules cover the subnet: under `deny`, a peer needs a rule that lets it reach the router (lab: `lab-r` routes `192.168.50.0/24` for `lab-b`, with approval, revoke, deny rules and NAT cleanup)
 - ✅ M6.2 Accepting routes: with `meshguard set --accept-routes`, approved prefixes of peers go into that peer's allowed IPs and into the OS routes through the mesh interface. A subnet two routers both offer goes to the oldest device; one that overlaps the mesh or a network this machine is on is skipped. `status` shows `serving` and `accepting`. Left: showing overlaps and the choice in the web, and picking by priority
@@ -176,7 +176,7 @@ Order to work through the open items (from the 2026-10-06 comparison with Tailsc
 3. **Control plane at scale**: M2.15 → M2.14 → M2.11 + M2.22 → M2.23
 4. **Reachability**: M2.3, M2.17, M7.1
 5. **DNS**: M2.27 ✅ → M2.13 (with M2.21) → M2.18 → M2.19 → M2.20
-6. **Routes and services**: M6.9 → M6.1 → M6.2 → M6.3 → M6.4 → M6.5 → M6.6 → M6.7 → M6.8; M4 workspaces after M6.5
+6. **Routes and services** ✅: M6.9 → M6.1 → M6.2 → M6.3 → M6.4 → M6.5 → M6.6 → M6.7 → M6.8; M4 workspaces after M6.5
 7. **Platform**: M1.31, M7.2, M7.6, M2.9, M2.25, M2.26, M7.5, M7.7–M7.11, M1.33, L.2, L.4
 
 ## Open decisions
