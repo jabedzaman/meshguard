@@ -15,6 +15,7 @@ const device = (id: string, fields: Partial<PolicyDevice> = {}): PolicyDevice =>
   tags: [],
   userId: null,
   roles: [],
+  services: [],
   meshIpv4: `10.77.0.${id.length}`,
   meshIpv6: null,
   ...fields,
@@ -37,16 +38,26 @@ const rule = (source: string, destination: string, fields: Partial<PolicyRule> =
   }) satisfies PolicyRule;
 
 describe("selectors", () => {
-  it.each(["*", "device:d1", "tag:server", "user:u1", "role:admin"])("round-trips %s", (text) => {
-    expect(formatSelector(parseSelector(text)!)).toBe(text);
-  });
-
-  it.each(["", "tag:", "tag:Server", "tag:-x", "role:root", "group:x", "device"])(
-    "rejects %j",
+  it.each(["*", "device:d1", "tag:server", "user:u1", "role:admin", "service:web"])(
+    "round-trips %s",
     (text) => {
-      expect(parseSelector(text)).toBeNull();
+      expect(formatSelector(parseSelector(text)!)).toBe(text);
     },
   );
+
+  it.each([
+    "",
+    "tag:",
+    "tag:Server",
+    "tag:-x",
+    "role:root",
+    "group:x",
+    "device",
+    "service:",
+    "service:A b",
+  ])("rejects %j", (text) => {
+    expect(parseSelector(text)).toBeNull();
+  });
 
   it("matches devices by id, tag, owner and owner's role", () => {
     expect(all.filter((d) => matches(parseSelector("tag:server")!, d))).toEqual([db, web]);
@@ -54,6 +65,21 @@ describe("selectors", () => {
     expect(all.filter((d) => matches(parseSelector("role:admin")!, d))).toEqual([desktop]);
     expect(all.filter((d) => matches(parseSelector("device:web")!, d))).toEqual([web]);
     expect(all.filter((d) => matches(parseSelector("*")!, d))).toEqual(all);
+  });
+
+  it("matches the devices hosting a service", () => {
+    const hosts = [
+      device("a", { services: ["web"] }),
+      device("b", { services: ["web", "db"] }),
+      device("c"),
+    ];
+    expect(hosts.filter((d) => matches(parseSelector("service:web")!, d)).map((d) => d.id)).toEqual(
+      ["a", "b"],
+    );
+    expect(hosts.filter((d) => matches(parseSelector("service:db")!, d)).map((d) => d.id)).toEqual([
+      "b",
+    ]);
+    expect(hosts.filter((d) => matches(parseSelector("service:nope")!, d))).toEqual([]);
   });
 });
 

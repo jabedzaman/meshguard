@@ -12,14 +12,14 @@ import {
   type Selector,
 } from "~/lib/acl-policy";
 
-const { aclRules, devices, member, networks, user } = schema;
+const { aclRules, devices, member, networks, serviceHosts, services, user } = schema;
 
 export const ACL_PROTOCOLS = aclRules.protocol.enumValues;
 export type AclProtocol = (typeof ACL_PROTOCOLS)[number];
 export type AclDefaultAction = (typeof networks.aclDefaultAction.enumValues)[number];
 
 export interface CreateAclRuleInput {
-  /** Selector text (see formatSelector): `*`, `device:<id>`, `tag:<name>`, `user:<id>`, `role:<role>`. */
+  /** Selector text (see formatSelector): `*`, `device:<id>`, `tag:<name>`, `user:<id>`, `role:<role>`, `service:<name>`. */
   source: string;
   destination: string;
   protocol: AclProtocol;
@@ -45,6 +45,7 @@ function selectorColumns(side: "source" | "destination", selector: Selector) {
     [`${side}Tag`]: selector.kind === "tag" ? selector.tag : null,
     [`${side}UserId`]: selector.kind === "user" ? selector.id : null,
     [`${side}Role`]: selector.kind === "role" ? selector.role : null,
+    [`${side}Service`]: selector.kind === "service" ? selector.name : null,
   };
   return cols as Partial<RuleRow>;
 }
@@ -54,10 +55,12 @@ function selectorOf(row: RuleRow, side: "source" | "destination"): Selector {
   const tag = side === "source" ? row.sourceTag : row.destinationTag;
   const userId = side === "source" ? row.sourceUserId : row.destinationUserId;
   const role = side === "source" ? row.sourceRole : row.destinationRole;
+  const service = side === "source" ? row.sourceService : row.destinationService;
   if (deviceId) return { kind: "device", id: deviceId };
   if (tag) return { kind: "tag", tag };
   if (userId) return { kind: "user", id: userId };
   if (role) return { kind: "role", role };
+  if (service) return { kind: "service", name: service };
   return { kind: "any" };
 }
 
@@ -92,7 +95,9 @@ export class AclService {
               ? (users.get(selector.id) ?? "former member")
               : selector.kind === "tag"
                 ? `tag:${selector.tag}`
-                : `role:${selector.role}`,
+                : selector.kind === "service"
+                  ? `service:${selector.name}`
+                  : `role:${selector.role}`,
     });
     return {
       defaultAction: network.aclDefaultAction,
@@ -125,7 +130,12 @@ export class AclService {
     if (!source || !destination) {
       const path = source ? "destination" : "source";
       throw new ValidationError(
-        [{ path, message: "Use *, device:<id>, tag:<name>, user:<id> or role:<role>" }],
+        [
+          {
+            path,
+            message: "Use *, device:<id>, tag:<name>, user:<id>, role:<role> or service:<name>",
+          },
+        ],
         "Invalid selector",
       );
     }
@@ -285,6 +295,14 @@ export class AclService {
       )
       .where(eq(devices.networkId, networkId))
       .orderBy(devices.createdAt);
+    const hostRows = await this.db
+      .select({ deviceId: serviceHosts.deviceId, name: services.name })
+      .from(serviceHosts)
+      .innerJoin(services, eq(services.id, serviceHosts.serviceId))
+      .where(eq(services.networkId, networkId));
+    const hosted = new Map<string, string[]>();
+    for (const { deviceId, name } of hostRows)
+      hosted.set(deviceId, [...(hosted.get(deviceId) ?? []), name]);
     const userIds = rows.flatMap((r) => [r.sourceUserId, r.destinationUserId]).filter(Boolean);
     const userRows =
       userIds.length === 0
@@ -304,6 +322,7 @@ export class AclService {
     const policyDevices: PolicyDevice[] = deviceRows.map(({ name: _, role, ...d }) => ({
       ...d,
       roles: role ? role.split(",") : [],
+      services: hosted.get(d.id) ?? [],
     }));
     return {
       rows,
@@ -323,6 +342,13 @@ export class AclService {
         .from(devices)
         .where(and(eq(devices.networkId, networkId), eq(devices.id, s.id)));
       if (!found) throw new NotFoundError("device");
+    }
+    if (s.kind === "service") {
+      const [found] = await this.db
+        .select({ id: services.id })
+        .from(services)
+        .where(and(eq(services.networkId, networkId), eq(services.name, s.name)));
+      if (!found) throw new NotFoundError("service");
     }
     if (s.kind === "user") {
       const [found] = await this.db

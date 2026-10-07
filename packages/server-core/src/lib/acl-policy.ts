@@ -17,7 +17,8 @@ export type Selector =
   | { kind: "device"; id: string }
   | { kind: "tag"; tag: string }
   | { kind: "user"; id: string }
-  | { kind: "role"; role: AclRole };
+  | { kind: "role"; role: AclRole }
+  | { kind: "service"; name: string };
 
 /** What a selector needs to know about a device. */
 export interface PolicyDevice {
@@ -27,6 +28,8 @@ export interface PolicyDevice {
   userId: string | null;
   /** The owner's roles in the network's organization. */
   roles: string[];
+  /** Names of the services the device hosts. */
+  services: string[];
   meshIpv4: string | null;
   meshIpv6: string | null;
 }
@@ -39,7 +42,7 @@ export interface PolicyRule {
   portTo: number | null;
 }
 
-/** Selector as text: `*`, `device:<id>`, `tag:<name>`, `user:<id>`, `role:<role>`. */
+/** Selector as text: `*`, `device:<id>`, `tag:<name>`, `user:<id>`, `role:<role>`, `service:<name>`. */
 export function formatSelector(selector: Selector): string {
   switch (selector.kind) {
     case "any":
@@ -52,6 +55,8 @@ export function formatSelector(selector: Selector): string {
       return `user:${selector.id}`;
     case "role":
       return `role:${selector.role}`;
+    case "service":
+      return `service:${selector.name}`;
   }
 }
 
@@ -65,6 +70,8 @@ export function parseSelector(text: string): Selector | null {
       return { kind, id: value };
     case "tag":
       return TAG_PATTERN.test(value) ? { kind, tag: value } : null;
+    case "service":
+      return TAG_PATTERN.test(value) ? { kind, name: value } : null;
     case "user":
       return { kind, id: value };
     case "role":
@@ -88,6 +95,8 @@ export function matches(selector: Selector, device: PolicyDevice): boolean {
       return device.userId === selector.id;
     case "role":
       return device.roles.includes(selector.role);
+    case "service":
+      return device.services.includes(selector.name);
   }
 }
 

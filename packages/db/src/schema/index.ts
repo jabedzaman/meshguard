@@ -8,6 +8,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -156,6 +157,44 @@ export const enrollmentTokens = pgTable(
   (t) => [index("enrollment_tokens_network_id_idx").on(t.networkId)],
 );
 
+/**
+ * A named virtual address in the network: `<name>.svc.<network domain>`
+ * resolves to `vip`, and traffic to it reaches one online host. Owners and
+ * admins create services and choose their hosts.
+ */
+export const services = pgTable(
+  "services",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    networkId: uuid("network_id")
+      .notNull()
+      .references(() => networks.id, { onDelete: "cascade" }),
+    /** A DNS label, unique in the network. */
+    name: text("name").notNull(),
+    /** From the network's IPv4 range, never a device's or the DNS resolver's. */
+    vip: inet("vip").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("services_network_id_name_unique").on(t.networkId, t.name),
+    unique("services_network_id_vip_unique").on(t.networkId, t.vip),
+  ],
+);
+
+/** The devices that serve a service. */
+export const serviceHosts = pgTable(
+  "service_hosts",
+  {
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    deviceId: uuid("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.serviceId, t.deviceId] })],
+);
+
 export const aclProtocol = pgEnum("acl_protocol", ["any", "tcp", "udp", "icmp"]);
 
 /** Roles a rule can name: devices owned by members with that role. */
@@ -181,6 +220,8 @@ export const aclRules = pgTable(
     sourceTag: text("source_tag"),
     sourceUserId: text("source_user_id").references(() => user.id, { onDelete: "cascade" }),
     sourceRole: aclRole("source_role"),
+    /** Devices hosting this service (its name, without "service:"). */
+    sourceService: text("source_service"),
     destinationDeviceId: uuid("destination_device_id").references(() => devices.id, {
       onDelete: "cascade",
     }),
@@ -189,6 +230,7 @@ export const aclRules = pgTable(
       onDelete: "cascade",
     }),
     destinationRole: aclRole("destination_role"),
+    destinationService: text("destination_service"),
     protocol: aclProtocol("protocol").notNull().default("any"),
     /** TCP/UDP destination ports, inclusive; null for every port. */
     portFrom: integer("port_from"),
@@ -199,11 +241,11 @@ export const aclRules = pgTable(
     index("acl_rules_network_id_idx").on(t.networkId),
     check(
       "acl_rules_one_source",
-      sql`num_nonnulls(${t.sourceDeviceId}, ${t.sourceTag}, ${t.sourceUserId}, ${t.sourceRole}) <= 1`,
+      sql`num_nonnulls(${t.sourceDeviceId}, ${t.sourceTag}, ${t.sourceUserId}, ${t.sourceRole}, ${t.sourceService}) <= 1`,
     ),
     check(
       "acl_rules_one_destination",
-      sql`num_nonnulls(${t.destinationDeviceId}, ${t.destinationTag}, ${t.destinationUserId}, ${t.destinationRole}) <= 1`,
+      sql`num_nonnulls(${t.destinationDeviceId}, ${t.destinationTag}, ${t.destinationUserId}, ${t.destinationRole}, ${t.destinationService}) <= 1`,
     ),
   ],
 );

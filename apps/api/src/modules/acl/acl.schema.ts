@@ -7,7 +7,7 @@ export const updateAclBody = z.object({
 });
 
 const selector = z.string().refine((text) => parseSelector(text) !== null, {
-  message: "Use *, device:<id>, tag:<name>, user:<id> or role:owner|admin|member",
+  message: "Use *, device:<id>, tag:<name>, user:<id>, role:owner|admin|member or service:<name>",
 });
 
 const port = z.number().int().min(1, "Ports are 1–65535").max(65535, "Ports are 1–65535");

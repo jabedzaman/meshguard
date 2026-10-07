@@ -11,8 +11,9 @@ import { EXIT_NODE_ROUTES, MAX_DEVICE_ROUTES, parseRoutePrefix } from "~/lib/rou
 import { relayTokenExpiry, signRelayToken } from "~/lib/relay-token";
 import { hashToken } from "~/lib/tokens";
 import type { AclService } from "~/services/acl/acl.service";
+import { serviceAddresses } from "~/services/services/services.service";
 
-const { deviceRoutes, devices, enrollmentTokens, networks, user } = schema;
+const { deviceRoutes, devices, enrollmentTokens, networks, serviceHosts, services, user } = schema;
 
 /** Address picks before giving up; collisions only matter in nearly full networks. */
 const MAX_ADDRESS_ATTEMPTS = 20;
@@ -86,6 +87,14 @@ export class DevicesService {
             .where(eq(devices.networkId, network.id))
         ).map((d) => d.name),
       );
+      // A service's address is not for devices.
+      const serviceVips = await serviceAddresses(tx, network.id);
+      const freeIpv4 = () => {
+        for (;;) {
+          const candidate = randomIpv4InCidr(network.ipv4Cidr);
+          if (!serviceVips.has(candidate)) return candidate;
+        }
+      };
       let nameNumber = 1;
       const nextFreeName = () => {
         while (taken.has(numberedDeviceName(baseName, nameNumber))) nameNumber++;
@@ -108,7 +117,7 @@ export class DevicesService {
                 platform: input.platform,
                 identityPublicKey: input.identityPublicKey,
                 wireguardPublicKey: input.wireguardPublicKey,
-                meshIpv4: randomIpv4InCidr(network.ipv4Cidr),
+                meshIpv4: freeIpv4(),
                 meshIpv6: randomIpv6InPrefix(network.ipv6Cidr),
               })
               .returning();
@@ -414,6 +423,44 @@ export class DevicesService {
     const routesOf = (id: string) =>
       approved.filter((route) => route.deviceId === id).map((route) => route.prefix);
 
+    // Services: each client reaches a service through its first online host.
+    const serviceRows = await this.db
+      .select({ id: services.id, name: services.name, vip: services.vip })
+      .from(services)
+      .where(eq(services.networkId, self.networkId))
+      .orderBy(services.name);
+    const hostRows = serviceRows.length
+      ? await this.db
+          .select({ serviceId: serviceHosts.serviceId, deviceId: serviceHosts.deviceId })
+          .from(serviceHosts)
+          .innerJoin(devices, eq(devices.id, serviceHosts.deviceId))
+          .where(
+            inArray(
+              serviceHosts.serviceId,
+              serviceRows.map((row) => row.id),
+            ),
+          )
+          .orderBy(devices.createdAt)
+      : [];
+    const hostsOnline = await this.presence.lastSeen(self.networkId, [
+      ...new Set(hostRows.map((row) => row.deviceId)),
+    ]);
+    const visibleIds = new Set(visible.map((peer) => peer.id));
+    const serviceMap = serviceRows.map((service) => {
+      const hosts = hostRows
+        .filter((row) => row.serviceId === service.id)
+        .map((row) => row.deviceId);
+      return {
+        name: service.name,
+        vip: service.vip,
+        /** This device serves it: its agent answers the address itself. */
+        hosting: hosts.includes(self.id),
+        /** The peer to send the address to: the first online host this device can see. */
+        hostId:
+          hosts.find((id) => id !== self.id && hostsOnline.has(id) && visibleIds.has(id)) ?? null,
+      };
+    });
+
     const map = {
       self: {
         id: self.id,
@@ -434,6 +481,7 @@ export class DevicesService {
         routes: routesOf(peer.id),
         lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt,
       })),
+      services: serviceMap,
       /** Traffic from peers the agent lets in. */
       acl: policy.acl,
       /** Where to relay WireGuard packets for peers that can't be reached directly. */

@@ -2,12 +2,13 @@ import type { Db } from "@meshguard/db";
 import type { Redis } from "ioredis";
 import type { DeviceEvents } from "~/events/device-events";
 import { DeviceNonces } from "~/lib/device-nonces";
-import { DEFAULT_DNS_BASE_DOMAIN } from "~/lib/dns-name";
+import { DEFAULT_DNS_BASE_DOMAIN, networkDnsDomain } from "~/lib/dns-name";
 import { PresenceStore } from "~/lib/presence";
 import { RateLimiter } from "~/lib/rate-limiter";
 import { relayTokenKey } from "~/lib/relay-token";
 import { AclService } from "~/services/acl/acl.service";
 import { DeviceLoginsService } from "~/services/device-logins/device-logins.service";
+import { ServicesService } from "~/services/services/services.service";
 import { DevicesService } from "~/services/devices/devices.service";
 import { EnrollmentTokensService } from "~/services/enrollment-tokens/enrollment-tokens.service";
 import { type CreateNetworkInput, NetworksService } from "~/services/networks/networks.service";
@@ -16,6 +17,7 @@ export { NetworksService, type CreateNetworkInput };
 export * from "~/services/acl/acl.service";
 export * from "~/services/device-logins/device-logins.service";
 export * from "~/services/devices/devices.service";
+export * from "~/services/services/services.service";
 export * from "~/services/enrollment-tokens/enrollment-tokens.service";
 
 export interface ServicesOptions {
@@ -46,6 +48,7 @@ export function createServices(
   const acl = new AclService(db, deviceEvents);
   const enrollmentTokens = new EnrollmentTokensService(db);
   const dnsBaseDomain = options.dnsBaseDomain ?? DEFAULT_DNS_BASE_DOMAIN;
+  const presence = new PresenceStore(redis);
   return {
     networks: new NetworksService(db, dnsBaseDomain),
     enrollmentTokens,
@@ -57,7 +60,10 @@ export function createServices(
     acl,
     deviceNonces: new DeviceNonces(redis),
     rateLimiter: new RateLimiter(redis),
-    devices: new DevicesService(db, new PresenceStore(redis), deviceEvents, acl, {
+    services: new ServicesService(db, presence, deviceEvents, (label) =>
+      networkDnsDomain(label, dnsBaseDomain),
+    ),
+    devices: new DevicesService(db, presence, deviceEvents, acl, {
       relayUrl: options.relayUrl,
       relayTokenKey: options.relayTokenKey ? relayTokenKey(options.relayTokenKey) : undefined,
       stunServers: options.stunServers,

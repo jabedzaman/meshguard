@@ -135,3 +135,19 @@ export function randomIpv6InPrefix(prefix: string): string {
   const hextets = [match[1], match[2], match[3], "0", ...Array.from(iid, (h) => h.toString(16))];
   return hextets.join(":");
 }
+
+/**
+ * A random address in the range not in `taken` (device and service addresses),
+ * for a service's virtual address; null if the range is full or nearly so.
+ */
+export function randomFreeIpv4InCidr(
+  cidr: string,
+  taken: Set<string>,
+  attempts = 50,
+): string | null {
+  for (let i = 0; i < attempts; i++) {
+    const candidate = randomIpv4InCidr(cidr);
+    if (!taken.has(candidate)) return candidate;
+  }
+  return null;
+}
