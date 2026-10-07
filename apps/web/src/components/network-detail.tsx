@@ -27,6 +27,7 @@ import { AccessRules } from "~/components/access-rules";
 import { AddDeviceDialog } from "~/components/add-device-dialog";
 import { DevicesList } from "~/components/devices-list";
 import { EnrollmentTokensList } from "~/components/enrollment-tokens-list";
+import { ConnectorsList } from "~/components/connectors-list";
 import { ServicesList } from "~/components/services-list";
 import { aclQueries, deviceQueries, networkQueries } from "~/lib/queries";
 
@@ -121,8 +122,9 @@ export function NetworkDetail({ networkId }: { networkId: string }) {
             <EnrollmentTokensList networkId={network.id} />
           </section>
         </TabsContent>
-        <TabsContent value="services">
+        <TabsContent value="services" className="flex flex-col gap-8">
           <ServicesList networkId={network.id} />
+          <ConnectorsList networkId={network.id} />
         </TabsContent>
         <TabsContent value="access">
           <AccessRules networkId={network.id} />

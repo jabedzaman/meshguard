@@ -54,6 +54,32 @@ type Server struct {
 	reverse []string              // reverse zones, see SetNetworks
 	addr    netip.Addr            // where queries arrive, see SetNetworks
 	domain  string                // see SetDomain
+
+	// Names under forwarded domains are answered by forward, off the TUN's
+	// read path, and the answer is handed to inject (see SetForwarder).
+	fmu     sync.RWMutex
+	domains []string
+	forward func(query []byte) []byte
+	inject  func(packet []byte)
+}
+
+// SetForwarder sends queries for names under domains to forward, which may
+// block: it runs in its own goroutine, and what it returns (nil: SERVFAIL) is
+// handed to inject as an IP packet for the OS. Pass no domains to stop.
+func (s *Server) SetForwarder(domains []string, forward func(query []byte) []byte, inject func(packet []byte)) {
+	s.fmu.Lock()
+	defer s.fmu.Unlock()
+	s.domains, s.forward, s.inject = domains, forward, inject
+}
+
+// forwarding returns the forwarder for name, if its domain is forwarded.
+func (s *Server) forwarding(name string) (func(query []byte) []byte, func(packet []byte), bool) {
+	s.fmu.RLock()
+	defer s.fmu.RUnlock()
+	if s.forward == nil || s.inject == nil || !MatchDomain(name, s.domains) {
+		return nil, nil, false
+	}
+	return s.forward, s.inject, true
 }
 
 // SetDomain sets the network's domain, without the trailing dot, e.g.

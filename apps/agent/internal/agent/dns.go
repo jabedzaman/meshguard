@@ -23,6 +23,9 @@ type dnsState struct {
 	// Where the OS sends the network's zones; invalid until it's set up.
 	resolver netip.Addr
 	networks []netip.Prefix
+	// Domains an app connector resolves for this device; the OS sends them
+	// to the agent's resolver too.
+	forwarded []string
 	// Interface whose OS resolver settings to undo on disconnect.
 	configuredIface string
 }
@@ -66,7 +69,7 @@ func (a *Agent) configureOSDNSLocked(c *connection) {
 		return
 	}
 	iface := c.engine.Name()
-	how, err := dns.ConfigureOS(iface, c.dns.resolver, c.dns.domain, dns.ReverseZones(c.dns.networks))
+	how, err := dns.ConfigureOS(iface, c.dns.resolver, c.dns.domain, dns.ReverseZones(c.dns.networks), c.dns.forwarded)
 	if err != nil {
 		c.dns.status.Configured = ""
 		c.dns.status.Problem = err.Error() + "; query " + c.dns.resolver.String() + " directly"

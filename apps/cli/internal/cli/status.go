@@ -92,6 +92,24 @@ func printStatus(s ipc.Status) {
 	if s.Problem != "" {
 		fmt.Printf("\n  ! %s\n", s.Problem)
 	}
+	if len(s.Connectors) > 0 {
+		fmt.Println("\napp connectors:")
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "  NAME\tDOMAINS\tTHROUGH")
+		for _, cn := range s.Connectors {
+			through := cn.Host
+			switch {
+			case cn.Hosting:
+				through = "this device"
+			case through == "":
+				through = "no host online"
+			case cn.Routes > 0:
+				through = fmt.Sprintf("%s (%d addresses routed)", cn.Host, cn.Routes)
+			}
+			fmt.Fprintf(w, "  %s\t%s\t%s\n", cn.Name, strings.Join(cn.Domains, ", "), through)
+		}
+		w.Flush()
+	}
 	if len(s.Services) > 0 {
 		fmt.Println("\nservices:")
 		printServices(s.Services)

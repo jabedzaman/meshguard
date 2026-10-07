@@ -11,7 +11,12 @@ import (
 )
 
 func TestConnContextRecordsPeerCredentials(t *testing.T) {
-	socket := filepath.Join(t.TempDir(), "agent.sock")
+	// Unix socket paths are limited to about 100 bytes, which macOS's temp
+	// directories exceed: use a short one.
+	dir, err := os.MkdirTemp("/tmp", "mg")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	socket := filepath.Join(dir, "agent.sock")
 	ln, err := Listen(socket)
 	require.NoError(t, err)
 

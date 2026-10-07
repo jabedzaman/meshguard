@@ -41,11 +41,28 @@ func (s *Server) HandlePacket(packet []byte) (reply []byte, handled bool) {
 	if length < udpHeaderLen || length > len(udp) {
 		return nil, true
 	}
-	res, err := s.Answer(udp[udpHeaderLen:length])
+	query := udp[udpHeaderLen:length]
+	from := netip.AddrPortFrom(netip.AddrFrom4([4]byte(packet[12:16])), binary.BigEndian.Uint16(udp[0:2]))
+	if name, ok := QuestionName(query); ok {
+		if forward, inject, ok := s.forwarding(name); ok {
+			// The answer comes from a peer: don't hold up the TUN meanwhile.
+			query = append([]byte(nil), query...)
+			go func() {
+				res := forward(query)
+				if res == nil {
+					res = Refused(query)
+				}
+				if res != nil {
+					inject(udpPacket(netip.AddrPortFrom(addr, port), from, res))
+				}
+			}()
+			return nil, true
+		}
+	}
+	res, err := s.Answer(query)
 	if err != nil {
 		return nil, true
 	}
-	from := netip.AddrPortFrom(netip.AddrFrom4([4]byte(packet[12:16])), binary.BigEndian.Uint16(udp[0:2]))
 	return udpPacket(netip.AddrPortFrom(addr, port), from, res), true
 }
 

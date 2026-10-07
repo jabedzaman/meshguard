@@ -20,13 +20,15 @@ const managedMarker = "# Managed by meshguard-agent"
 // reverse zones only. It returns a short description of how, for status.
 // Short names don't resolve on macOS: it ignores search domains from these
 // files for unqualified names.
-func ConfigureOS(_ string, resolver netip.Addr, domain string, reverseZones []string) (string, error) {
+func ConfigureOS(_ string, resolver netip.Addr, domain string, reverseZones, forwarded []string) (string, error) {
 	if err := os.MkdirAll(resolverDir, 0o755); err != nil {
 		return "", err
 	}
 	removeManaged() // zones from an earlier network or domain
 	content := fmt.Sprintf("%s\nnameserver %s\n", managedMarker, resolver)
-	for _, zone := range append([]string{domain}, reverseZones...) {
+	zones := append([]string{domain}, reverseZones...)
+	zones = append(zones, forwarded...)
+	for _, zone := range zones {
 		file := filepath.Join(resolverDir, zone)
 		if b, err := os.ReadFile(file); err == nil && !strings.HasPrefix(string(b), managedMarker) {
 			return "", fmt.Errorf("%s exists and isn't managed by meshguard", file)

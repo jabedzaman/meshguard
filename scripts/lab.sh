@@ -374,6 +374,41 @@ if docker exec meshguard-lab-a meshguard serve 7080 --port 80 2>&1 | grep -q "^E
 docker exec meshguard-lab-a meshguard serve off 80 >/dev/null
 docker exec meshguard-lab-a meshguard serve off 7070 >/dev/null
 
+# App connector: lab-r connects the domain corp.test for lab-b. lab-r can reach
+# app.corp.test (192.168.50.10, behind it); lab-b can't. lab-b's agent asks lab-r
+# for names under corp.test and routes the addresses it gets through lab-r, and
+# nothing else.
+echo
+echo "==> app connector (lab-r connects corp.test for lab-b)"
+docker exec meshguard-lab-r sh -c 'echo "192.168.50.10 app.corp.test" >> /etc/hosts'
+app_host=192.168.50.10
+resolver=$(dns_resolver lab-b)
+expect_traffic blocked "lab-b -> $app_host:8080 before the connector" can_connect lab-b "$app_host" 8080
+connector=$(post "/v1/networks/$svc_network/connectors" "{\"name\":\"corp\",\"domains\":[\"corp.test\"],\"hostDeviceIds\":[\"$r_id\"]}" | json .id)
+
+lookup() { docker exec meshguard-lab-b dig +short +time=3 +tries=1 @"$resolver" "$1" A; }
+got=""
+for _ in $(seq 40); do got=$(lookup app.corp.test || true); [ "$got" = "$app_host" ] && break; sleep 1; done
+if [ "$got" = "$app_host" ]; then ok "lab-b resolves app.corp.test through lab-r -> $got"; else fail "lab-b resolves app.corp.test to '$got', want $app_host"; fi
+expect_traffic allowed "lab-b -> $app_host:8080 after the lookup, through lab-r" can_connect lab-b "$app_host" 8080
+if docker exec meshguard-lab-b ip route get "$app_host" | grep -q "dev meshguard0"; then ok "lab-b routes only $app_host through meshguard0"; else fail "no route for $app_host through meshguard0"; fi
+if docker exec meshguard-lab-b ip route get 192.168.50.11 | grep -q "dev meshguard0"; then fail "a neighbouring address is routed too"; else ok "a neighbouring address (192.168.50.11) is not routed"; fi
+status_line=$(docker exec meshguard-lab-b meshguard status | grep -A3 "app connectors" | tr '\n' ' ')
+if [[ "$status_line" == *corp*corp.test*lab-r*1\ addresses* ]]; then ok "lab-b status: $(echo "$status_line" | tr -s ' ')"; else fail "lab-b status: $status_line"; fi
+
+# Names outside the connector's domains aren't forwarded, and the host answers only its own.
+rcode=$(docker exec meshguard-lab-b dig +time=3 +tries=1 @"$resolver" example.org A | grep -o "status: [A-Z]*" | head -1)
+if [ "$rcode" = "status: REFUSED" ]; then ok "lab-b's resolver refuses example.org ($rcode)"; else fail "example.org: $rcode"; fi
+rcode=$(docker exec meshguard-lab-b dig +time=3 +tries=1 @"$resolver" missing.corp.test A | grep -o "status: [A-Z]*" | head -1)
+if [ "$rcode" = "status: NXDOMAIN" ]; then ok "a missing name under corp.test is $rcode"; else fail "missing.corp.test: $rcode"; fi
+rcode=$(docker exec meshguard-lab-b dig +time=3 +tries=1 @"$(ip_of lab-r IPv4)" example.org A | grep -o "status: [A-Z]*" | head -1)
+if [ "$rcode" = "status: REFUSED" ]; then ok "the connector itself refuses names outside its domains ($rcode)"; else fail "connector on example.org: $rcode"; fi
+
+# Taking the host away takes the routes with it.
+curl -sf -m 15 -X PATCH -b "$COOKIES" -H "Origin: $WEB" -H 'Content-Type: application/json' -d '{"hostDeviceIds":[]}' "$API/v1/connectors/$connector" >/dev/null
+expect_traffic blocked "lab-b -> $app_host:8080 after the connector loses its host" can_connect lab-b "$app_host" 8080
+curl -sf -m 15 -X DELETE -b "$COOKIES" -H "Origin: $WEB" "$API/v1/connectors/$connector" >/dev/null
+
 # Certificates: lab-a gets an HTTPS certificate for its mesh name from Pebble (a
 # test CA) through the control plane, which answers the DNS-01 challenge. The key
 # is made on lab-a. lab-b trusts only Pebble's root and connects over the mesh.

@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 
 	"github.com/jabedzaman/meshguard/internal/coordination"
@@ -24,6 +25,9 @@ type routePlan struct {
 	// hosted are the service addresses this device serves itself; the others
 	// join their host's allowed IPs (in byPeer) so packets to them reach it.
 	hosted []netip.Addr
+	// connecting: this device hosts an app connector, so it forwards what peers
+	// reach for the connector's domains (see Engine.SetForwardGuard).
+	connecting bool
 }
 
 var defaultRoutes = []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0"), netip.MustParsePrefix("::/0")}
@@ -41,6 +45,11 @@ func planRoutes(nm *coordination.NetworkMap, accept bool, exitNode string, mesh,
 	}
 	if exitNode != "" {
 		planExitNode(&plan, nm, exitNode)
+	}
+	for _, cn := range nm.Connectors {
+		if cn.Hosting {
+			plan.connecting = true
+		}
 	}
 	for _, s := range nm.Services {
 		vip, err := netip.ParseAddr(s.VIP)
@@ -117,7 +126,15 @@ func localNetworks(skip string) []netip.Prefix {
 // status line, empty on success.
 func (a *Agent) applyRoutes(engine Engine, plan routePlan, mesh []netip.Prefix) string {
 	var problems []string
-	if err := engine.SetServedRoutes(plan.serve, mesh); err != nil {
+	// A connector forwards to whatever it resolves, like an exit node does, but
+	// only to those addresses: the guard drops the rest.
+	serve := plan.serve
+	servesDefault := slices.ContainsFunc(serve, func(p netip.Prefix) bool { return p.Bits() == 0 })
+	if plan.connecting && !servesDefault {
+		serve = append(slices.Clone(serve), defaultRoutes...)
+	}
+	engine.SetForwardGuard(plan.connecting && !servesDefault, mesh, plan.serve)
+	if err := engine.SetServedRoutes(serve, mesh); err != nil {
 		problems = append(problems, "cannot route subnets: "+err.Error())
 	}
 	if err := engine.SetAcceptedRoutes(plan.accepted); err != nil {

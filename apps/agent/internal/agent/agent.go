@@ -51,6 +51,12 @@ type Engine interface {
 	SetExitNode(on bool) error
 	// SetServiceAddresses answers for the service addresses this device hosts.
 	SetServiceAddresses([]netip.Addr)
+	// SetForwardGuard limits what peers may send beyond the mesh and served
+	// routes to AllowForwardTo's addresses (a device that connects domains).
+	SetForwardGuard(on bool, mesh, served []netip.Prefix)
+	AllowForwardTo(addrs []netip.Addr, ttl time.Duration)
+	// InjectToOS hands an IP packet to the OS as if a peer had sent it.
+	InjectToOS(packet []byte)
 	ACLDropped() uint64
 	// SetLocalHandler answers packets for addresses the agent serves (DNS).
 	SetLocalHandler(wireguard.LocalHandler)
@@ -127,6 +133,12 @@ type connection struct {
 	serve *serveManager
 	// funnel is public access through the relay.
 	funnel funnelState
+	// Connectors: lastMap is the last network map (to apply again when a route
+	// is learned or expires), dyn the routes learned from connectors' answers.
+	lastMap    *coordination.NetworkMap
+	exclude    []netip.Prefix
+	dyn        *dynamicRoutes
+	connectors connectorState
 	// routeProblem says why subnet routes could not be applied.
 	routeProblem string
 	acl          *coordination.ACL
@@ -188,6 +200,7 @@ func (a *Agent) startLocked(st *state.State) {
 		a.startHolePunching(c, st)
 		a.startDNSLocked(c, st)
 		a.startServeLocked(c, st)
+		a.startConnectorsLocked(c)
 		go a.watchNetwork(c, st)
 	}
 	go a.loop(c, st)
@@ -205,6 +218,7 @@ func (a *Agent) stopLocked() {
 	if c.serve != nil {
 		c.serve.close()
 	}
+	a.stopConnectorsLocked(c)
 	if c.engine != nil {
 		c.engine.Close()
 	}
@@ -500,30 +514,8 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 		if d != nil {
 			d.SetPeers(discoCandidates(nm.Peers))
 		}
-		plan := planRoutes(nm, prefs.AcceptRoutes, prefs.ExitNode, exclude, localNetworks(engine.Name()))
-		peers := make([]wireguard.Peer, 0, len(nm.Peers))
-		for _, p := range nm.Peers {
-			peer := wireguard.Peer{PublicKey: p.WireGuardPublicKey}
-			for _, addr := range []string{p.MeshIPv4, p.MeshIPv6} {
-				if prefix, err := wireguard.HostPrefix(addr); err == nil {
-					peer.AllowedIPs = append(peer.AllowedIPs, prefix)
-				}
-			}
-			peer.AllowedIPs = append(peer.AllowedIPs, plan.byPeer[p.ID]...)
-			// The bind picks direct or relay per packet; WireGuard
-			// only ever sees the peer.
-			if key, err := peerKey(p.WireGuardPublicKey); err == nil {
-				peer.Endpoint = wireguard.PeerEndpointString(key)
-			}
-			peers = append(peers, peer)
-		}
-		changed, err := engine.SetPeers(peers)
-		applyErr = err
-		if changed {
-			slog.Info("peers updated", "count", len(peers))
-		}
-		engine.SetACL(aclPolicy(nm.ACL))
-		routeProblem = a.applyRoutes(engine, plan, exclude)
+		var plan routePlan
+		plan, applyErr, routeProblem = a.applyMap(c, engine, nm, prefs, exclude)
 		accepted, serving, exitNode = routeStrings(plan.accepted), routeStrings(plan.serve), plan.exitPeer
 	}
 
@@ -536,6 +528,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	c.revision = nm.Revision
 	c.peers = nm.Peers
 	c.services = nm.Services
+	c.lastMap, c.exclude = nm, exclude
 	c.accepted, c.serving, c.routeProblem, c.exitNode = accepted, serving, routeProblem, exitNode
 	c.stun = nm.Stun
 	if !reflect.DeepEqual(c.acl, nm.ACL) {
@@ -545,6 +538,7 @@ func (a *Agent) syncOnce(c *connection, cl *coordination.Client, exclude []netip
 	c.acl = nm.ACL
 	a.updateDNSLocked(c, nm)
 	a.updateFunnelLocked(c, nm.Self.Funnel)
+	a.updateConnectorsLocked(c, nm)
 	a.saveMapLocked(c, nm)
 	switch {
 	case applyErr != nil:
@@ -722,6 +716,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		s.Serve = c.serve.status()
 	}
 	s.Funnel = c.funnelStatusLocked()
+	s.Connectors = c.connectorStatusLocked()
 	s.Serving, s.Accepted, s.ExitNode = c.serving, c.accepted, c.exitNode
 	s.ServingExitNode = slices.Contains(c.serving, "0.0.0.0/0")
 	if !c.lastSync.IsZero() {

@@ -92,6 +92,13 @@
       "when": 1791413169228,
       "tag": "0012_device_funnel",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791414600903,
+      "tag": "0013_app_connectors",
+      "breakpoints": true
     }
   ]
 }

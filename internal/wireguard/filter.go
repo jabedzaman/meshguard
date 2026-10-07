@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"sync/atomic"
 
+	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/jabedzaman/meshguard/internal/acl"
@@ -24,7 +25,22 @@ type filteredTUN struct {
 	local  atomic.Pointer[LocalHandler]
 	// Service addresses this device hosts; nil without an IPv4 mesh address.
 	nat *vipNAT
+	// Limits what peers may send on to other networks; see forwardGuard.
+	guard *forwardGuard
 }
+
+// inject hands a packet to the OS as if it had arrived from the network: for
+// answers that are ready after the TUN's read returned (forwarded DNS).
+func (t *filteredTUN) inject(packet []byte) {
+	buf := make([]byte, injectOffset+len(packet))
+	copy(buf[injectOffset:], packet)
+	if _, err := t.Device.Write([][]byte{buf}, injectOffset); err != nil {
+		slog.Debug("inject failed", "err", err)
+	}
+}
+
+// injectOffset is the room WireGuard leaves before a packet in its buffers.
+const injectOffset = device.MessageTransportOffsetContent
 
 func (t *filteredTUN) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
 	n, err := t.Device.Read(bufs, sizes, offset)
@@ -63,7 +79,7 @@ func (t *filteredTUN) Read(bufs [][]byte, sizes []int, offset int) (int, error) 
 func (t *filteredTUN) Write(bufs [][]byte, offset int) (int, error) {
 	var kept [][]byte // allocated only once something is dropped
 	for i, b := range bufs {
-		if t.filter.Allow(b[offset:]) {
+		if t.filter.Allow(b[offset:]) && (t.guard == nil || t.guard.allow(b[offset:])) {
 			if t.nat != nil {
 				t.nat.inbound(b[offset:])
 			}

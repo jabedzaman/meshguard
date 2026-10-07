@@ -9,6 +9,7 @@ import { RateLimiter } from "~/lib/rate-limiter";
 import { relayTokenKey } from "~/lib/relay-token";
 import { AclService } from "~/services/acl/acl.service";
 import { DeviceLoginsService } from "~/services/device-logins/device-logins.service";
+import { ConnectorsService } from "~/services/connectors/connectors.service";
 import { ServicesService } from "~/services/services/services.service";
 import {
   CertificatesService,
@@ -24,6 +25,7 @@ export * from "~/services/device-logins/device-logins.service";
 export * from "~/services/devices/devices.service";
 export * from "~/services/certificates/certificates.service";
 export * from "~/services/services/services.service";
+export * from "~/services/connectors/connectors.service";
 export * from "~/services/enrollment-tokens/enrollment-tokens.service";
 
 export interface ServicesOptions {
@@ -74,6 +76,7 @@ export function createServices(
     ),
     deviceNonces: new DeviceNonces(redis),
     rateLimiter,
+    connectors: new ConnectorsService(db, presence, deviceEvents),
     services: new ServicesService(db, presence, deviceEvents, (label) =>
       networkDnsDomain(label, dnsBaseDomain),
     ),

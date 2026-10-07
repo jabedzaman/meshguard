@@ -262,6 +262,17 @@ the web (the globe icon); the state shows `waiting for an owner or admin to turn
 on` until then. It also needs the control plane's relay to listen publicly
 (`RELAY_FUNNEL_ADDR`) and certificates (`ACME_DIRECTORY_URL`).
 
+### App connectors
+
+An owner or admin creates an app connector in the web (Services tab): a name, the
+domains (each covers every name under it) and the devices that host it. Nothing to
+run on the clients. A device resolving `app.corp.example.com` then gets its address
+from the first online host and reaches it through that host; the rest of its traffic
+is untouched. `meshguard status` lists the connectors, which host serves each, and
+how many addresses are routed through it. The host needs Linux, `iptables`, and to be
+able to resolve and reach the apps. Under `deny`, access rules must let the clients
+reach the host (it answers their DNS lookups on UDP 53 and forwards their traffic).
+
 ### `meshguard services`
 
 Lists the network's services: name, DNS name, address and the device serving it

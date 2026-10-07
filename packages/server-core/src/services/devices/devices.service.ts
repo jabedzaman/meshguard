@@ -14,7 +14,17 @@ import { hashToken } from "~/lib/tokens";
 import type { AclService } from "~/services/acl/acl.service";
 import { serviceAddresses } from "~/services/services/services.service";
 
-const { deviceRoutes, devices, enrollmentTokens, networks, serviceHosts, services, user } = schema;
+const {
+  appConnectorHosts,
+  appConnectors,
+  deviceRoutes,
+  devices,
+  enrollmentTokens,
+  networks,
+  serviceHosts,
+  services,
+  user,
+} = schema;
 
 /** Address picks before giving up; collisions only matter in nearly full networks. */
 const MAX_ADDRESS_ATTEMPTS = 20;
@@ -453,6 +463,49 @@ export class DevicesService {
       ...new Set(hostRows.map((row) => row.deviceId)),
     ]);
     const visibleIds = new Set(visible.map((peer) => peer.id));
+
+    // App connectors: the same, for domains instead of addresses.
+    const connectorRows = await this.db
+      .select({ id: appConnectors.id, name: appConnectors.name, domains: appConnectors.domains })
+      .from(appConnectors)
+      .where(eq(appConnectors.networkId, self.networkId))
+      .orderBy(appConnectors.name);
+    const connectorHostRows = connectorRows.length
+      ? await this.db
+          .select({
+            connectorId: appConnectorHosts.connectorId,
+            deviceId: appConnectorHosts.deviceId,
+          })
+          .from(appConnectorHosts)
+          .innerJoin(devices, eq(devices.id, appConnectorHosts.deviceId))
+          .where(
+            inArray(
+              appConnectorHosts.connectorId,
+              connectorRows.map((row) => row.id),
+            ),
+          )
+          .orderBy(devices.createdAt)
+      : [];
+    const connectorHostsOnline = await this.presence.lastSeen(self.networkId, [
+      ...new Set(connectorHostRows.map((row) => row.deviceId)),
+    ]);
+    const connectorMap = connectorRows.map((connector) => {
+      const hosts = connectorHostRows
+        .filter((row) => row.connectorId === connector.id)
+        .map((row) => row.deviceId);
+      return {
+        name: connector.name,
+        domains: connector.domains,
+        /** This device connects the domains: it resolves them for its peers and routes what they reach. */
+        hosting: hosts.includes(self.id),
+        /** The peer to send the domains' lookups and traffic to: the first online host it can see. */
+        hostId:
+          hosts.find(
+            (id) => id !== self.id && connectorHostsOnline.has(id) && visibleIds.has(id),
+          ) ?? null,
+      };
+    });
+
     const serviceMap = serviceRows.map((service) => {
       const hosts = hostRows
         .filter((row) => row.serviceId === service.id)
@@ -491,6 +544,7 @@ export class DevicesService {
         lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt,
       })),
       services: serviceMap,
+      connectors: connectorMap,
       /** Traffic from peers the agent lets in. */
       acl: policy.acl,
       /** Where to relay WireGuard packets for peers that can't be reached directly. */

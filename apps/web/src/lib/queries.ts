@@ -97,6 +97,30 @@ export const serviceQueries = {
     }),
 };
 
+export const connectorQueries = {
+  all: () => ["connectors"] as const,
+  list: (networkId: string) =>
+    queryOptions({
+      queryKey: [...connectorQueries.all(), networkId],
+      queryFn: () =>
+        parseResponse(api.v1.networks[":networkId"].connectors.$get({ param: { networkId } })),
+      refetchInterval: 5000,
+    }),
+};
+
+export const connectorMutations = {
+  create: (networkId: string, name: string, domains: string[], hostDeviceIds: string[]) =>
+    parseResponse(
+      api.v1.networks[":networkId"].connectors.$post({
+        param: { networkId },
+        json: { name, domains, hostDeviceIds },
+      }),
+    ),
+  update: (id: string, input: { domains?: string[]; hostDeviceIds?: string[] }) =>
+    parseResponse(api.v1.connectors[":id"].$patch({ param: { id }, json: input })),
+  remove: (id: string) => parseResponse(api.v1.connectors[":id"].$delete({ param: { id } })),
+};
+
 export const serviceMutations = {
   create: (networkId: string, name: string, hostDeviceIds: string[]) =>
     parseResponse(

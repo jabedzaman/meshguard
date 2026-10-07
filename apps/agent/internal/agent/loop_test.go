@@ -56,6 +56,9 @@ func (e *fakeEngine) SetServiceAddresses(vips []netip.Addr) {
 	defer e.mu.Unlock()
 	e.hosted = vips
 }
+func (e *fakeEngine) SetForwardGuard(bool, []netip.Prefix, []netip.Prefix) {}
+func (e *fakeEngine) AllowForwardTo([]netip.Addr, time.Duration)           {}
+func (e *fakeEngine) InjectToOS([]byte)                                    {}
 func (e *fakeEngine) SetExitNode(on bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()

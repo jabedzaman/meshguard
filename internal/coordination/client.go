@@ -84,6 +84,18 @@ type Service struct {
 	HostID *string `json:"hostId"`
 }
 
+// Connector is an app connector: the traffic for its domains goes through one
+// of its hosts.
+type Connector struct {
+	Name    string   `json:"name"`
+	Domains []string `json:"domains"`
+	// This device hosts it: it resolves the domains for its peers and routes
+	// what they reach.
+	Hosting bool `json:"hosting"`
+	// The peer to send the domains' lookups and traffic to; nil when none is online.
+	HostID *string `json:"hostId"`
+}
+
 // Self is this device in its network map.
 type Self struct {
 	state.Device
@@ -120,11 +132,12 @@ type ACLRule struct {
 
 // NetworkMap is everything the agent needs to configure WireGuard.
 type NetworkMap struct {
-	Self     Self          `json:"self"`
-	Network  state.Network `json:"network"`
-	Peers    []Peer        `json:"peers"`
-	Relay    *Relay        `json:"relay"`
-	Services []Service     `json:"services"`
+	Self       Self          `json:"self"`
+	Network    state.Network `json:"network"`
+	Peers      []Peer        `json:"peers"`
+	Relay      *Relay        `json:"relay"`
+	Services   []Service     `json:"services"`
+	Connectors []Connector   `json:"connectors"`
 	// Nil from a control plane without access rules: everything is allowed.
 	ACL *ACL `json:"acl"`
 	// STUN servers ("host:port") for discovering our public address.

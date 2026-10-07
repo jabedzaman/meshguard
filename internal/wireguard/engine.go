@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,7 +69,7 @@ func Start(cfg Config) (*Engine, error) {
 	logger := device.NewLogger(device.LogLevelError, "wireguard: ")
 	bind := NewBind(conn.NewDefaultBind())
 	filter := acl.NewFilter(acl.Policy{})
-	ft := &filteredTUN{Device: t, filter: filter}
+	ft := &filteredTUN{Device: t, filter: filter, guard: newForwardGuard()}
 	for _, a := range cfg.Addresses {
 		if a.Addr().Is4() {
 			ft.nat = newVIPNAT(a.Addr())
@@ -124,6 +125,21 @@ func (e *Engine) SetServiceAddresses(vips []netip.Addr) {
 	if e.tun.nat != nil {
 		e.tun.nat.set(vips)
 	}
+}
+
+// InjectToOS hands an IP packet to the OS as if a peer had sent it.
+func (e *Engine) InjectToOS(packet []byte) { e.tun.inject(packet) }
+
+// SetForwardGuard limits what peers may send to addresses outside the mesh and
+// served: nothing, except addresses passed to AllowForwardTo. Off for devices
+// that don't connect domains for their peers.
+func (e *Engine) SetForwardGuard(on bool, mesh, served []netip.Prefix) {
+	e.tun.guard.configure(on, slices.Clone(mesh), slices.Clone(served))
+}
+
+// AllowForwardTo lets peers reach addrs for ttl (what the device resolved).
+func (e *Engine) AllowForwardTo(addrs []netip.Addr, ttl time.Duration) {
+	e.tun.guard.learn(addrs, ttl)
 }
 
 // SetLocalHandler answers packets for addresses the agent serves itself.

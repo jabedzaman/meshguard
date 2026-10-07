@@ -54,6 +54,8 @@ type Status struct {
 	Serve []ServeRule `json:"serve,omitempty"`
 	// Sharing a local port with the internet through the relay.
 	Funnel *FunnelStatus `json:"funnel,omitempty"`
+	// App connectors: domains whose traffic goes through a device.
+	Connectors []ConnectorStatus `json:"connectors,omitempty"`
 	// Services in the network and who serves them.
 	Services []Service `json:"services,omitempty"`
 	// The peer all traffic goes through, once it is in use (see Prefs.ExitNode).
@@ -92,6 +94,17 @@ type Cert struct {
 	NotAfter    time.Time `json:"notAfter"`
 	// Issued now rather than the saved one.
 	Renewed bool `json:"renewed"`
+}
+
+// ConnectorStatus is an app connector as this device sees it.
+type ConnectorStatus struct {
+	Name    string   `json:"name"`
+	Domains []string `json:"domains"`
+	// The peer the domains go through; empty when this device hosts it or no host is online.
+	Host    string `json:"host,omitempty"`
+	Hosting bool   `json:"hosting,omitempty"`
+	// Addresses learned for the domains and routed through the host now.
+	Routes int `json:"routes,omitempty"`
 }
 
 // Service is a named virtual address in the network.

@@ -3,6 +3,7 @@ import { aclRulesRoutes } from "~/modules/acl/acl.routes";
 import { deviceLoginsRoutes } from "~/modules/device-logins/device-logins.routes";
 import { devicesRoutes } from "~/modules/devices/devices.routes";
 import { enrollmentTokensRoutes } from "~/modules/enrollment-tokens/enrollment-tokens.routes";
+import { connectorsRoutes } from "~/modules/connectors/connectors.routes";
 import { servicesRoutes } from "~/modules/services/services.routes";
 import { networksRoutes } from "~/modules/networks/networks.routes";
 import type { AppEnv } from "~/types";
@@ -14,4 +15,5 @@ export const v1Routes = new Hono<AppEnv>()
   .route("/devices", devicesRoutes)
   .route("/device-logins", deviceLoginsRoutes)
   .route("/services", servicesRoutes)
+  .route("/connectors", connectorsRoutes)
   .route("/acl-rules", aclRulesRoutes);

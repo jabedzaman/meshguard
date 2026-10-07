@@ -197,6 +197,40 @@ export const acmeAccounts = pgTable("acme_accounts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * An app connector: the traffic for some domains goes through the devices that
+ * host it. Clients' agents forward those domains' DNS queries to a host, which
+ * resolves them with its own resolver, and route the answers through it.
+ */
+export const appConnectors = pgTable(
+  "app_connectors",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    networkId: uuid("network_id")
+      .notNull()
+      .references(() => networks.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Lower-case domains; each covers itself and every name under it. */
+    domains: text("domains").array().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("app_connectors_network_id_name_unique").on(t.networkId, t.name)],
+);
+
+/** The devices that host an app connector. */
+export const appConnectorHosts = pgTable(
+  "app_connector_hosts",
+  {
+    connectorId: uuid("connector_id")
+      .notNull()
+      .references(() => appConnectors.id, { onDelete: "cascade" }),
+    deviceId: uuid("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.connectorId, t.deviceId] })],
+);
+
 /** The devices that serve a service. */
 export const serviceHosts = pgTable(
   "service_hosts",

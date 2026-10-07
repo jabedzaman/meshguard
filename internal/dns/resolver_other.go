@@ -8,7 +8,7 @@ import (
 )
 
 // ConfigureOS is not supported on this platform yet.
-func ConfigureOS(string, netip.Addr, string, []string) (string, error) {
+func ConfigureOS(string, netip.Addr, string, []string, []string) (string, error) {
 	return "", errors.New("split DNS is not supported on this platform")
 }
 
