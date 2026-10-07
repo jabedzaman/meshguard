@@ -207,6 +207,24 @@ simultaneous punching, the low-TTL trick, and UPnP / NAT-PMP / PCP port
 mappings. Without root the agent stays registered and syncing, and
 `meshguard status` explains why WireGuard isn't running.
 
+## HTTPS certificates
+
+`meshguard cert` gets a TLS certificate for the device's mesh name
+(`laptop.brave-otter.mesh.jabed.dev`) that any browser trusts, with no public
+address record for the name. The agent makes an ECDSA key and a certificate
+request for exactly its own name and sends it to the control plane
+(`POST /v1/devices/self/certificate`, signed with the device's identity key).
+The control plane checks the request names only that device's name, then orders
+the certificate from the ACME directory (`ACME_DIRECTORY_URL`) with one account
+per directory, kept in `acme_accounts`. It answers the CA's DNS-01 challenge by
+writing the `_acme-challenge.<name>` TXT record in the zone of
+`DNS_BASE_DOMAIN` (Cloudflare; Pebble's test DNS in the lab), which is why that
+domain must be one the operator owns, and returns the chain. The private key
+never leaves the device. The agent keeps the pair under `certs/` in its state
+directory and returns it until a third of its lifetime is left; the CLI writes
+copies where asked. A device may order five certificates a day, and certificate
+authorities limit orders per domain, so use a staging directory while testing.
+
 ## Private DNS
 
 Devices resolve as `<name>.<network domain>`, like Tailscale's

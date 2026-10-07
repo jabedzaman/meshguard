@@ -235,6 +235,15 @@ meshguard serve off 8080          # stop
 It is kept across restarts. TCP only, and only local ports (`localhost` or
 `127.0.0.1`). Access rules still apply to the connections.
 
+### `meshguard cert`
+
+Gets an HTTPS certificate for this device's mesh name and writes `<name>.crt` and
+`<name>.key` (default: the current directory, `--out` for another). The key is made
+here and never leaves the device; the control plane gets the certificate signed by a
+certificate authority. Run it again to renew: the saved certificate is returned
+until a third of its life is left, `--force` always gets a new one. The control plane
+must have certificates turned on (`ACME_DIRECTORY_URL`, see `.env.example`).
+
 ### `meshguard services`
 
 Lists the network's services: name, DNS name, address and the device serving it

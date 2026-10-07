@@ -9,6 +9,10 @@ import { relayTokenKey } from "~/lib/relay-token";
 import { AclService } from "~/services/acl/acl.service";
 import { DeviceLoginsService } from "~/services/device-logins/device-logins.service";
 import { ServicesService } from "~/services/services/services.service";
+import {
+  CertificatesService,
+  type CertificatesConfig,
+} from "~/services/certificates/certificates.service";
 import { DevicesService } from "~/services/devices/devices.service";
 import { EnrollmentTokensService } from "~/services/enrollment-tokens/enrollment-tokens.service";
 import { type CreateNetworkInput, NetworksService } from "~/services/networks/networks.service";
@@ -17,6 +21,7 @@ export { NetworksService, type CreateNetworkInput };
 export * from "~/services/acl/acl.service";
 export * from "~/services/device-logins/device-logins.service";
 export * from "~/services/devices/devices.service";
+export * from "~/services/certificates/certificates.service";
 export * from "~/services/services/services.service";
 export * from "~/services/enrollment-tokens/enrollment-tokens.service";
 
@@ -29,6 +34,8 @@ export interface ServicesOptions {
   stunServers?: string[];
   /** DNS_BASE_DOMAIN: devices resolve as `<device>.<network dns label>.<base>`. */
   dnsBaseDomain?: string;
+  /** Issues HTTPS certificates for mesh names; off when unset. */
+  certificates?: CertificatesConfig;
   /** WEB_URL: where `meshguard up` sends people to approve a browser login. */
   webUrl?: string;
 }
@@ -49,6 +56,7 @@ export function createServices(
   const enrollmentTokens = new EnrollmentTokensService(db);
   const dnsBaseDomain = options.dnsBaseDomain ?? DEFAULT_DNS_BASE_DOMAIN;
   const presence = new PresenceStore(redis);
+  const rateLimiter = new RateLimiter(redis);
   return {
     networks: new NetworksService(db, dnsBaseDomain),
     enrollmentTokens,
@@ -58,8 +66,11 @@ export function createServices(
       options.webUrl ?? "http://localhost:3000",
     ),
     acl,
+    certificates: new CertificatesService(db, rateLimiter, options.certificates ?? null, (label) =>
+      networkDnsDomain(label, dnsBaseDomain),
+    ),
     deviceNonces: new DeviceNonces(redis),
-    rateLimiter: new RateLimiter(redis),
+    rateLimiter,
     services: new ServicesService(db, presence, deviceEvents, (label) =>
       networkDnsDomain(label, dnsBaseDomain),
     ),

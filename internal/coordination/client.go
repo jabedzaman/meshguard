@@ -177,6 +177,33 @@ func (c *Client) Watch(ctx context.Context, revision string) (bool, error) {
 	return res.Changed, nil
 }
 
+// CertificateResponse is the certificate chain for the device's mesh name.
+type CertificateResponse struct {
+	Name        string `json:"name"`
+	Certificate string `json:"certificate"`
+}
+
+// CertificateTimeout bounds one Certificate call: the CA validates a DNS
+// challenge, which can take a minute.
+const CertificateTimeout = 3 * time.Minute
+
+// Certificate sends a PEM certificate request for this device's own mesh name
+// and returns the signed chain. Requires Signer.
+func (c *Client) Certificate(ctx context.Context, csr string) (*CertificateResponse, error) {
+	if c.Signer == nil {
+		return nil, fmt.Errorf("certificate requires a device signer")
+	}
+	ctx, cancel := context.WithTimeout(ctx, CertificateTimeout)
+	defer cancel()
+	long := *c
+	long.HTTP = &http.Client{Transport: c.HTTP.Transport}
+	var res CertificateResponse
+	if err := long.post(ctx, "/v1/devices/self/certificate", map[string]string{"csr": csr}, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 // Enroll redeems an enrollment token for this device.
 func (c *Client) Enroll(ctx context.Context, req EnrollRequest) (*EnrollResponse, error) {
 	var res EnrollResponse

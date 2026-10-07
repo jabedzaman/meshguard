@@ -3,11 +3,14 @@ import { authOptionsFromEnv, createAuth } from "@meshguard/auth";
 import { loadServerEnv } from "@meshguard/config";
 import { createDb } from "@meshguard/db";
 import {
+  challtestsrvDns,
+  cloudflareDns,
   createEmailQueue,
   createNats,
   createRedis,
   createServices,
   DeviceEvents,
+  trustAnyAcmeServer,
 } from "@meshguard/server-core";
 import { createApp } from "~/app";
 import { logger } from "~/lib/logger";
@@ -17,6 +20,34 @@ const db = createDb(env.DATABASE_URL);
 const redis = createRedis(env.REDIS_URL);
 const emailQueue = createEmailQueue(redis);
 const nats = await createNats(env.NATS_URL, "meshguard-api");
+// HTTPS certificates for mesh names need an ACME directory and a way to answer DNS-01.
+function certificatesFromEnv() {
+  if (!env.ACME_DIRECTORY_URL) return undefined;
+  let dns;
+  let skipChallengeVerification = false;
+  if (
+    env.ACME_DNS_PROVIDER === "cloudflare" &&
+    env.CLOUDFLARE_API_TOKEN &&
+    env.CLOUDFLARE_ZONE_ID
+  ) {
+    dns = cloudflareDns({ apiToken: env.CLOUDFLARE_API_TOKEN, zoneId: env.CLOUDFLARE_ZONE_ID });
+  } else if (env.ACME_DNS_PROVIDER === "challtestsrv" && env.CHALLTESTSRV_URL) {
+    dns = challtestsrvDns({ url: env.CHALLTESTSRV_URL });
+    skipChallengeVerification = true; // the test DNS server isn't on the system resolver
+  }
+  if (!dns) {
+    logger.warn("ACME_DIRECTORY_URL is set without a DNS provider: certificates are off");
+    return undefined;
+  }
+  if (env.ACME_INSECURE_TLS) trustAnyAcmeServer();
+  return {
+    directoryUrl: env.ACME_DIRECTORY_URL,
+    email: env.ACME_EMAIL,
+    dns,
+    skipChallengeVerification,
+  };
+}
+
 const services = createServices(
   { db, redis, deviceEvents: new DeviceEvents(nats) },
   {
@@ -25,6 +56,7 @@ const services = createServices(
     stunServers: env.STUN_SERVERS,
     dnsBaseDomain: env.DNS_BASE_DOMAIN,
     webUrl: env.WEB_URL,
+    certificates: certificatesFromEnv(),
   },
 );
 const auth = createAuth(db, {

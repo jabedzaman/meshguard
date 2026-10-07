@@ -69,6 +69,11 @@ export function sync(
   return signedPost("/v1/devices/self/sync", device, body, options);
 }
 
+/** Signed POST /v1/devices/self/certificate with a certificate request. */
+export function requestCertificate(device: { id: string; privateKey: KeyObject }, csr: string) {
+  return signedPost("/v1/devices/self/certificate", device, { csr });
+}
+
 /** Signed POST /v1/devices/self/watch: resolves when the map differs from `revision` (or ~50s). */
 export function watch(device: { id: string; privateKey: KeyObject }, revision: string) {
   return signedPost("/v1/devices/self/watch", device, { revision });

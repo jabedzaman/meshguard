@@ -181,6 +181,17 @@ export const services = pgTable(
   ],
 );
 
+/**
+ * The control plane's ACME account per directory, so restarts (and replicas)
+ * keep one account: CAs limit how many accounts can be created.
+ */
+export const acmeAccounts = pgTable("acme_accounts", {
+  directoryUrl: text("directory_url").primaryKey(),
+  /** PKCS#8 PEM of the account key. */
+  keyPem: text("key_pem").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** The devices that serve a service. */
 export const serviceHosts = pgTable(
   "service_hosts",

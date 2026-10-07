@@ -45,6 +45,23 @@ export const serverEnvSchema = z.object({
       )
       .default("mesh.jabed.dev"),
   ),
+  /**
+   * ACME directory that issues HTTPS certificates for mesh names
+   * (`meshguard cert`), e.g. https://acme-v02.api.letsencrypt.org/directory.
+   * Off when unset.
+   */
+  ACME_DIRECTORY_URL: optional.pipe(z.url().optional()),
+  /** Contact address for the ACME account. */
+  ACME_EMAIL: optional,
+  /** How ACME DNS-01 challenges are answered: Cloudflare, or Pebble's test server. */
+  ACME_DNS_PROVIDER: z.enum(["cloudflare", "challtestsrv"]).optional(),
+  /** Cloudflare API token allowed to edit DNS in the zone of DNS_BASE_DOMAIN. */
+  CLOUDFLARE_API_TOKEN: optional,
+  CLOUDFLARE_ZONE_ID: optional,
+  /** Pebble's challenge test server, e.g. http://challtestsrv:8055 (tests only). */
+  CHALLTESTSRV_URL: optional.pipe(z.url().optional()),
+  /** Trust any TLS certificate from the ACME directory. For Pebble in tests only. */
+  ACME_INSECURE_TLS: optional,
   /** Comma-separated host:port STUN servers agents use to find their public address. */
   STUN_SERVERS: z
     .string()

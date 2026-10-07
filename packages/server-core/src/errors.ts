@@ -1,4 +1,4 @@
-export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 503;
+export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 501 | 502 | 503;
 
 /**
  * Base class for errors that are safe to show to clients. Transport layers

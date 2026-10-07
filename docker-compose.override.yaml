@@ -155,6 +155,13 @@ services:
       - WEB_URL=http://localhost:3200
       - RELAY_URL=ws://10.200.0.11:3340/relay
       - STUN_SERVERS=10.200.0.11:3478,10.200.0.11:3479
+      # HTTPS certificates for mesh names come from Pebble, a test CA that
+      # reads DNS-01 answers from challtestsrv.
+      - ACME_DIRECTORY_URL=https://pebble:14000/dir
+      - ACME_EMAIL=lab@e2e.test
+      - ACME_DNS_PROVIDER=challtestsrv
+      - CHALLTESTSRV_URL=http://challtestsrv:8055
+      - ACME_INSECURE_TLS=1
       - LOG_LEVEL=warn
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
@@ -239,6 +246,27 @@ services:
       - ./packages/emails/dist:/app/packages/emails/dist
       - ./packages/server-core/dist:/app/packages/server-core/dist
       - ./packages/utils/dist:/app/packages/utils/dist
+
+  # Pebble, Let's Encrypt's test CA, and the DNS server it validates against,
+  # for the certificates tests (`meshguard cert`). Not started by `docker:up`.
+  pebble:
+    profiles: [e2e]
+    container_name: meshguard-pebble
+    image: ghcr.io/letsencrypt/pebble:latest
+    command: ["-config", "/test/config/pebble-config.json", "-dnsserver", "challtestsrv:8053"]
+    environment:
+      - PEBBLE_VA_NOSLEEP=1
+      - PEBBLE_VA_ALWAYS_VALID=0
+    ports:
+      - "15000:15000" # management: GET /roots/0 is the CA certificate
+    depends_on:
+      - challtestsrv
+
+  challtestsrv:
+    profiles: [e2e]
+    container_name: meshguard-challtestsrv
+    image: ghcr.io/letsencrypt/pebble-challtestsrv:latest
+    command: ["-http01", "", "-https01", "", "-tlsalpn01", ""]
 
   # Browser for the tests. Host networking so it reaches the e2e stack on
   # localhost, where web and API share a site and session cookies work.

@@ -40,7 +40,7 @@ DATABASE_URL=${E2E_DATABASE_URL:-postgres://meshguard:meshguard@localhost:5432/m
 echo "==> starting relay, api-e2e and the lab"
 docker rm -f meshguard-lab-c meshguard-lab-d >/dev/null 2>&1 || true   # from the previous lab layout
 docker compose up -d --build relay >/dev/null
-docker compose --profile e2e up -d api-e2e >/dev/null
+docker compose --profile e2e up -d --build api-e2e pebble challtestsrv >/dev/null
 for _ in $(seq 60); do curl -sf "$API/healthz" >/dev/null && break; sleep 1; done
 docker compose --profile lab up -d --build --force-recreate \
   router-e router-g router-h lab-a lab-b lab-r lab-s lab-e lab-f lab-g lab-h >/dev/null
@@ -362,6 +362,39 @@ expect_answer_from "lab-b -> lab-a:7070 after down and up" "loopback on lab-a" 4
 if docker exec meshguard-lab-a meshguard serve 7080 --port 80 2>&1 | grep -q "^Error"; then fail "serve 7080 --port 80 refused"; else ok "meshguard serve accepts a different peer-facing port"; fi
 docker exec meshguard-lab-a meshguard serve off 80 >/dev/null
 docker exec meshguard-lab-a meshguard serve off 7070 >/dev/null
+
+# Certificates: lab-a gets an HTTPS certificate for its mesh name from Pebble (a
+# test CA) through the control plane, which answers the DNS-01 challenge. The key
+# is made on lab-a. lab-b trusts only Pebble's root and connects over the mesh.
+echo
+echo "==> certificates (lab-a gets an HTTPS certificate for its mesh name)"
+a_name=$(dns_name lab-a)
+cert_json=$(docker exec meshguard-lab-a meshguard cert --out /tmp/certs --json 2>/tmp/cert.err || true)
+if [ -z "$cert_json" ]; then fail "meshguard cert: $(cat /tmp/cert.err)"; else
+  [ "$(json .name <<<"$cert_json")" = "$a_name" ] && ok "meshguard cert issued a certificate for $a_name" || fail "certificate name: $cert_json"
+  [ "$(json .renewed <<<"$cert_json")" = true ] && ok "it was issued now" || fail "not issued: $cert_json"
+  perms=$(docker exec meshguard-lab-a stat -c %a "/tmp/certs/$a_name.key")
+  [ "$perms" = 600 ] && ok "the private key is readable by its owner only (600)" || fail "key permissions $perms"
+
+  # The chain is for the name and signed by Pebble's root.
+  curl -sk https://localhost:15000/roots/0 | docker exec -i meshguard-lab-b sh -c 'cat > /tmp/pebble-root.pem'
+  docker exec meshguard-lab-a sh -c "openssl x509 -in /tmp/certs/$a_name.crt -noout -ext subjectAltName" | grep -q "DNS:$a_name" \
+    && ok "the certificate names $a_name" || fail "the certificate does not name $a_name"
+  docker exec -d meshguard-lab-a openssl s_server -accept 4443 -cert "/tmp/certs/$a_name.crt" -cert_chain "/tmp/certs/$a_name.crt" -key "/tmp/certs/$a_name.key" -www
+  a4=$(ip_of lab-a IPv4)
+  tls_ok() { docker exec meshguard-lab-b curl -sS -m 5 --cacert /tmp/pebble-root.pem --resolve "$a_name:4443:$a4" "https://$a_name:4443/" >/dev/null 2>&1; }
+  for _ in $(seq 10); do tls_ok && break; sleep 1; done
+  if tls_ok; then ok "lab-b trusts https://$a_name:4443 through the mesh"; else
+    fail "lab-b cannot verify https://$a_name:4443: $(docker exec meshguard-lab-b curl -sS -m 5 --cacert /tmp/pebble-root.pem --resolve "$a_name:4443:$a4" "https://$a_name:4443/" 2>&1 | head -3)"; fi
+  if docker exec meshguard-lab-b curl -sS -m 5 --cacert /tmp/pebble-root.pem "https://$a4:4443/" >/dev/null 2>&1; then
+    fail "the certificate is accepted for an address it is not for"; else ok "the certificate is rejected for the bare address"; fi
+
+  # Asking again returns the saved certificate; --force gets a new one.
+  again=$(docker exec meshguard-lab-a meshguard cert --out /tmp/certs --json)
+  [ "$(json .renewed <<<"$again")" = false ] && ok "asking again returns the saved certificate" || fail "second call: $again"
+  forced=$(docker exec meshguard-lab-a meshguard cert --out /tmp/certs --json --force)
+  [ "$(json .renewed <<<"$forced")" = true ] && ok "--force issues a new certificate" || fail "forced call: $forced"
+fi
 
 # Sanity: lab-f can't open a connection into lab-e's NAT on its own. (Same
 # reason for the unreachable route as above.)

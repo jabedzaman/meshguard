@@ -83,6 +83,9 @@ type Agent struct {
 	// network changed. Default: the advertisable local addresses.
 	linkState func(engine Engine, exclude []netip.Prefix) string
 
+	// certMu serializes certificate orders, which take long and must not hold mu.
+	certMu sync.Mutex
+
 	mu   sync.Mutex // guards ctx and conn, and serializes up/down/logout
 	ctx  context.Context
 	conn *connection // nil when not connected

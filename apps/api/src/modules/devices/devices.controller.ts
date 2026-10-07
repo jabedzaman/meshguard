@@ -12,6 +12,7 @@ import {
 } from "~/middlewares/auth.middleware";
 import { requireDevice } from "~/middlewares/device.middleware";
 import {
+  deviceCertificateBody,
   enrollDeviceBody,
   renameDeviceBody,
   setDeviceRoutesBody,
@@ -190,6 +191,22 @@ export const watch = factory.createHandlers(
     const result = await c.var.services.devices.watch(c.var.device, c.req.valid("json").revision, {
       signal: c.req.raw.signal,
     });
+    return c.json(result, 200);
+  },
+);
+
+/**
+ * `meshguard cert`: signs the device's certificate request for its own mesh
+ * name with the control plane's ACME account. The key never leaves the device.
+ */
+export const certificate = factory.createHandlers(
+  requireDevice,
+  validate("json", deviceCertificateBody),
+  async (c) => {
+    const result = await c.var.services.certificates.issue(
+      c.var.device.id,
+      c.req.valid("json").csr,
+    );
     return c.json(result, 200);
   },
 );

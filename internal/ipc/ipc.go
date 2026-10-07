@@ -61,6 +61,24 @@ type Status struct {
 	Peers           []Peer `json:"peers,omitempty"`
 }
 
+// CertRequest is the body of POST /v1/cert.
+type CertRequest struct {
+	// Issue a new certificate even if the saved one is still good.
+	Force bool `json:"force,omitempty"`
+}
+
+// Cert is a TLS certificate for the device's mesh name.
+type Cert struct {
+	// e.g. "laptop.brave-otter.mesh.jabed.dev".
+	Name string `json:"name"`
+	// PEM chain and private key.
+	Certificate string    `json:"certificate"`
+	Key         string    `json:"key"`
+	NotAfter    time.Time `json:"notAfter"`
+	// Issued now rather than the saved one.
+	Renewed bool `json:"renewed"`
+}
+
 // Service is a named virtual address in the network.
 type Service struct {
 	Name string `json:"name"`

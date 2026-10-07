@@ -38,6 +38,11 @@ export const setDeviceRoutesBody = z.object({
   approved: z.array(z.string().max(64)).max(64),
 });
 
+export const deviceCertificateBody = z.object({
+  /** PEM certificate request for the device's own mesh name. */
+  csr: z.string().min(1).max(4096),
+});
+
 export const renameDeviceBody = z.object({
   /** The device's DNS label (`<name>.internal`); case is folded like DNS does. */
   name: z
