@@ -3,6 +3,7 @@ import {
   check,
   index,
   inet,
+  boolean,
   integer,
   jsonb,
   pgEnum,
@@ -104,6 +105,26 @@ export const devices = pgTable(
     unique("devices_network_id_mesh_ipv6_unique").on(t.networkId, t.meshIpv6),
     unique("devices_network_id_name_unique").on(t.networkId, t.name),
   ],
+);
+
+/**
+ * Subnets a device offers to route (`meshguard set --advertise-routes`). The
+ * agent reports them on sync; they carry traffic only once an owner or admin
+ * approves them. A route the agent stops advertising is deleted.
+ */
+export const deviceRoutes = pgTable(
+  "device_routes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deviceId: uuid("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+    /** Canonical CIDR, e.g. 192.168.1.0/24. */
+    prefix: text("prefix").notNull(),
+    approved: boolean("approved").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("device_routes_device_id_prefix_unique").on(t.deviceId, t.prefix)],
 );
 
 /**

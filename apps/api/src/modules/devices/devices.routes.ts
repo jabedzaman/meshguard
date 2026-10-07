@@ -10,6 +10,7 @@ export const devicesRoutes = new Hono<AppEnv>()
   .delete("/self", ...controller.deleteSelf)
   .patch("/:id", ...controller.rename)
   .put("/:id/tags", ...controller.setTags)
+  .put("/:id/routes", ...controller.setRoutes)
   .delete("/:id", ...controller.remove);
 
 /** Nested under the networks router: /v1/networks/:networkId/devices. */

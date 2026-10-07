@@ -14,6 +14,7 @@ import { requireDevice } from "~/middlewares/device.middleware";
 import {
   enrollDeviceBody,
   renameDeviceBody,
+  setDeviceRoutesBody,
   setDeviceTagsBody,
   syncDeviceBody,
   watchDeviceBody,
@@ -90,6 +91,22 @@ export const setTags = factory.createHandlers(
       c.var.organizationId,
       c.req.valid("param").id,
       c.req.valid("json").tags,
+    );
+    return c.json(device, 200);
+  },
+);
+
+/** Approves the subnets a device routes. Owners and admins only: routes carry other people's traffic. */
+export const setRoutes = factory.createHandlers(
+  requireOrganization,
+  requirePermission({ device: ["update"] }),
+  validate("param", idParams),
+  validate("json", setDeviceRoutesBody),
+  async (c) => {
+    const device = await c.var.services.devices.setApprovedRoutes(
+      c.var.organizationId,
+      c.req.valid("param").id,
+      c.req.valid("json").approved,
     );
     return c.json(device, 200);
   },

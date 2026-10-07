@@ -7,11 +7,12 @@ import { deviceNameFromHostname, numberedDeviceName } from "~/lib/device-name";
 import { DEFAULT_DNS_BASE_DOMAIN, networkDnsDomain } from "~/lib/dns-name";
 import { randomIpv4InCidr, randomIpv6InPrefix } from "~/lib/ip";
 import type { PresenceStore } from "~/lib/presence";
+import { MAX_DEVICE_ROUTES, parseRoutePrefix } from "~/lib/route-prefix";
 import { relayTokenExpiry, signRelayToken } from "~/lib/relay-token";
 import { hashToken } from "~/lib/tokens";
 import type { AclService } from "~/services/acl/acl.service";
 
-const { devices, enrollmentTokens, networks, user } = schema;
+const { deviceRoutes, devices, enrollmentTokens, networks, user } = schema;
 
 /** Address picks before giving up; collisions only matter in nearly full networks. */
 const MAX_ADDRESS_ATTEMPTS = 20;
@@ -176,12 +177,20 @@ export class DevicesService {
    * network map (see networkMap). Presence goes to Redis; Postgres is only
    * written when the endpoints change or lastSeenAt is due to be persisted.
    */
-  async sync(deviceId: string, input: { endpoints: string[] }) {
+  async sync(deviceId: string, input: { endpoints: string[]; advertiseRoutes?: string[] }) {
     const [self] = await this.db
       .select({ id: devices.id, networkId: devices.networkId, endpoints: devices.endpoints })
       .from(devices)
       .where(eq(devices.id, deviceId));
     if (!self) throw new NotFoundError("device");
+
+    // Older agents don't send routes: leave theirs alone.
+    if (input.advertiseRoutes) {
+      const changed = await this.reconcileRoutes(self.id, self.networkId, input.advertiseRoutes);
+      if (changed) {
+        this.events.publish({ type: "updated", networkId: self.networkId, deviceId: self.id });
+      }
+    }
 
     const endpointsChanged = !sameEndpoints(self.endpoints, input.endpoints);
     if (endpointsChanged) {
@@ -245,6 +254,91 @@ export class DevicesService {
   }
 
   /**
+   * Makes the device's route rows match what it advertises: new prefixes
+   * start unapproved, prefixes it stopped advertising go away. Returns whether
+   * anything changed. Invalid prefixes are ignored.
+   */
+  private async reconcileRoutes(deviceId: string, networkId: string, advertised: string[]) {
+    const [network] = await this.db
+      .select({ ipv4Cidr: networks.ipv4Cidr })
+      .from(networks)
+      .where(eq(networks.id, networkId));
+    if (!network) return false;
+    const wanted = new Set(
+      advertised
+        .map((prefix) => parseRoutePrefix(prefix, network.ipv4Cidr))
+        .filter((prefix): prefix is string => prefix !== null)
+        .slice(0, MAX_DEVICE_ROUTES),
+    );
+    const current = await this.db
+      .select({ id: deviceRoutes.id, prefix: deviceRoutes.prefix })
+      .from(deviceRoutes)
+      .where(eq(deviceRoutes.deviceId, deviceId));
+    const have = new Set(current.map((route) => route.prefix));
+    const gone = current.filter((route) => !wanted.has(route.prefix)).map((route) => route.id);
+    const added = [...wanted].filter((prefix) => !have.has(prefix));
+    if (gone.length) await this.db.delete(deviceRoutes).where(inArray(deviceRoutes.id, gone));
+    if (added.length) {
+      await this.db
+        .insert(deviceRoutes)
+        .values(added.map((prefix) => ({ deviceId, prefix })))
+        .onConflictDoNothing();
+    }
+    return gone.length > 0 || added.length > 0;
+  }
+
+  /**
+   * Approves exactly these of the device's advertised routes (the rest stay
+   * or become unapproved), so its network's agents pick the change up.
+   */
+  async setApprovedRoutes(organizationId: string, deviceId: string, approved: string[]) {
+    const [device] = await this.db
+      .select({ id: devices.id, networkId: devices.networkId })
+      .from(devices)
+      .where(
+        and(eq(devices.id, deviceId), inArray(devices.networkId, this.networksIn(organizationId))),
+      );
+    if (!device) throw new NotFoundError("device");
+    const routes = await this.db
+      .select({ id: deviceRoutes.id, prefix: deviceRoutes.prefix, approved: deviceRoutes.approved })
+      .from(deviceRoutes)
+      .where(eq(deviceRoutes.deviceId, deviceId));
+    const known = new Set(routes.map((route) => route.prefix));
+    const unknown = approved.find((prefix) => !known.has(prefix));
+    if (unknown) {
+      throw new AppError(
+        400,
+        "route_not_advertised",
+        `${unknown} isn't advertised by this device. Run meshguard set --advertise-routes ${unknown} on it first`,
+      );
+    }
+    const want = new Set(approved);
+    const approve = routes.filter((r) => want.has(r.prefix) && !r.approved).map((r) => r.id);
+    const revoke = routes.filter((r) => !want.has(r.prefix) && r.approved).map((r) => r.id);
+    if (approve.length) {
+      await this.db
+        .update(deviceRoutes)
+        .set({ approved: true })
+        .where(inArray(deviceRoutes.id, approve));
+    }
+    if (revoke.length) {
+      await this.db
+        .update(deviceRoutes)
+        .set({ approved: false })
+        .where(inArray(deviceRoutes.id, revoke));
+    }
+    if (approve.length || revoke.length) {
+      this.events.publish({ type: "updated", networkId: device.networkId, deviceId: device.id });
+    }
+    return {
+      id: device.id,
+      routes: routes
+        .map((r) => ({ prefix: r.prefix, approved: want.has(r.prefix) }))
+        .sort((a, b) => a.prefix.localeCompare(b.prefix)),
+    };
+  }
+
+  /**
    * The device's network map: the device itself plus its peers' WireGuard
    * keys, mesh addresses and endpoints (every device in the network, or under
    * "deny" only those a rule connects it to), what may reach it, and where to
@@ -296,9 +390,24 @@ export class DevicesService {
       self.networkId,
       visible.map((peer) => peer.id),
     );
+    // Approved subnets, per device: peers' go into allowed IPs, this device's own it forwards.
+    const approved = await this.db
+      .select({ deviceId: deviceRoutes.deviceId, prefix: deviceRoutes.prefix })
+      .from(deviceRoutes)
+      .innerJoin(devices, eq(devices.id, deviceRoutes.deviceId))
+      .where(and(eq(devices.networkId, self.networkId), eq(deviceRoutes.approved, true)))
+      .orderBy(deviceRoutes.prefix);
+    const routesOf = (id: string) =>
+      approved.filter((route) => route.deviceId === id).map((route) => route.prefix);
 
     const map = {
-      self: { id: self.id, name: self.name, meshIpv4: self.meshIpv4, meshIpv6: self.meshIpv6 },
+      self: {
+        id: self.id,
+        name: self.name,
+        meshIpv4: self.meshIpv4,
+        meshIpv6: self.meshIpv6,
+        routes: routesOf(self.id),
+      },
       network: {
         id: network!.id,
         name: network!.name,
@@ -308,6 +417,7 @@ export class DevicesService {
       },
       peers: visible.map((peer) => ({
         ...peer,
+        routes: routesOf(peer.id),
         lastSeenAt: seen.get(peer.id) ?? peer.lastSeenAt,
       })),
       /** Traffic from peers the agent lets in. */
@@ -471,10 +581,29 @@ export class DevicesService {
       networkId,
       rows.map((row) => row.id),
     );
+    const routes = rows.length
+      ? await this.db
+          .select({
+            deviceId: deviceRoutes.deviceId,
+            prefix: deviceRoutes.prefix,
+            approved: deviceRoutes.approved,
+          })
+          .from(deviceRoutes)
+          .where(
+            inArray(
+              deviceRoutes.deviceId,
+              rows.map((row) => row.id),
+            ),
+          )
+          .orderBy(deviceRoutes.prefix)
+      : [];
     return rows.map(({ ownerId, ownerName, ownerEmail, ...row }) => {
       const lastSeenAt = seen.get(row.id);
       return {
         ...row,
+        routes: routes
+          .filter((route) => route.deviceId === row.id)
+          .map(({ prefix, approved }) => ({ prefix, approved })),
         owner: ownerId ? { id: ownerId, name: ownerName!, email: ownerEmail! } : null,
         lastSeenAt: lastSeenAt ?? row.lastSeenAt,
         online: lastSeenAt !== undefined,

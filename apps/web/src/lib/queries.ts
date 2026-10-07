@@ -91,6 +91,8 @@ export const deviceMutations = {
   remove: (id: string) => parseResponse(api.v1.devices[":id"].$delete({ param: { id } })),
   setTags: (id: string, tags: string[]) =>
     parseResponse(api.v1.devices[":id"].tags.$put({ param: { id }, json: { tags } })),
+  setRoutes: (id: string, approved: string[]) =>
+    parseResponse(api.v1.devices[":id"].routes.$put({ param: { id }, json: { approved } })),
 };
 
 type AclRoute = (typeof api.v1.networks)[":networkId"]["acl"];

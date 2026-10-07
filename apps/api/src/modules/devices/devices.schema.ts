@@ -27,6 +27,13 @@ const endpoint = z
 export const syncDeviceBody = z.object({
   /** Where peers can reach this device's WireGuard, best first. */
   endpoints: z.array(endpoint).max(16),
+  /** Subnets the device offers to route; omitted by agents that predate routes. */
+  advertiseRoutes: z.array(z.string().max(64)).max(64).optional(),
+});
+
+export const setDeviceRoutesBody = z.object({
+  /** The advertised prefixes to approve; the device's other routes become unapproved. */
+  approved: z.array(z.string().max(64)).max(64),
 });
 
 export const renameDeviceBody = z.object({

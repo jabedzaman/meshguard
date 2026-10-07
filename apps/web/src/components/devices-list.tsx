@@ -16,6 +16,7 @@ import {
 } from "@meshguard/ui/components/empty";
 import { ToggleGroup, ToggleGroupItem } from "@meshguard/ui/components/toggle-group";
 import { ConfirmDialog } from "~/components/confirm-dialog";
+import { DeviceRoutesDialog } from "~/components/device-routes-dialog";
 import { DeviceTagsDialog } from "~/components/device-tags-dialog";
 import { ListSkeleton } from "~/components/list-skeleton";
 import { OnlineDot } from "~/components/online-dot";
@@ -39,11 +40,19 @@ function presence(device: { online: boolean; lastSeenAt: string | null }) {
   return { online: false, label: `last seen ${timeAgo(device.lastSeenAt)}` };
 }
 
-type Device = { id: string; name: string; online: boolean; tags: string[] };
+type Device = {
+  id: string;
+  name: string;
+  online: boolean;
+  tags: string[];
+  routes: { prefix: string; approved: boolean }[];
+};
 const deviceId = (device: Device) => device.id;
 // What a viewer would notice changing: presence, name and tags.
 const deviceSignature = (device: Device) =>
-  `${device.online}|${device.name}|${device.tags.join(",")}`;
+  `${device.online}|${device.name}|${device.tags.join(",")}|${device.routes
+    .map((route) => route.prefix + route.approved)
+    .join(",")}`;
 
 export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDomain: string }) {
   const { data: devices, isPending, error } = useQuery(deviceQueries.list(networkId));
@@ -127,6 +136,17 @@ export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDo
                           tag:{tag}
                         </Badge>
                       ))}
+                      {device.routes.map((route) => (
+                        <Badge
+                          key={route.prefix}
+                          variant={route.approved ? "secondary" : "outline"}
+                          className="font-mono font-normal"
+                          title={route.approved ? "Route approved" : "Route waiting for approval"}
+                        >
+                          {route.prefix}
+                          {!route.approved && " · pending"}
+                        </Badge>
+                      ))}
                     </span>
                     <span className="text-muted-foreground text-xs">
                       {platform.label} ·{" "}
@@ -149,6 +169,9 @@ export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDo
                     <span>{device.meshIpv6}</span>
                   </span>
                   <div className="flex items-center">
+                    {canRenameAny && device.routes.length > 0 && (
+                      <DeviceRoutesDialog device={device} />
+                    )}
                     {canRenameAny && <DeviceTagsDialog device={device} />}
                     {(canRenameAny || mine(device)) && (
                       <RenameDeviceDialog device={device} dnsDomain={dnsDomain} />

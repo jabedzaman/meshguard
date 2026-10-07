@@ -64,6 +64,13 @@
       "when": 1791333659331,
       "tag": "0008_network_dns_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791407719533,
+      "tag": "0009_device_routes",
+      "breakpoints": true
     }
   ]
 }

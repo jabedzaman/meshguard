@@ -45,6 +45,8 @@ type Engine struct {
 
 	mu    sync.Mutex
 	peers []Peer // as last applied
+	// Subnet routes installed in the OS (accepted from peers) and served to them.
+	accepted, served, servedMesh []netip.Prefix
 }
 
 // Start creates the TUN interface, brings up WireGuard and configures
@@ -222,5 +224,6 @@ func parseStats(raw string) map[string]PeerStats {
 
 // Close tears down the device and interface.
 func (e *Engine) Close() {
+	e.closeRoutes()
 	e.dev.Close()
 }
