@@ -201,6 +201,7 @@ func TestDoctorLocalPort(t *testing.T) {
 	c = find(t, checks, "listening")
 	assert.Equal(t, checkFail, c.Status)
 	assert.Equal(t, "only on 127.0.0.1:8080, which peers can't reach", c.Detail)
+	assert.Contains(t, c.Fix, "meshguard serve 8080")
 	assert.Contains(t, c.Fix, "-p 8080:8080, not -p 127.0.0.1:8080:8080")
 	assert.Equal(t, "allowed: macbook; blocked: server", checks[len(checks)-1].Detail)
 

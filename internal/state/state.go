@@ -79,6 +79,15 @@ type Prefs struct {
 	// ExitNode is the peer (name or mesh address) this device sends its
 	// internet traffic through; empty for none.
 	ExitNode string `json:"exitNode,omitempty"`
+	// Serve exposes local TCP ports on this device's mesh addresses.
+	Serve []ServeRule `json:"serve,omitempty"`
+}
+
+// ServeRule exposes a local TCP service to the mesh: connections to the
+// device's mesh address on Port are proxied to Target ("127.0.0.1:3000").
+type ServeRule struct {
+	Port   int    `json:"port"`
+	Target string `json:"target"`
 }
 
 // ErrNotEnrolled is returned by Load when there is no state yet.

@@ -443,6 +443,7 @@ func (d *doctor) localPort(s ipc.Status, port int) {
 	default:
 		fix := fmt.Sprintf("bind it to 0.0.0.0 or %s", s.Device.MeshIPv4)
 		if slices.ContainsFunc(addrs, netip.Addr.IsLoopback) {
+			fix = fmt.Sprintf("run meshguard serve %d to share it with peers, or bind it to 0.0.0.0 or %s", port, s.Device.MeshIPv4)
 			fix += fmt.Sprintf(" (Docker: publish with -p %d:%d, not -p 127.0.0.1:%d:%d)", port, port, port, port)
 		}
 		d.add(checkFail, "listening", "only on "+joinAddrs(addrs, port)+", which peers can't reach", fix)

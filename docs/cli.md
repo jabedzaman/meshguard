@@ -220,6 +220,21 @@ connections (control plane, relay, WireGuard) are marked and stay off the tunnel
 Routes are checked before they are saved: CIDR notation only, no default route
 (that is an exit node), nothing inside the network's mesh range.
 
+### `meshguard serve`
+
+Shares a service that only listens on this machine (`127.0.0.1`), which peers
+can't reach, on the device's mesh address. The agent proxies each connection.
+
+```sh
+meshguard serve 3000              # peers connect to <this device>:3000
+meshguard serve 3000 --port 8080  # ...or :8080
+meshguard serve                   # what is shared
+meshguard serve off 8080          # stop
+```
+
+It is kept across restarts. TCP only, and only local ports (`localhost` or
+`127.0.0.1`). Access rules still apply to the connections.
+
 ### `meshguard services`
 
 Lists the network's services: name, DNS name, address and the device serving it

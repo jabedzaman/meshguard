@@ -50,6 +50,8 @@ type Status struct {
 	Serving []string `json:"serving,omitempty"`
 	// Subnets of peers this device sends traffic to (needs accept-routes).
 	Accepted []string `json:"accepted,omitempty"`
+	// Local services shared with the mesh, and any that can't listen.
+	Serve []ServeRule `json:"serve,omitempty"`
 	// Services in the network and who serves them.
 	Services []Service `json:"services,omitempty"`
 	// The peer all traffic goes through, once it is in use (see Prefs.ExitNode).
@@ -79,6 +81,17 @@ type Prefs struct {
 	AdvertiseExitNode bool `json:"advertiseExitNode"`
 	// The peer used as exit node, if any.
 	ExitNode string `json:"exitNode"`
+	// Local services shared with the mesh (meshguard serve).
+	Serve []ServeRule `json:"serve"`
+}
+
+// ServeRule shares a local TCP service: the device's mesh address on Port
+// reaches Target (a loopback "host:port").
+type ServeRule struct {
+	Port   int    `json:"port"`
+	Target string `json:"target"`
+	// Why it isn't listening, in status.
+	Error string `json:"error,omitempty"`
 }
 
 // PrefsUpdate is the body of PATCH /v1/prefs; fields left nil are unchanged.
@@ -89,6 +102,8 @@ type PrefsUpdate struct {
 	AdvertiseExitNode *bool     `json:"advertiseExitNode,omitempty"`
 	// "" stops using an exit node.
 	ExitNode *string `json:"exitNode,omitempty"`
+	// Replaces the shared services.
+	Serve *[]ServeRule `json:"serve,omitempty"`
 }
 
 // ACLStatus summarizes the access rules this device enforces.

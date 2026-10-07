@@ -16,7 +16,11 @@ func prefsStatus(p state.Prefs) *ipc.Prefs {
 	if routes == nil {
 		routes = []string{}
 	}
-	return &ipc.Prefs{AdvertiseRoutes: routes, AcceptRoutes: p.AcceptRoutes, AdvertiseExitNode: p.AdvertiseExitNode, ExitNode: p.ExitNode}
+	serve := make([]ipc.ServeRule, len(p.Serve))
+	for i, r := range p.Serve {
+		serve[i] = ipc.ServeRule{Port: r.Port, Target: r.Target}
+	}
+	return &ipc.Prefs{AdvertiseRoutes: routes, AcceptRoutes: p.AcceptRoutes, AdvertiseExitNode: p.AdvertiseExitNode, ExitNode: p.ExitNode, Serve: serve}
 }
 
 func (a *Agent) handleGetPrefs(w http.ResponseWriter, _ *http.Request) {
@@ -59,6 +63,14 @@ func (a *Agent) handleSetPrefs(w http.ResponseWriter, r *http.Request) {
 	if req.AcceptRoutes != nil {
 		next.AcceptRoutes = *req.AcceptRoutes
 	}
+	if req.Serve != nil {
+		rules, err := validateServe(*req.Serve)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_serve", err.Error())
+			return
+		}
+		next.Serve = rules
+	}
 	if req.AdvertiseExitNode != nil {
 		next.AdvertiseExitNode = *req.AdvertiseExitNode
 	}
@@ -70,7 +82,8 @@ func (a *Agent) handleSetPrefs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if slices.Equal(next.AdvertiseRoutes, st.Prefs.AdvertiseRoutes) && next.AcceptRoutes == st.Prefs.AcceptRoutes &&
-		next.AdvertiseExitNode == st.Prefs.AdvertiseExitNode && next.ExitNode == st.Prefs.ExitNode {
+		next.AdvertiseExitNode == st.Prefs.AdvertiseExitNode && next.ExitNode == st.Prefs.ExitNode &&
+		slices.Equal(next.Serve, st.Prefs.Serve) {
 		writeJSON(w, http.StatusOK, prefsStatus(next))
 		return
 	}
@@ -82,6 +95,9 @@ func (a *Agent) handleSetPrefs(w http.ResponseWriter, r *http.Request) {
 	}
 	if c := a.conn; c != nil {
 		c.prefs = next
+		if c.serve != nil {
+			c.serve.set(next.Serve)
+		}
 		select {
 		case c.syncNow <- struct{}{}:
 		default:

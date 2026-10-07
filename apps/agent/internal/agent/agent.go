@@ -119,6 +119,8 @@ type connection struct {
 	exitNode string
 	// services as of the last sync.
 	services []coordination.Service
+	// serve shares local services with the mesh; nil without WireGuard.
+	serve *serveManager
 	// routeProblem says why subnet routes could not be applied.
 	routeProblem string
 	acl          *coordination.ACL
@@ -179,6 +181,7 @@ func (a *Agent) startLocked(st *state.State) {
 	} else {
 		a.startHolePunching(c, st)
 		a.startDNSLocked(c, st)
+		a.startServeLocked(c, st)
 		go a.watchNetwork(c, st)
 	}
 	go a.loop(c, st)
@@ -193,6 +196,9 @@ func (a *Agent) stopLocked() {
 	a.conn = nil
 	c.cancel() // stops the loop, relay and disco ticker
 	a.stopDNSLocked(c)
+	if c.serve != nil {
+		c.serve.close()
+	}
 	if c.engine != nil {
 		c.engine.Close()
 	}
@@ -704,6 +710,9 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 	}
 	s.Problem = c.problem
 	s.Prefs = prefsStatus(c.prefs)
+	if c.serve != nil {
+		s.Serve = c.serve.status()
+	}
 	s.Serving, s.Accepted, s.ExitNode = c.serving, c.accepted, c.exitNode
 	s.ServingExitNode = slices.Contains(c.serving, "0.0.0.0/0")
 	if !c.lastSync.IsZero() {

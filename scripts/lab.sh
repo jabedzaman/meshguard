@@ -325,6 +325,44 @@ expect_traffic blocked "lab-b -> web after deleting the service" can_connect lab
 resolved=$(docker exec meshguard-lab-b dig +time=2 +tries=1 @"$resolver" "$svc_name" A | grep -c "status: NXDOMAIN" || true)
 if [ "$resolved" = 1 ]; then ok "$svc_name no longer resolves"; else fail "$svc_name still resolves"; fi
 
+# Serve: lab-a runs a service that only listens on 127.0.0.1; `meshguard serve`
+# makes it reachable from lab-b on lab-a's mesh address.
+echo
+echo "==> serve (lab-a shares a localhost-only service with lab-b)"
+patch "/v1/networks/$svc_network/acl" '{"defaultAction":"allow"}' >/dev/null
+a4=$(ip_of lab-a IPv4)
+docker exec -d meshguard-lab-a sh -c 'while true; do echo "loopback on $(hostname)" | nc -l 127.0.0.1 7070 -q 1; done'
+ask_a() { docker exec meshguard-lab-b sh -c "nc -w 3 $a4 7070 </dev/null 2>/dev/null"; }
+expect_answer_from() {
+  local what=$1 want=$2 seconds=${3:-20} got=""
+  for _ in $(seq "$seconds"); do
+    got=$(ask_a || true)
+    [ "$got" = "$want" ] && { ok "$what: $want"; return; }
+    sleep 1
+  done
+  fail "$what: '$got', want '$want'"
+}
+expect_traffic blocked "lab-b -> lab-a:7070 before serving (it listens on 127.0.0.1 only)" can_connect lab-b "$a4" 7070
+doctor_out=$(docker exec meshguard-lab-a meshguard doctor --port 7070 || true)   # exits 1: it finds the problem
+if grep -q "meshguard serve 7070" <<<"$doctor_out"; then ok "doctor on lab-a suggests meshguard serve 7070"; else fail "doctor does not suggest meshguard serve"; fi
+docker exec meshguard-lab-a meshguard serve 7070 >/dev/null
+expect_answer_from "lab-b -> lab-a:7070 after meshguard serve" "loopback on lab-a"
+docker exec meshguard-lab-a meshguard serve | tail -n +2
+docker exec meshguard-lab-a meshguard serve 7070 --port 7071 >/dev/null   # another port, same service
+a_ports=$(docker exec meshguard-lab-a meshguard serve --json | json ".map(r => r.port).join()")
+if [ "$a_ports" = "7070,7071" ]; then ok "lab-a shares ports $a_ports"; else fail "lab-a shares '$a_ports'"; fi
+docker exec meshguard-lab-a meshguard serve off 7070 >/dev/null
+expect_traffic blocked "lab-b -> lab-a:7070 after meshguard serve off 7070" can_connect lab-b "$a4" 7070
+docker exec meshguard-lab-a meshguard serve off 7071 >/dev/null
+# Sharing survives the agent being brought down and up.
+docker exec meshguard-lab-a meshguard serve 7070 >/dev/null
+docker exec meshguard-lab-a meshguard down >/dev/null
+docker exec meshguard-lab-a meshguard up >/dev/null
+expect_answer_from "lab-b -> lab-a:7070 after down and up" "loopback on lab-a" 40
+if docker exec meshguard-lab-a meshguard serve 7080 --port 80 2>&1 | grep -q "^Error"; then fail "serve 7080 --port 80 refused"; else ok "meshguard serve accepts a different peer-facing port"; fi
+docker exec meshguard-lab-a meshguard serve off 80 >/dev/null
+docker exec meshguard-lab-a meshguard serve off 7070 >/dev/null
+
 # Sanity: lab-f can't open a connection into lab-e's NAT on its own. (Same
 # reason for the unreachable route as above.)
 docker exec meshguard-lab-f ip route add unreachable 10.201.0.0/24 || true

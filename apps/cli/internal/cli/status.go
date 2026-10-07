@@ -60,6 +60,9 @@ func printStatus(s ipc.Status) {
 	if s.Prefs != nil && (len(s.Prefs.AdvertiseRoutes) > 0 || s.Prefs.AcceptRoutes || s.Prefs.AdvertiseExitNode || s.Prefs.ExitNode != "") {
 		printPrefs(*s.Prefs)
 	}
+	if len(s.Serve) > 0 {
+		fmt.Printf("  sharing    %d local port(s): meshguard serve\n", len(s.Serve))
+	}
 	if subnets := withoutDefaultRoutes(s.Serving); len(subnets) > 0 {
 		fmt.Printf("  serving    %s (routed for peers)\n", strings.Join(subnets, ", "))
 	}
