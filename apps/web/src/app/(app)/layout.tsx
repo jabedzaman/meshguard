@@ -1,7 +1,8 @@
-import { AppNav } from "~/components/app-nav";
-import { OrganizationSwitcher } from "~/components/organization-switcher";
+import { Separator } from "@meshguard/ui/components/separator";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@meshguard/ui/components/sidebar";
+import { AppSidebar } from "~/components/app-sidebar";
+import { Logo } from "~/components/logo";
 import { OrganizationProvider } from "~/components/providers/organization-provider";
-import { SignOutButton } from "~/components/sign-out-button";
 import { ROLES, type Role } from "@meshguard/auth/permissions";
 import {
   getActiveMember,
@@ -31,21 +32,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       role={role}
       user={{ id: session.user.id, email: session.user.email }}
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-6">
-        <header className="flex items-center justify-between gap-3">
-          <OrganizationSwitcher
-            organizations={organizations.map(({ id, name, slug }) => ({ id, name, slug }))}
-          />
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground hidden text-sm sm:inline">
-              {session.user.email} · {role}
-            </span>
-            <SignOutButton />
-          </div>
-        </header>
-        <AppNav />
-        <main>{children}</main>
-      </div>
+      <SidebarProvider>
+        <AppSidebar
+          organizations={organizations.map(({ id, name, slug }) => ({ id, name, slug }))}
+        />
+        <SidebarInset>
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+            <Logo className="text-sm" />
+          </header>
+          <div className="mx-auto w-full max-w-5xl flex-1 p-4 md:p-8">{children}</div>
+        </SidebarInset>
+      </SidebarProvider>
     </OrganizationProvider>
   );
 }

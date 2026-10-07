@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { CircleCheckIcon, CircleXIcon, FlaskConicalIcon } from "lucide-react";
 import { getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
 import { Input } from "@meshguard/ui/components/input";
@@ -65,8 +66,11 @@ export function AccessCheck({
   );
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border p-3 text-sm">
-      <span className="font-medium">Check access</span>
+    <div className="bg-card flex flex-col gap-3 rounded-xl border p-4 text-sm shadow-sm">
+      <span className="flex items-center gap-2 font-medium">
+        <FlaskConicalIcon className="text-muted-foreground size-4" />
+        Check access
+      </span>
       <form
         className="flex flex-wrap items-center gap-2"
         onSubmit={(event) => {
@@ -115,7 +119,15 @@ export function AccessCheck({
         </Button>
       </form>
       {check.data && (
-        <p role="status" className={check.data.allowed ? "text-emerald-600" : "text-destructive"}>
+        <p
+          role="status"
+          className={`flex items-center gap-2 rounded-lg px-3 py-2 font-medium ${check.data.allowed ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 text-destructive"}`}
+        >
+          {check.data.allowed ? (
+            <CircleCheckIcon className="size-4 shrink-0" />
+          ) : (
+            <CircleXIcon className="size-4 shrink-0" />
+          )}
           {check.data.allowed
             ? `${name(source)} may connect to ${name(destination)}${check.data.ruleIndex === null ? "" : ` (rule ${check.data.ruleIndex + 1})`}.`
             : `${name(source)} may not connect to ${name(destination)}.`}
@@ -134,7 +146,7 @@ export function AccessCheck({
       {showDocument && document.data && (
         <pre
           aria-label="Policy file"
-          className="bg-muted overflow-x-auto rounded-md p-3 font-mono text-xs"
+          className="overflow-x-auto rounded-lg bg-zinc-950 p-3 font-mono text-xs text-zinc-100"
         >
           {JSON.stringify(document.data, null, 2)}
         </pre>

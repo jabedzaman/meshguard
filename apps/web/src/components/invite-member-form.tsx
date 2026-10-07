@@ -2,7 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { SendIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@meshguard/ui/components/button";
 import {
@@ -54,6 +56,7 @@ function InviteMemberFormInner() {
     mutationFn: (values: Values) => unwrap(authClient.organization.inviteMember(values)),
     onSuccess: async () => {
       form.reset();
+      toast.success("Invitation sent");
       await queryClient.invalidateQueries({ queryKey: invitationQueries.all() });
     },
     // Better Auth's messages ("User is already invited…") are user-facing.
@@ -64,7 +67,7 @@ function InviteMemberFormInner() {
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit((values) => invite.mutate(values))}
-        className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-start"
+        className="bg-card flex flex-col gap-4 rounded-xl border p-4 shadow-sm sm:flex-row sm:items-start"
       >
         <FormField
           control={form.control}
@@ -104,6 +107,7 @@ function InviteMemberFormInner() {
           )}
         />
         <Button type="submit" className="sm:mt-[22px]" disabled={!hydrated || invite.isPending}>
+          <SendIcon />
           {invite.isPending ? "Sending…" : "Send invite"}
         </Button>
       </form>

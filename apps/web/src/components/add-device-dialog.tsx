@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PlusIcon, TerminalIcon } from "lucide-react";
 import { useState } from "react";
 import { getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
@@ -60,7 +61,10 @@ export function AddDeviceDialog({ networkId }: { networkId: string }) {
       }}
     >
       <DialogTrigger asChild>
-        <Button>Add device</Button>
+        <Button>
+          <PlusIcon />
+          Add device
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -73,9 +77,10 @@ export function AddDeviceDialog({ networkId }: { networkId: string }) {
         {create.data ? (
           <div className="flex flex-col gap-3">
             {/* The token has no spaces, so it needs break-all to wrap. */}
-            <pre className="bg-muted rounded-md p-3 font-mono text-xs break-all whitespace-pre-wrap">
-              {command}
-            </pre>
+            <div className="flex gap-2 rounded-lg border bg-zinc-950 p-3 text-zinc-100">
+              <TerminalIcon className="mt-0.5 size-4 shrink-0 text-emerald-400" />
+              <pre className="font-mono text-xs break-all whitespace-pre-wrap">{command}</pre>
+            </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-muted-foreground text-xs">
                 This token won&apos;t be shown again. It works once and expires{" "}

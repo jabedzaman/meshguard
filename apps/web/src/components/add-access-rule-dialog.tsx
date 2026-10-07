@@ -2,7 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { PlusIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { getApiError, getErrorMessage } from "@meshguard/api-client";
@@ -134,6 +136,7 @@ export function AddAccessRuleDialog({
     mutationFn: (values: Values) => aclMutations.createRule(networkId, toRule(values)),
     onSuccess: async () => {
       setOpen(false);
+      toast.success("Rule added", { description: "Devices pick it up within a second or two." });
       await queryClient.invalidateQueries({ queryKey: aclQueries.all() });
     },
     onError: (error) => {
@@ -218,7 +221,8 @@ export function AddAccessRuleDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button size="sm">
+          <PlusIcon />
           Add rule
         </Button>
       </DialogTrigger>
@@ -236,11 +240,11 @@ export function AddAccessRuleDialog({
                 rule only if it opens connections too.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               {deviceSelect("source", "From", "Any device")}
               {deviceSelect("destination", "To", "Every device")}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="protocol"

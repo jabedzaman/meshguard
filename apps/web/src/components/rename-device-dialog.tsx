@@ -2,7 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PencilIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { getApiError, getErrorMessage } from "@meshguard/api-client";
@@ -26,6 +28,7 @@ import {
   FormMessage,
 } from "@meshguard/ui/components/form";
 import { Input } from "@meshguard/ui/components/input";
+import { IconAction } from "~/components/icon-action";
 import { deviceMutations, deviceQueries } from "~/lib/queries";
 
 // Mirrors DEVICE_NAME_PATTERN in server-core; the API has the final say.
@@ -52,8 +55,9 @@ export function RenameDeviceDialog({ device }: { device: { id: string; name: str
 
   const rename = useMutation({
     mutationFn: ({ name }: Values) => deviceMutations.rename(device.id, name),
-    onSuccess: async () => {
+    onSuccess: async (_, { name }) => {
       setOpen(false);
+      if (name !== device.name) toast.success("Device renamed");
       await queryClient.invalidateQueries({ queryKey: deviceQueries.all() });
     },
     onError: (error) => {
@@ -76,11 +80,13 @@ export function RenameDeviceDialog({ device }: { device: { id: string; name: str
         if (next) form.reset({ name: device.name });
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label={`Rename ${device.name}`}>
-          Rename
-        </Button>
-      </DialogTrigger>
+      <IconAction label="Rename">
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={`Rename ${device.name}`}>
+            <PencilIcon />
+          </Button>
+        </DialogTrigger>
+      </IconAction>
       <DialogContent>
         <Form {...form}>
           <form

@@ -12,6 +12,7 @@ import {
   AlertDialogTrigger,
 } from "@meshguard/ui/components/alert-dialog";
 import { Button } from "@meshguard/ui/components/button";
+import { IconAction } from "~/components/icon-action";
 
 /**
  * Confirmation for destructive actions. Stays open while `onConfirm` runs and
@@ -19,12 +20,15 @@ import { Button } from "@meshguard/ui/components/button";
  */
 export function ConfirmDialog({
   trigger,
+  triggerTooltip,
   title,
   description,
   confirmLabel,
   onConfirm,
 }: {
   trigger: React.ReactNode;
+  /** Names an icon-only trigger. */
+  triggerTooltip?: string;
   title: string;
   description: React.ReactNode;
   confirmLabel: string;
@@ -56,7 +60,13 @@ export function ConfirmDialog({
         if (!next) setError(null);
       }}
     >
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      {triggerTooltip ? (
+        <IconAction label={triggerTooltip}>
+          <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+        </IconAction>
+      ) : (
+        <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

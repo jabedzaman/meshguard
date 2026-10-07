@@ -9,7 +9,7 @@ export function LeaveOrganization() {
   const organization = useOrganization();
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+    <div className="border-destructive/30 bg-destructive/5 flex items-center justify-between gap-4 rounded-xl border p-4">
       <div className="grid text-sm">
         <span className="font-medium">Leave {organization.name}</span>
         <span className="text-muted-foreground">

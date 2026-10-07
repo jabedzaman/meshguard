@@ -1,7 +1,9 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { TagIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
 import {
@@ -15,6 +17,7 @@ import {
 } from "@meshguard/ui/components/dialog";
 import { Input } from "@meshguard/ui/components/input";
 import { Label } from "@meshguard/ui/components/label";
+import { IconAction } from "~/components/icon-action";
 import { aclQueries, deviceMutations, deviceQueries } from "~/lib/queries";
 
 /** "server, db" → ["server", "db"]; accepts an optional "tag:" prefix. */
@@ -38,6 +41,7 @@ export function DeviceTagsDialog({
     mutationFn: () => deviceMutations.setTags(device.id, parseTags(text)),
     onSuccess: async () => {
       setOpen(false);
+      toast.success("Tags saved");
       await queryClient.invalidateQueries({ queryKey: deviceQueries.all() });
       await queryClient.invalidateQueries({ queryKey: aclQueries.all() });
     },
@@ -55,11 +59,13 @@ export function DeviceTagsDialog({
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label={`Tags of ${device.name}`}>
-          Tags
-        </Button>
-      </DialogTrigger>
+      <IconAction label="Tags">
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={`Tags of ${device.name}`}>
+            <TagIcon />
+          </Button>
+        </DialogTrigger>
+      </IconAction>
       <DialogContent>
         <form
           className="flex flex-col gap-4"

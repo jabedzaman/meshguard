@@ -1,7 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2Icon } from "lucide-react";
+import { toast } from "sonner";
 import { ROLES, type Role } from "@meshguard/auth/permissions";
+import { Avatar, AvatarFallback } from "@meshguard/ui/components/avatar";
+import { Badge } from "@meshguard/ui/components/badge";
 import { Button } from "@meshguard/ui/components/button";
 import {
   Select,
@@ -11,6 +15,7 @@ import {
   SelectValue,
 } from "@meshguard/ui/components/select";
 import { ConfirmDialog } from "~/components/confirm-dialog";
+import { ListSkeleton } from "~/components/list-skeleton";
 import {
   useCurrentUser,
   useOrganization,
@@ -35,10 +40,11 @@ export function MembersList() {
   const updateRole = useMutation({
     mutationFn: ({ memberId, role }: { memberId: string; role: Role }) =>
       unwrap(authClient.organization.updateMemberRole({ memberId, role })),
+    onSuccess: () => toast.success("Role changed"),
     onSettled: () => queryClient.invalidateQueries({ queryKey: memberQueries.all() }),
   });
 
-  if (isPending) return <p className="text-muted-foreground text-sm">Loading members…</p>;
+  if (isPending) return <ListSkeleton label="Loading members" />;
   if (error) return <p className="text-destructive text-sm">{error.message}</p>;
 
   return (
@@ -48,7 +54,7 @@ export function MembersList() {
           {updateRole.error.message}
         </p>
       )}
-      <ul className="divide-border divide-y rounded-md border">
+      <ul className="divide-border bg-card divide-y rounded-xl border shadow-sm">
         {members.map((member) => {
           const isSelf = member.userId === currentUser.id;
           // Only owners can act on owners; nobody acts on themselves here
@@ -57,13 +63,20 @@ export function MembersList() {
           const editable = canUpdateRoles && canActOn;
           const removable = canRemove && canActOn;
           return (
-            <li key={member.id} className="flex items-center justify-between gap-4 p-3 text-sm">
-              <div className="grid">
-                <span className="font-medium">
-                  {member.user.name}
-                  {isSelf && <span className="text-muted-foreground font-normal"> (you)</span>}
-                </span>
-                <span className="text-muted-foreground text-xs">{member.user.email}</span>
+            <li key={member.id} className="flex items-center justify-between gap-4 p-4 text-sm">
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar className="size-9">
+                  <AvatarFallback className="uppercase">{member.user.name[0]}</AvatarFallback>
+                </Avatar>
+                <div className="grid min-w-0">
+                  <span className="truncate font-medium">
+                    {member.user.name}
+                    {isSelf && <span className="text-muted-foreground font-normal"> (you)</span>}
+                  </span>
+                  <span className="text-muted-foreground truncate text-xs">
+                    {member.user.email}
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {editable ? (
@@ -90,15 +103,25 @@ export function MembersList() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <span className="text-muted-foreground w-28 px-3 text-sm">{member.role}</span>
+                  <span className="w-28 px-3">
+                    <Badge variant={member.role === "owner" ? "default" : "secondary"}>
+                      {member.role}
+                    </Badge>
+                  </span>
                 )}
                 {removable ? (
                   <ConfirmDialog
                     trigger={
-                      <Button variant="ghost" size="sm" aria-label={`Remove ${member.user.email}`}>
-                        Remove
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="hover:text-destructive"
+                        aria-label={`Remove ${member.user.email}`}
+                      >
+                        <Trash2Icon />
                       </Button>
                     }
+                    triggerTooltip="Remove"
                     title={`Remove ${member.user.name}?`}
                     description={`${member.user.email} will lose access to ${organization.name}.`}
                     confirmLabel="Remove member"
@@ -106,12 +129,13 @@ export function MembersList() {
                       await unwrap(
                         authClient.organization.removeMember({ memberIdOrEmail: member.id }),
                       );
+                      toast.success("Member removed");
                       await queryClient.invalidateQueries({ queryKey: memberQueries.all() });
                     }}
                   />
                 ) : (
                   // Keeps role columns aligned across rows.
-                  canRemove && <span className="w-[68px]" />
+                  canRemove && <span className="w-8" />
                 )}
               </div>
             </li>
