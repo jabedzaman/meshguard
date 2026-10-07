@@ -1,5 +1,5 @@
 // Package dns answers private mesh names: every device in the network
-// resolves as <name>.<network domain>, e.g. laptop.brave-otter.lvh.me (the
+// resolves as <name>.<network domain>, e.g. laptop.brave-otter.mesh.jabed.dev (the
 // control plane picks the domain), and its mesh addresses resolve back to that
 // name. The agent answers queries the OS sends to the network's resolver
 // address (ResolverAddr) inside its TUN, so no socket is bound, and points the
@@ -57,7 +57,7 @@ type Server struct {
 }
 
 // SetDomain sets the network's domain, without the trailing dot, e.g.
-// "brave-otter.lvh.me". Until it's set, no name or address resolves.
+// "brave-otter.mesh.jabed.dev". Until it's set, no name or address resolves.
 func (s *Server) SetDomain(domain string) {
 	s.mu.Lock()
 	s.domain = strings.ToLower(strings.TrimSuffix(domain, "."))
@@ -112,7 +112,7 @@ func (s *Server) Addr() netip.Addr {
 }
 
 // Name returns the fully qualified name for a device in domain, e.g.
-// "laptop.brave-otter.lvh.me". Just the device's name without a domain.
+// "laptop.brave-otter.mesh.jabed.dev". Just the device's name without a domain.
 func Name(device, domain string) string {
 	if domain == "" {
 		return strings.ToLower(device)

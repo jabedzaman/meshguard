@@ -320,7 +320,7 @@ export class DevicesService {
     return { ...map, revision: mapRevision(map) };
   }
 
-  /** The domain a network's devices resolve under, e.g. `brave-otter.lvh.me`. */
+  /** The domain a network's devices resolve under, e.g. `brave-otter.mesh.jabed.dev`. */
   private dnsDomain(label: string): string {
     return networkDnsDomain(label, this.options.dnsBaseDomain ?? DEFAULT_DNS_BASE_DOMAIN);
   }

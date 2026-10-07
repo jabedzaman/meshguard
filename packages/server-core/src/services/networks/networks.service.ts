@@ -70,7 +70,7 @@ export class NetworksService {
     );
   }
 
-  /** The domain the network's devices resolve under, e.g. `brave-otter.lvh.me`. */
+  /** The domain the network's devices resolve under, e.g. `brave-otter.mesh.jabed.dev`. */
   dnsDomain(label: string): string {
     return networkDnsDomain(label, this.dnsBaseDomain);
   }

@@ -316,7 +316,7 @@ func (d *doctor) resolves(check, name, ip string, s ipc.Status) {
 	}
 	fix := resolverFix(s, d.nameservers(), name)
 	if slices.ContainsFunc(addrs, isLoopback) {
-		// e.g. lvh.me: public DNS answers every name with 127.0.0.1.
+		// A base domain with a public wildcard to 127.0.0.1 (like lvh.me).
 		fix = "the public DNS answered, not the agent: " + fix
 	}
 	d.add(checkWarn, check, detail, fix)

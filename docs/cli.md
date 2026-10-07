@@ -129,14 +129,14 @@ thinkpad in home (connected)
   mesh IPv6  fda3:ad78:5bac:0:6a19:fb37:e6f8:60e3
   server     http://localhost:4000
   interface  meshguard0
-  dns        thinkpad.brave-otter.lvh.me (resolver 10.77.0.53, via systemd-resolved)
+  dns        thinkpad.brave-otter.mesh.jabed.dev (resolver 10.77.0.53, via systemd-resolved)
   access     only by 2 rules (13 packets refused)
   public     203.0.113.7:51820
   relay      ws://localhost:3340/relay (connected)
 
 peers:
-  NAME                DNS                                     IPv4         PATH     HANDSHAKE
-  jabeds-macbook-air  jabeds-macbook-air.brave-otter.lvh.me  10.77.0.214  relay    6s ago
+  NAME                DNS                                            IPv4         PATH     HANDSHAKE
+  jabeds-macbook-air  jabeds-macbook-air.brave-otter.mesh.jabed.dev  10.77.0.214  relay    6s ago
 ```
 
 States: `not_enrolled`, `connected`, `enrolled` (registered but not
@@ -145,9 +145,9 @@ connected — a `!` line says why, e.g. WireGuard needs root), `down`.
 ### Private DNS
 
 Every device resolves as `<name>.<network domain>`, e.g.
-`ssh jabeds-macbook-air.brave-otter.lvh.me`, and as just `jabeds-macbook-air` where the OS
+`ssh jabeds-macbook-air.brave-otter.mesh.jabed.dev`, and as just `jabeds-macbook-air` where the OS
 supports search domains. Like a tailnet name, each network gets a random
-domain when it's created (`brave-otter.lvh.me`, shown on the network page); the
+domain when it's created (`brave-otter.mesh.jabed.dev`, shown on the network page); the
 control plane's `DNS_BASE_DOMAIN` sets the part after the label.
 Device names come from the hostname (lowercased, first label) and are unique
 in the network: a second `laptop` becomes `laptop-2`. Owners and admins can
@@ -233,7 +233,7 @@ this device
   ✓ relay          connected to wss://meshguard-relay.jabed.dev/relay
   ! nat            symmetric NAT (public 203.0.113.7:52286)
                    → direct connections are unlikely from this network: peers will use the relay
-  ✓ dns            thinkpad.brave-otter.lvh.me → 10.77.86.29
+  ✓ dns            thinkpad.brave-otter.mesh.jabed.dev → 10.77.86.29
   ✓ access         every peer may connect
 
 peers

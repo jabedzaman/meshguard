@@ -33,7 +33,8 @@ export const serverEnvSchema = z.object({
   /**
    * Domain devices resolve under: `<device>.<network label>.<DNS_BASE_DOMAIN>`.
    * Agents answer these names themselves; the domain only needs to be public
-   * for HTTPS certificates. lvh.me publicly resolves every name to 127.0.0.1.
+   * for HTTPS certificates. It must have no public wildcard record, so a
+   * machine that skips the agent gets NXDOMAIN rather than someone's address.
    */
   DNS_BASE_DOMAIN: optional.pipe(
     z
@@ -42,7 +43,7 @@ export const serverEnvSchema = z.object({
         /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/,
         "a lowercase domain like mesh.example.com",
       )
-      .default("lvh.me"),
+      .default("mesh.jabed.dev"),
   ),
   /** Comma-separated host:port STUN servers agents use to find their public address. */
   STUN_SERVERS: z

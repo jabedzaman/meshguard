@@ -20,6 +20,10 @@ data:
   # No relay on this cluster yet: peers connect directly or not at all.
   RELAY_URL: "wss://meshguard-relay.jabed.dev/relay"
   STUN_SERVERS: "stun.l.google.com:19302,stun.cloudflare.com:3478"
+  # Devices resolve as <device>.<network label>.mesh.jabed.dev, answered by the
+  # agents themselves. Keep this name free of DNS records in Cloudflare
+  # (especially wildcards), so lookups that skip the agent fail cleanly.
+  DNS_BASE_DOMAIN: "mesh.jabed.dev"
   # Public half of RELAY_TOKEN_KEY (secret.yaml): the relay serves only devices
   # holding a token from the API. Empty serves any agent.
   RELAY_TRUST_KEY: "JUnnxNPDjzyPDxurVkH7r7VMA431CFQSSVOVOqVHg5c="

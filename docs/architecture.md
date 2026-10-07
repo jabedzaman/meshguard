@@ -213,7 +213,7 @@ Devices resolve as `<name>.<network domain>`, like Tailscale's
 `<name>.<tailnet>.ts.net`. Each network gets a random label from two words
 when it's created (`networks.dns_label`, unique across all networks, e.g.
 `brave-otter`), and its domain is that label under the control plane's
-`DNS_BASE_DOMAIN` (`brave-otter.lvh.me`; `lvh.me` by default). The domain is
+`DNS_BASE_DOMAIN` (`brave-otter.mesh.jabed.dev`; `mesh.jabed.dev` by default). The domain is
 computed when the API answers, so changing the base domain renames every
 network; it's sent in enrollment and in the network map, and the agent saves
 it in its state file. The label says nothing about the organization or
@@ -247,9 +247,12 @@ the same answer as an unknown device, so ids can't be probed.
   default route. Nothing else on the machine changes, and without
   systemd-resolved the agent leaves resolv.conf alone and says so in
   `meshguard status`. A new domain from the network map re-points the OS.
-- `lvh.me` resolves every name to `127.0.0.1` publicly, so a machine whose OS
-  skips the agent reaches localhost rather than failing; `meshguard doctor`
-  says when a mesh name came back as a loopback address.
+- The base domain must have no public wildcard record (none for
+  `mesh.jabed.dev`; it's in the jabed.dev Cloudflare zone, which also serves
+  the tunnel's hostnames), so a machine whose OS skips the agent gets NXDOMAIN
+  rather than someone else's address. `meshguard doctor` still says when a
+  mesh name came back as a loopback address, as it would under a wildcard
+  domain like `lvh.me`.
 - Names are answered locally, so lookups work offline and never reach the
   control plane; there is no central DNS service.
 

@@ -44,7 +44,7 @@ test.describe("networks", () => {
     const lab = await create("lab");
 
     // Like a tailnet name: two random words under the base domain.
-    expect(home.dnsDomain).toMatch(/^[a-z]+-[a-z]+\.lvh\.me$/);
+    expect(home.dnsDomain).toMatch(/^[a-z]+-[a-z]+\.mesh\.jabed\.dev$/);
     expect(lab.dnsDomain).not.toBe(home.dnsDomain);
 
     await user.page.goto(`/networks/${home.id}`);

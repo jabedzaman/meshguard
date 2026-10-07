@@ -4,10 +4,10 @@ description: Reach every device by name, like a tailnet.
 ---
 
 Every device resolves as `<name>.<network domain>`, e.g.
-`ssh jabeds-macbook-air.brave-otter.lvh.me`, and as just `jabeds-macbook-air` where the OS
+`ssh jabeds-macbook-air.brave-otter.mesh.jabed.dev`, and as just `jabeds-macbook-air` where the OS
 supports search domains. Like a tailnet name, each network gets a random
-domain when it's created (`brave-otter.lvh.me`, shown on the network page); the
-control plane's `DNS_BASE_DOMAIN` sets the part after the label (`lvh.me` by default).
+domain when it's created (`brave-otter.mesh.jabed.dev`, shown on the network page); the
+control plane's `DNS_BASE_DOMAIN` sets the part after the label (`mesh.jabed.dev` by default).
 Device names come from the hostname (lowercased, first label) and are unique
 in the network: a second `laptop` becomes `laptop-2`. Mesh addresses resolve
 back to names too (`dig -x 10.77.0.214`).
@@ -30,12 +30,12 @@ address. Queries to it go into the WireGuard interface and are answered by the
 agent itself; they never leave the machine. The OS sends only the network's domain and its reverse
 zones there; other lookups never touch it.
 
-`lvh.me` is a public domain whose every name resolves to `127.0.0.1`. If a
-machine's OS doesn't send the network's domain to the agent, mesh names reach
-localhost instead of failing; `meshguard doctor` flags that.
+The base domain has no public records, so if a machine's OS doesn't send the
+network's domain to the agent, mesh names fail to resolve rather than reaching
+some other address; `meshguard doctor` explains how to fix it.
 
 | Platform | Setup |
 | --- | --- |
 | macOS | Writes `/etc/resolver/<network domain>` and one file per reverse zone (removed on `meshguard down`). Short names don't resolve. |
 | Linux with systemd-resolved | `resolvectl dns/domain` on `meshguard0`. The network's domain is a search domain, so short names work: `ssh laptop`. |
-| Other Linux | The OS isn't configured. Query the resolver directly: `dig @10.77.0.53 laptop.brave-otter.lvh.me`. |
+| Other Linux | The OS isn't configured. Query the resolver directly: `dig @10.77.0.53 laptop.brave-otter.mesh.jabed.dev`. |

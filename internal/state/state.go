@@ -45,7 +45,7 @@ type Network struct {
 	Name     string `json:"name"`
 	IPv4CIDR string `json:"ipv4Cidr"`
 	IPv6CIDR string `json:"ipv6Cidr"`
-	// Domain the network's devices resolve under, e.g. "brave-otter.lvh.me";
+	// Domain the network's devices resolve under, e.g. "brave-otter.mesh.jabed.dev";
 	// empty in state saved before the control plane sent one.
 	DNSDomain string `json:"dnsDomain,omitempty"`
 }

@@ -14,6 +14,6 @@ describe("randomNetworkLabel", () => {
 
 describe("networkDnsDomain", () => {
   it("puts the label under the base domain", () => {
-    expect(networkDnsDomain("brave-otter", "lvh.me")).toBe("brave-otter.lvh.me");
+    expect(networkDnsDomain("brave-otter", "mesh.jabed.dev")).toBe("brave-otter.mesh.jabed.dev");
   });
 });

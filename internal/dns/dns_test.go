@@ -12,7 +12,7 @@ import (
 
 func testServer() *Server {
 	s := &Server{}
-	s.SetDomain("brave-otter.lvh.me")
+	s.SetDomain("brave-otter.mesh.jabed.dev")
 	s.SetRecords(map[string]Record{
 		"laptop": {IPv4: netip.MustParseAddr("10.77.0.9"), IPv6: netip.MustParseAddr("fd00:1:2::9")},
 		"v4only": {IPv4: netip.MustParseAddr("10.77.0.10")},
@@ -45,14 +45,14 @@ func ask(t *testing.T, s *Server, name string, qtype dnsmessage.Type) dnsmessage
 func TestAnswersDevices(t *testing.T) {
 	s := testServer()
 
-	m := ask(t, s, "laptop.brave-otter.lvh.me.", dnsmessage.TypeA)
+	m := ask(t, s, "laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA)
 	assert.Equal(t, dnsmessage.RCodeSuccess, m.RCode)
 	assert.True(t, m.Authoritative)
 	require.Len(t, m.Answers, 1)
 	assert.Equal(t, [4]byte{10, 77, 0, 9}, m.Answers[0].Body.(*dnsmessage.AResource).A)
 	assert.Equal(t, uint32(TTL), m.Answers[0].Header.TTL)
 
-	m = ask(t, s, "LapTop.Brave-Otter.LVH.me.", dnsmessage.TypeAAAA)
+	m = ask(t, s, "LapTop.Brave-Otter.Mesh.Jabed.DEV.", dnsmessage.TypeAAAA)
 	require.Len(t, m.Answers, 1)
 	assert.Equal(t, netip.MustParseAddr("fd00:1:2::9").As16(), m.Answers[0].Body.(*dnsmessage.AAAAResource).AAAA)
 }
@@ -60,39 +60,39 @@ func TestAnswersDevices(t *testing.T) {
 func TestNoDataNXDomainAndRefused(t *testing.T) {
 	s := testServer()
 
-	m := ask(t, s, "v4only.brave-otter.lvh.me.", dnsmessage.TypeAAAA)
+	m := ask(t, s, "v4only.brave-otter.mesh.jabed.dev.", dnsmessage.TypeAAAA)
 	assert.Equal(t, dnsmessage.RCodeSuccess, m.RCode, "known name without IPv6 is NODATA")
 	assert.Empty(t, m.Answers)
 
-	m = ask(t, s, "laptop.brave-otter.lvh.me.", dnsmessage.TypeMX)
+	m = ask(t, s, "laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeMX)
 	assert.Equal(t, dnsmessage.RCodeSuccess, m.RCode)
 	assert.Empty(t, m.Answers)
 
-	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "nope.brave-otter.lvh.me.", dnsmessage.TypeA).RCode)
-	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "x.laptop.brave-otter.lvh.me.", dnsmessage.TypeA).RCode)
-	assert.Equal(t, dnsmessage.RCodeSuccess, ask(t, s, "brave-otter.lvh.me.", dnsmessage.TypeSOA).RCode)
+	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "nope.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA).RCode)
+	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "x.laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA).RCode)
+	assert.Equal(t, dnsmessage.RCodeSuccess, ask(t, s, "brave-otter.mesh.jabed.dev.", dnsmessage.TypeSOA).RCode)
 	assert.Equal(t, dnsmessage.RCodeRefused, ask(t, s, "example.com.", dnsmessage.TypeA).RCode)
-	assert.Equal(t, dnsmessage.RCodeRefused, ask(t, s, "laptop.other-net.lvh.me.", dnsmessage.TypeA).RCode, "another network's domain")
+	assert.Equal(t, dnsmessage.RCodeRefused, ask(t, s, "laptop.other-net.mesh.jabed.dev.", dnsmessage.TypeA).RCode, "another network's domain")
 }
 
 func TestNothingResolvesWithoutADomain(t *testing.T) {
 	s := testServer()
 	s.SetDomain("")
 	s.SetNetworks([]netip.Prefix{netip.MustParsePrefix("10.77.0.0/16")})
-	assert.Equal(t, dnsmessage.RCodeRefused, ask(t, s, "laptop.brave-otter.lvh.me.", dnsmessage.TypeA).RCode)
+	assert.Equal(t, dnsmessage.RCodeRefused, ask(t, s, "laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA).RCode)
 	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "9.0.77.10.in-addr.arpa.", dnsmessage.TypePTR).RCode)
 }
 
 func TestName(t *testing.T) {
-	assert.Equal(t, "laptop.brave-otter.lvh.me", Name("LapTop", "brave-otter.lvh.me"))
+	assert.Equal(t, "laptop.brave-otter.mesh.jabed.dev", Name("LapTop", "brave-otter.mesh.jabed.dev"))
 	assert.Equal(t, "laptop", Name("laptop", ""))
 }
 
 func TestSetRecordsReplaces(t *testing.T) {
 	s := testServer()
 	s.SetRecords(map[string]Record{"desktop": {IPv4: netip.MustParseAddr("10.77.0.11")}})
-	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "laptop.brave-otter.lvh.me.", dnsmessage.TypeA).RCode)
-	assert.Len(t, ask(t, s, "desktop.brave-otter.lvh.me.", dnsmessage.TypeA).Answers, 1)
+	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA).RCode)
+	assert.Len(t, ask(t, s, "desktop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA).Answers, 1)
 }
 
 func TestReverseLookups(t *testing.T) {
@@ -102,11 +102,11 @@ func TestReverseLookups(t *testing.T) {
 	m := ask(t, s, "9.0.77.10.in-addr.arpa.", dnsmessage.TypePTR)
 	assert.Equal(t, dnsmessage.RCodeSuccess, m.RCode)
 	require.Len(t, m.Answers, 1)
-	assert.Equal(t, "laptop.brave-otter.lvh.me.", m.Answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
+	assert.Equal(t, "laptop.brave-otter.mesh.jabed.dev.", m.Answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
 
 	m = ask(t, s, "9.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.2.0.0.0.1.0.0.0.0.0.d.f.ip6.arpa.", dnsmessage.TypePTR)
 	require.Len(t, m.Answers, 1)
-	assert.Equal(t, "laptop.brave-otter.lvh.me.", m.Answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
+	assert.Equal(t, "laptop.brave-otter.mesh.jabed.dev.", m.Answers[0].Body.(*dnsmessage.PTRResource).PTR.String())
 
 	assert.Equal(t, dnsmessage.RCodeNameError, ask(t, s, "99.0.77.10.in-addr.arpa.", dnsmessage.TypePTR).RCode, "free address")
 	assert.Equal(t, dnsmessage.RCodeSuccess, ask(t, s, "77.10.in-addr.arpa.", dnsmessage.TypeSOA).RCode, "zone apex")
@@ -148,12 +148,12 @@ func TestResolverAddr(t *testing.T) {
 
 func TestHandlesPacketsForTheResolver(t *testing.T) {
 	s := testServer()
-	_, handled := s.HandlePacket(queryPacket(t, "laptop.brave-otter.lvh.me.", dnsmessage.TypeA))
+	_, handled := s.HandlePacket(queryPacket(t, "laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA))
 	assert.False(t, handled, "no address until SetNetworks")
 	s.SetNetworks([]netip.Prefix{netip.MustParsePrefix("10.77.0.0/16")})
 	assert.Equal(t, "10.77.0.53", s.Addr().String())
 
-	reply, handled := s.HandlePacket(queryPacket(t, "laptop.brave-otter.lvh.me.", dnsmessage.TypeA))
+	reply, handled := s.HandlePacket(queryPacket(t, "laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA))
 	require.True(t, handled)
 	require.NotNil(t, reply)
 	assert.Equal(t, uint16(0), fold(sum(0, reply[:ipv4HeaderLen]))^0xffff, "IP checksum")
@@ -170,12 +170,12 @@ func TestHandlesPacketsForTheResolver(t *testing.T) {
 	assert.Equal(t, [4]byte{10, 77, 0, 9}, m.Answers[0].Body.(*dnsmessage.AResource).A)
 
 	// To a peer: not ours.
-	other := udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.MustParseAddrPort("10.77.0.9:53"), query(t, "laptop.brave-otter.lvh.me.", dnsmessage.TypeA))
+	other := udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.MustParseAddrPort("10.77.0.9:53"), query(t, "laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA))
 	_, handled = s.HandlePacket(other)
 	assert.False(t, handled)
 
 	// To the resolver's address but another port: not ours either.
-	wrongPort := udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.MustParseAddrPort("10.77.0.53:54"), query(t, "laptop.brave-otter.lvh.me.", dnsmessage.TypeA))
+	wrongPort := udpPacket(netip.MustParseAddrPort("10.77.0.2:40000"), netip.MustParseAddrPort("10.77.0.53:54"), query(t, "laptop.brave-otter.mesh.jabed.dev.", dnsmessage.TypeA))
 	_, handled = s.HandlePacket(wrongPort)
 	assert.False(t, handled)
 	_, handled = s.HandlePacket([]byte{0x60, 0, 0, 0})

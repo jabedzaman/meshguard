@@ -12,7 +12,7 @@ import (
 
 var peers = []ipc.Peer{
 	{Name: "Jabeds-MacBook-Air", MeshIPv4: "10.77.0.214", MeshIPv6: "fd00::214"},
-	{Name: "thinkpad", DNSName: "thinkpad.brave-otter.lvh.me", MeshIPv4: "10.77.141.90"},
+	{Name: "thinkpad", DNSName: "thinkpad.brave-otter.mesh.jabed.dev", MeshIPv4: "10.77.141.90"},
 	{Name: "thinkcentre", MeshIPv4: "10.77.1.1"},
 }
 
@@ -25,7 +25,7 @@ func TestFindPeer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "thinkpad", p.Name, "exact match wins over prefix")
 
-	p, err = findPeer(peers, "ThinkPad.Brave-Otter.lvh.me.")
+	p, err = findPeer(peers, "ThinkPad.Brave-Otter.mesh.jabed.dev.")
 	require.NoError(t, err)
 	assert.Equal(t, "thinkpad", p.Name, "by DNS name")
 

@@ -17,7 +17,7 @@ import (
 )
 
 // findPeer resolves a peer by name (case-insensitive, unique prefix), DNS
-// name (laptop.brave-otter.lvh.me) or mesh IP.
+// name (laptop.brave-otter.mesh.jabed.dev) or mesh IP.
 func findPeer(peers []ipc.Peer, query string) (ipc.Peer, error) {
 	q := strings.TrimSuffix(strings.ToLower(query), ".")
 	var matches []ipc.Peer

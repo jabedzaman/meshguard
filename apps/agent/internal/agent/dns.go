@@ -15,7 +15,7 @@ import (
 type dnsState struct {
 	server *dns.Server
 	status ipc.DNSStatus
-	// The network's domain, e.g. "brave-otter.lvh.me"; empty until the
+	// The network's domain, e.g. "brave-otter.mesh.jabed.dev"; empty until the
 	// control plane sends one.
 	domain string
 	// The device's name, for status.
