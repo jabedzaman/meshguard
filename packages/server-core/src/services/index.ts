@@ -4,6 +4,7 @@ import type { DeviceEvents } from "~/events/device-events";
 import { DeviceNonces } from "~/lib/device-nonces";
 import { DEFAULT_DNS_BASE_DOMAIN } from "~/lib/dns-name";
 import { PresenceStore } from "~/lib/presence";
+import { RateLimiter } from "~/lib/rate-limiter";
 import { relayTokenKey } from "~/lib/relay-token";
 import { AclService } from "~/services/acl/acl.service";
 import { DeviceLoginsService } from "~/services/device-logins/device-logins.service";
@@ -55,6 +56,7 @@ export function createServices(
     ),
     acl,
     deviceNonces: new DeviceNonces(redis),
+    rateLimiter: new RateLimiter(redis),
     devices: new DevicesService(db, new PresenceStore(redis), deviceEvents, acl, {
       relayUrl: options.relayUrl,
       relayTokenKey: options.relayTokenKey ? relayTokenKey(options.relayTokenKey) : undefined,

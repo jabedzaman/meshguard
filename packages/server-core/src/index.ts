@@ -9,6 +9,7 @@ export * from "./lib/ip";
 export * from "./lib/mailer";
 export * from "./lib/nats";
 export * from "./lib/presence";
+export * from "./lib/rate-limiter";
 export * from "./lib/redis";
 export * from "./lib/relay-token";
 export * from "./lib/tokens";

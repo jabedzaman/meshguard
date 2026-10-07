@@ -3,6 +3,7 @@ import { streamSSE } from "hono/streaming";
 import { factory } from "~/lib/factory";
 import { logger } from "~/lib/logger";
 import { validate } from "~/lib/validator";
+import { rateLimitByIp } from "~/middlewares/rate-limit.middleware";
 import { ForbiddenError } from "@meshguard/server-core";
 import {
   hasPermission,
@@ -21,10 +22,14 @@ import { idParams, networkIdParams } from "~/schemas/params.schema";
 import type { AppEnv } from "~/types";
 
 /** Called by the agent (`meshguard up --token ...`); authenticated by the enrollment token. */
-export const enroll = factory.createHandlers(validate("json", enrollDeviceBody), async (c) => {
-  const result = await c.var.services.devices.enroll(c.req.valid("json"));
-  return c.json(result, 201);
-});
+export const enroll = factory.createHandlers(
+  rateLimitByIp("device-enroll", 20, 60_000),
+  validate("json", enrollDeviceBody),
+  async (c) => {
+    const result = await c.var.services.devices.enroll(c.req.valid("json"));
+    return c.json(result, 201);
+  },
+);
 
 export const listForNetwork = factory.createHandlers(
   requireOrganization,

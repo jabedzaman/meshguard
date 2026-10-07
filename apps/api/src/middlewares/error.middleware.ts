@@ -1,6 +1,6 @@
 import type { ErrorHandler, NotFoundHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { AppError } from "@meshguard/server-core";
+import { AppError, TooManyRequestsError } from "@meshguard/server-core";
 import { logger } from "~/lib/logger";
 import type { AppEnv } from "~/types";
 
@@ -16,6 +16,8 @@ export interface ErrorBody {
 
 export const errorHandler: ErrorHandler<AppEnv> = (err, c) => {
   const requestId = c.get("requestId");
+
+  if (err instanceof TooManyRequestsError) c.header("Retry-After", String(err.retryAfter));
 
   if (err instanceof AppError) {
     return c.json<ErrorBody>(
