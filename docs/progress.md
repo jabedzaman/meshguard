@@ -111,10 +111,12 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 ### M3 — Desktop app ⬜
 
 - ✅ M3.1 Agent runs as a system service: `sudo meshguard-agent install` (launchd / systemd; systemd tested by `pnpm test:systemd`; verified on a MacBook and WSL, 2026-10-02)
-- ⬜ M3.2 Sign in, device enrollment, network selection
-- ⬜ M3.3 Device list, peer health, connection status
-- ⬜ M3.4 Agent ↔ desktop over Unix socket
-- ⬜ M3.5 Menu-bar mode (carry over from Mapper)
+- 🚧 M3.2 Sign in (browser approval or token) and device enrollment; network selection is chosen on the web approval page
+- 🚧 M3.3 Device list, direct/relay per peer, connect switch (peer health detail ⬜)
+- ✅ M3.4 Agent ↔ desktop over Unix socket (`apps/desktop/src-tauri/src/agent.rs`; same local API as the CLI)
+- ✅ M3.5 Menu-bar mode: tray icon with status, connect/disconnect, devices; Settings choose menu bar + window / menu bar only / window only, launch at login, start hidden, keep running on close
+- ✅ M3.6 One bundle like Tailscale: the app carries `meshguard-agent` and `meshguard`, and "Install service" runs `meshguard-agent install` with one admin prompt (`scripts/build-desktop-bins.sh` fills `src-tauri/bin` first; macOS and Linux/pkexec)
+- ⬜ M3.7 Signed/notarized `.dmg`, Windows, auto-update, template tray icon, exit node / serve / funnel controls
 
 ### M4 — Workspaces ⬜
 
@@ -166,6 +168,26 @@ What Tailscale calls subnet routers, exit nodes, Services, serve/funnel and app 
 - ⬜ L.2 Windows and Linux agents
 - ⬜ L.3 Product name + domain
 - ⬜ L.4 iOS and Android apps
+
+## Tailscale parity (2026-10-08)
+
+Not there yet. The networking features are covered (M1, M2 core, M6). What is missing is what makes it run as a product: identity for servers, reach on every network and OS, and operations.
+
+| Area | Status | Open items |
+| ---- | ------ | ---------- |
+| Mesh, NAT traversal, relay, DNS, ACLs by tag/user/role | ✅ | M2.3 double-NAT punching, M2.17 relay regions, M2.23 lazy peers |
+| Subnet routers, exit nodes, services, serve, HTTPS certs, funnel, app connectors | ✅ | Linux-only exit nodes (M6.3) |
+| Auth keys for servers, CI and containers | ⬜ | M1.29 (reusable, ephemeral, tagged) |
+| Device approval, key expiry, key rotation, signed node keys | ⬜ | M1.30, M2.9, M2.26 |
+| Full DNS (forwarding, split DNS, override), macOS short names | ⬜ | M2.13, M2.18–M2.20 |
+| Clients | Mac agent only | M3 desktop app, L.2 Windows and Linux agents, L.4 iOS and Android |
+| Userspace networking, Kubernetes | ⬜ | M7.1, M7.8 |
+| Admin API tokens, audit log, webhooks, metrics | ⬜ | M7.3–M7.5, M7.7 |
+| Auto-update, device page, whois, file transfer, SSH | ⬜ | M7.2, M7.6, M7.9–M7.11 |
+| Multiple networks per device, IPv4 range change | ⬜ | M2.25, M1.33 |
+| Rate limits on authenticated routes, GitHub sign-in | 🚧 | M1.31, M1.2 |
+
+Next, in order: **M1.29 → M1.30 → M7.3 → M7.4** (identity, pathway phase 2), then **M7.1** and **M2.3** (reach), then clients (M3, L.2).
 
 ## Pathway
 
@@ -234,3 +256,4 @@ Order to work through the open items (from the 2026-10-06 comparison with Tailsc
 | 2026-10-08 | Certificates are per device, not wildcard per network: a wildcard needs every device to hold its network's key, so one stolen device could impersonate all of them. The cost is one order per device against the CA's per-domain limit. The control plane orders on the device's behalf because it alone owns the zone and can write DNS-01 records; it signs nothing itself, and refuses a request for any name but the asking device's own                                                                                                                                                                                                                                                                                                                                                         |
 | 2026-10-08 | A funnel uses the device's mesh name, not a separate public name: the control plane writes an A record for that name to the relay only while an admin has the funnel on, so every other mesh name still has no public records. The relay passes TLS through and learns which agent serves a name from the signed relay token (names inside the token the control plane already refreshes), so it needs no call to the API and an agent can't claim a name it wasn't given. Agents end TLS with the same per-device certificate `meshguard cert` gets, and only speak HTTP/1.1 to the local port                                                                                                                                                                                                      |
 | 2026-10-08 | App connectors forward DNS for the connector's own domains only, instead of waiting for general DNS forwarding (M2.13): the client agent asks the host's agent, which answers from the system resolver, and the answers drive routes. A host forwards only to addresses it resolved a moment ago (a guard in its TUN), otherwise any peer could use it as an exit node by crafting packets, since WireGuard only checks the sender. Routes are per address, not per domain, and expire with the answers                                                                                                                                                                                                                                                                                              |
+| 2026-10-08 | Not at Tailscale level yet: M6 closed the networking feature gap, but servers still enroll with single-use tokens (M1.29), there are no Windows/Linux/mobile clients, no userspace mode and no audit log or admin API. Next is the identity phase of the pathway, not more networking features |
