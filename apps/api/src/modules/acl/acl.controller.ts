@@ -1,16 +1,17 @@
+import { requireNetwork } from "~/middlewares/network.middleware";
 import { factory } from "~/lib/factory";
 import { validate } from "~/lib/validator";
 import { requireOrganization, requirePermission } from "~/middlewares/auth.middleware";
 import { checkAccessBody, createAclRuleBody, updateAclBody } from "~/modules/acl/acl.schema";
-import { idParams, networkIdParams } from "~/schemas/params.schema";
+import { idParams } from "~/schemas/params.schema";
 
 /** The network's default action and access rules. */
 export const getForNetwork = factory.createHandlers(
   requireOrganization,
   requirePermission({ network: ["read"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   async (c) => {
-    const acl = await c.var.services.acl.get(c.var.organizationId, c.req.valid("param").networkId);
+    const acl = await c.var.services.acl.get(c.var.organizationId, c.var.networkId);
     return c.json(acl, 200);
   },
 );
@@ -19,12 +20,12 @@ export const getForNetwork = factory.createHandlers(
 export const updateForNetwork = factory.createHandlers(
   requireOrganization,
   requirePermission({ network: ["update"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   validate("json", updateAclBody),
   async (c) => {
     const acl = await c.var.services.acl.setDefaultAction(
       c.var.organizationId,
-      c.req.valid("param").networkId,
+      c.var.networkId,
       c.req.valid("json").defaultAction,
     );
     return c.json(acl, 200);
@@ -34,12 +35,12 @@ export const updateForNetwork = factory.createHandlers(
 export const createRule = factory.createHandlers(
   requireOrganization,
   requirePermission({ network: ["update"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   validate("json", createAclRuleBody),
   async (c) => {
     const rule = await c.var.services.acl.createRule(
       c.var.organizationId,
-      c.req.valid("param").networkId,
+      c.var.networkId,
       c.req.valid("json"),
     );
     return c.json(rule, 201);
@@ -60,11 +61,11 @@ export const removeRule = factory.createHandlers(
 export const document = factory.createHandlers(
   requireOrganization,
   requirePermission({ network: ["read"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   async (c) => {
     const doc = await c.var.services.acl.document(
       c.var.organizationId,
-      c.req.valid("param").networkId,
+      c.var.networkId,
     );
     return c.json(doc, 200);
   },
@@ -74,12 +75,12 @@ export const document = factory.createHandlers(
 export const check = factory.createHandlers(
   requireOrganization,
   requirePermission({ network: ["read"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   validate("json", checkAccessBody),
   async (c) => {
     const result = await c.var.services.acl.check(
       c.var.organizationId,
-      c.req.valid("param").networkId,
+      c.var.networkId,
       c.req.valid("json"),
     );
     return c.json(result, 200);

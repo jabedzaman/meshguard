@@ -132,7 +132,7 @@ Device changes are pushed to the web, not polled. The API publishes
 publishes `disconnected` when a presence key expires, from Redis expired-key
 notifications (it enables `notify-keyspace-events Ex` at startup; on managed
 Redis that forbids `CONFIG`, set it there). The network page holds an
-EventSource on `GET /v1/networks/:networkId/devices/events` and re-reads the
+EventSource on `GET /v1/network/devices/events` and re-reads the
 device list on every event and on every (re)connect, so events are only hints
 and a lost one costs at most a stale row until the next.
 
@@ -292,7 +292,7 @@ selector (`packages/server-core/src/lib/acl-policy.ts`):
 
 Owners and admins tag devices (`PUT /v1/devices/:id/tags`; tags grant access,
 so device owners can't tag their own) and manage rules on the network page
-(`GET`/`PATCH /v1/networks/:networkId/acl`, `POST .../acl/rules`,
+(`GET`/`PATCH /v1/network/acl`, `POST .../acl/rules`,
 `DELETE /v1/acl-rules/:id`); members can read them. Rules naming a device or
 a user are deleted with it. `POST .../acl/check` answers whether one device
 may connect to another on a protocol and port, and by which rule;

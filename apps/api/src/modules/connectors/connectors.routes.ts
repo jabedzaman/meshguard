@@ -7,7 +7,7 @@ export const connectorsRoutes = new Hono<AppEnv>()
   .patch("/:id", ...controller.update)
   .delete("/:id", ...controller.remove);
 
-/** Nested under the networks router: /v1/networks/:networkId/connectors. */
+/** Nested under the network router: /v1/network/connectors. */
 export const networkConnectorsRoutes = new Hono<AppEnv>()
   .get("/", ...controller.list)
   .post("/", ...controller.create);

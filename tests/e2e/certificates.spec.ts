@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { enroll, requestCertificate, signingDevice } from "./support/devices";
-import { api, expect, test } from "./support/fixtures";
+import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 /** A PEM certificate request (needs openssl on the machine running the tests). */
 function csr(names: string[]) {
@@ -40,7 +40,7 @@ function csr(names: string[]) {
 async function enrollDevice(page: Page, networkId: string, hostname: string) {
   const { token } = await api<{ token: string }>(
     page,
-    `/v1/networks/${networkId}/enrollment-tokens`,
+    `/v1/network/enrollment-tokens`,
     {},
   );
   const device = signingDevice();
@@ -56,9 +56,7 @@ test.describe("certificates", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Certs Org");
-    const network = await api<{ id: string; dnsDomain: string }>(owner.page, "/v1/networks", {
-      name: "home",
-    });
+    const network = await ownNetwork<{ id: string; dnsDomain: string }>(owner.page);
     const laptop = await enrollDevice(owner.page, network.id, "laptop");
     await enrollDevice(owner.page, network.id, "server");
 

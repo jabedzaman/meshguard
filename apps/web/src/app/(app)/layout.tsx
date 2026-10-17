@@ -1,9 +1,9 @@
-import { Separator } from "@meshguard/ui/components/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@meshguard/ui/components/sidebar";
 import { AppSidebar } from "~/components/app-sidebar";
-import { Logo } from "~/components/logo";
+import { NavUser } from "~/components/nav-user";
 import { OrganizationProvider } from "~/components/providers/organization-provider";
 import { ROLES, type Role } from "@meshguard/auth/permissions";
+import { orgUrl } from "~/lib/org-host";
 import {
   getActiveMember,
   getActiveOrganization,
@@ -34,15 +34,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     >
       <SidebarProvider>
         <AppSidebar
-          organizations={organizations.map(({ id, name, slug }) => ({ id, name, slug }))}
+          organizations={organizations.map(({ id, name, slug }) => ({
+            id,
+            name,
+            slug,
+            url: orgUrl(slug),
+          }))}
         />
         <SidebarInset>
           <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-            <Logo className="text-sm" />
+            <div className="ml-auto">
+              <NavUser />
+            </div>
           </header>
-          <div className="mx-auto w-full max-w-5xl flex-1 p-4 md:p-8">{children}</div>
+          <div className="mx-auto w-full max-w-7xl flex-1 p-4 md:p-8">{children}</div>
         </SidebarInset>
       </SidebarProvider>
     </OrganizationProvider>

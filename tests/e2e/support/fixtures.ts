@@ -36,6 +36,11 @@ export async function api<T = unknown>(
   return body as T;
 }
 
+/** The signed-in user's active organization's network, made when the organization was. */
+export async function ownNetwork<T = { id: string; dnsDomain: string }>(page: Page): Promise<T> {
+  return api<T>(page, "/v1/network");
+}
+
 /** Latest invitation link sent to `to`, via the shared Mailpit. */
 export async function invitationLink(to: string): Promise<string> {
   let link: string | undefined;
@@ -65,7 +70,11 @@ interface Fixtures {
   /** Creates a signed-in user in their own browser context. */
   createUser: (name: string) => Promise<TestUser>;
   /** Creates an organization (active) for the user and returns its name and id. */
-  createOrganization: (user: TestUser, name: string) => Promise<{ id: string; name: string }>;
+  createOrganization: (
+    user: TestUser,
+    name: string,
+    options?: { ipv4Cidr?: string },
+  ) => Promise<{ id: string; name: string }>;
   /** Invites the user to the owner's active organization and accepts it. */
   addToOrganization: (owner: TestUser, user: TestUser, role: "admin" | "member") => Promise<void>;
 }
@@ -84,12 +93,13 @@ export const test = base.extend<Fixtures>({
     await Promise.all(contexts.map((c) => c.close()));
   },
   createOrganization: async ({}, use) => {
-    await use(async (user, name) => {
+    await use(async (user, name, options) => {
       const id = uniqueId();
       const fullName = `${name} ${id}`;
       const org = await api<{ id: string }>(user.page, "/api/auth/organization/create", {
         name: fullName,
         slug: `${name.toLowerCase().replace(/\W+/g, "-")}-${id}`,
+        ...(options?.ipv4Cidr && { metadata: { ipv4Cidr: options.ipv4Cidr } }),
       });
       return { id: org.id, name: fullName };
     });

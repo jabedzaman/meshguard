@@ -1,15 +1,15 @@
 import type { Page } from "@playwright/test";
 import { enroll, signingDevice, sync } from "./support/devices";
-import { api, expect, test } from "./support/fixtures";
+import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 /** A network with enrolled devices that can sign syncs. */
 async function networkWithDevices(page: Page, hostnames: string[]) {
-  const network = await api<{ id: string }>(page, "/v1/networks", { name: "home" });
+  const network = await ownNetwork<{ id: string }>(page);
   const devices: Record<string, { id: string; privateKey: any; ipv4: string; ipv6: string }> = {};
   for (const hostname of hostnames) {
     const { token } = await api<{ token: string }>(
       page,
-      `/v1/networks/${network.id}/enrollment-tokens`,
+      `/v1/network/enrollment-tokens`,
       {},
     );
     const device = signingDevice();
@@ -26,10 +26,10 @@ async function networkWithDevices(page: Page, hostnames: string[]) {
 }
 
 const addRule = (page: Page, networkId: string, rule: Record<string, unknown>) =>
-  api<{ id: string }>(page, `/v1/networks/${networkId}/acl/rules`, rule);
+  api<{ id: string }>(page, `/v1/network/acl/rules`, rule);
 
 const setDefault = (page: Page, networkId: string, defaultAction: "allow" | "deny") =>
-  api(page, `/v1/networks/${networkId}/acl`, { defaultAction }, { method: "PATCH" });
+  api(page, `/v1/network/acl`, { defaultAction }, { method: "PATCH" });
 
 test.describe("access rules", () => {
   test("each device syncs the rules that let traffic in to it", async ({
@@ -74,7 +74,7 @@ test.describe("access rules", () => {
     });
 
     // The web sees the same rules with device names.
-    const acl = await api<any>(owner.page, `/v1/networks/${network.id}/acl`);
+    const acl = await api<any>(owner.page, `/v1/network/acl`);
     expect(acl.defaultAction).toBe("deny");
     expect(acl.rules).toMatchObject([
       {
@@ -100,10 +100,13 @@ test.describe("access rules", () => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "ACL Rules Org");
     const { network, devices } = await networkWithDevices(owner.page, ["laptop"]);
-    const elsewhere = await api<{ id: string }>(owner.page, "/v1/networks", { name: "work" });
+    // A network in another organization.
+    const stranger = await createUser("Stranger");
+    await createOrganization(stranger, "Work Org");
+    const elsewhere = await ownNetwork<{ id: string }>(stranger.page);
     const { token } = await api<{ token: string }>(
-      owner.page,
-      `/v1/networks/${elsewhere.id}/enrollment-tokens`,
+      stranger.page,
+      `/v1/network/enrollment-tokens`,
       {},
     );
     const foreign = await enroll({
@@ -142,7 +145,7 @@ test.describe("access rules", () => {
 
     const member = await createUser("Member");
     await addToOrganization(owner, member, "member");
-    const acl = await api<any>(member.page, `/v1/networks/${network.id}/acl`);
+    const acl = await api<any>(member.page, `/v1/network/acl`);
     expect(acl).toEqual({ defaultAction: "allow", rules: [] });
     await expect(fails({ protocol: "any" }, member.page)).rejects.toMatchObject({ status: 403 });
     await expect(setDefault(member.page, network.id, "deny")).rejects.toMatchObject({
@@ -153,7 +156,7 @@ test.describe("access rules", () => {
       api(member.page, `/v1/acl-rules/${rule.id}`, undefined, { method: "DELETE" }),
     ).rejects.toMatchObject({ status: 403 });
 
-    await member.page.goto(`/networks/${network.id}?tab=access`);
+    await member.page.goto("/access");
     await expect(member.page.getByText("Any device → every device")).toBeVisible();
     await expect(member.page.getByRole("button", { name: "Add rule" })).toHaveCount(0);
     await expect(member.page.getByRole("button", { name: /^Remove rule/ })).toHaveCount(0);
@@ -164,8 +167,8 @@ test.describe("access rules", () => {
     await createOrganization(owner, "ACL Web Org");
     const { network } = await networkWithDevices(owner.page, ["laptop", "server"]);
     const page = owner.page;
-    await page.goto(`/networks/${network.id}`);
-    await page.getByRole("tab", { name: "Access" }).click();
+    await page.goto("/devices");
+    await page.goto("/access");
 
     await page.getByRole("button", { name: "Add rule" }).click();
     const dialog = page.getByRole("dialog");
@@ -188,7 +191,7 @@ test.describe("access rules", () => {
     await page.getByRole("option", { name: "Only what the rules allow" }).click();
     await expect(page.getByText("These rules take effect when")).toHaveCount(0);
     await expect
-      .poll(async () => (await api<any>(page, `/v1/networks/${network.id}/acl`)).defaultAction)
+      .poll(async () => (await api<any>(page, `/v1/network/acl`)).defaultAction)
       .toBe("deny");
 
     await page.getByRole("button", { name: "Remove rule laptop → server" }).click();
@@ -212,7 +215,7 @@ test.describe("access rules", () => {
     const enrollAs = async (page: Page, hostname: string) => {
       const { token } = await api<{ token: string }>(
         page,
-        `/v1/networks/${network.id}/enrollment-tokens`,
+        `/v1/network/enrollment-tokens`,
         {},
       );
       const device = signingDevice();
@@ -271,13 +274,13 @@ test.describe("access rules", () => {
     const check = (from: string, to: string, protocol: string, port?: number) =>
       api<{ allowed: boolean; ruleIndex: number | null }>(
         owner.page,
-        `/v1/networks/${network.id}/acl/check`,
+        `/v1/network/acl/check`,
         { sourceDeviceId: from, destinationDeviceId: to, protocol, port },
       );
     expect(await check(laptop.id, db!.id, "tcp", 5432)).toEqual({ allowed: true, ruleIndex: 1 });
     expect(await check(laptop.id, db!.id, "tcp", 22)).toEqual({ allowed: false, ruleIndex: null });
     expect(await check(desktop.id, web!.id, "icmp")).toEqual({ allowed: true, ruleIndex: 0 });
-    expect(await api(owner.page, `/v1/networks/${network.id}/acl/document`)).toEqual({
+    expect(await api(owner.page, `/v1/network/acl/document`)).toEqual({
       defaultAction: "deny",
       rules: [
         { source: "role:admin", destination: "tag:server", protocol: "any", ports: "*" },
@@ -301,25 +304,25 @@ test.describe("access rules", () => {
     expect(await inbound(web!)).toEqual([]);
 
     // The page shows tags and rule labels.
-    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.goto("/devices");
     // The db device row carries both tags (rule rows mention one each).
     await expect(
       owner.page.locator("li").filter({ hasText: "tag:db" }).filter({ hasText: "tag:server" }),
     ).toHaveCount(1);
-    await owner.page.getByRole("tab", { name: "Access" }).click();
+    await owner.page.goto("/access");
     await expect(owner.page.getByText("role:admin → tag:server")).toBeVisible();
     await expect(owner.page.getByText("Alice → tag:db")).toBeVisible();
 
     // Tag from the page, then check access and view the policy file.
     const page = owner.page;
-    await page.getByRole("tab", { name: "Devices" }).click();
+    await page.goto("/devices");
     await page.getByRole("button", { name: "Tags of web" }).click();
     await page.getByLabel("Tags", { exact: true }).fill("tag:server, edge");
     await page.getByRole("button", { name: "Save tags" }).click();
     await expect(
       page.locator("li").filter({ hasText: "tag:edge" }).filter({ hasText: "tag:server" }),
     ).toHaveCount(1);
-    await page.getByRole("tab", { name: "Access" }).click();
+    await page.goto("/access");
     await page.getByRole("combobox", { name: "Check from" }).click();
     await page.getByRole("option", { name: "bob-desktop" }).click();
     await page.getByRole("combobox", { name: "Check to" }).click();

@@ -14,13 +14,13 @@ const RETRY_MS = 5_000;
  * the list. `ready` fires on every (re)connect, so changes missed while
  * disconnected are picked up too.
  */
-export function useDeviceEvents(networkId: string) {
+export function useDeviceEvents() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const url = api.v1.networks[":networkId"].devices.events.$url({ param: { networkId } });
+    const url = api.v1.network.devices.events.$url();
     const refreshDevices = () =>
-      queryClient.invalidateQueries({ queryKey: deviceQueries.list(networkId).queryKey });
+      queryClient.invalidateQueries({ queryKey: deviceQueries.list().queryKey });
 
     let source: EventSource;
     let retry: ReturnType<typeof setTimeout> | undefined;
@@ -33,12 +33,12 @@ export function useDeviceEvents(networkId: string) {
         const { type } = JSON.parse(message.data) as { type: string };
         if (type === "enrolled") {
           void queryClient.invalidateQueries({
-            queryKey: enrollmentTokenQueries.active(networkId).queryKey,
+            queryKey: enrollmentTokenQueries.active().queryKey,
           });
         }
         // Access rules show device names and go away with their devices.
         if (type === "updated" || type === "removed") {
-          void queryClient.invalidateQueries({ queryKey: aclQueries.get(networkId).queryKey });
+          void queryClient.invalidateQueries({ queryKey: aclQueries.get().queryKey });
         }
       });
       // The browser retries dropped streams itself, but not failed responses.
@@ -52,5 +52,5 @@ export function useDeviceEvents(networkId: string) {
       clearTimeout(retry);
       source.close();
     };
-  }, [networkId, queryClient]);
+  }, [queryClient]);
 }

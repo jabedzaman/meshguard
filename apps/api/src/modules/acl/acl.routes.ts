@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import * as controller from "~/modules/acl/acl.controller";
 import type { AppEnv } from "~/types";
 
-/** Nested under the networks router: /v1/networks/:networkId/acl. */
+/** Nested under the network router: /v1/network/acl. */
 export const networkAclRoutes = new Hono<AppEnv>()
   .get("/", ...controller.getForNetwork)
   .patch("/", ...controller.updateForNetwork)

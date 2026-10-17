@@ -24,6 +24,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "^7.89.0",
+    "recharts": "3.8.0",
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "zod": "^4.6.5"

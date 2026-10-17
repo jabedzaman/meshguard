@@ -7,12 +7,11 @@ import { networkConnectorsRoutes } from "~/modules/connectors/connectors.routes"
 import * as controller from "~/modules/networks/networks.controller";
 import type { AppEnv } from "~/types";
 
-export const networksRoutes = new Hono<AppEnv>()
-  .get("/", ...controller.list)
-  .post("/", ...controller.create)
-  .get("/:id", ...controller.get)
-  .route("/:networkId/enrollment-tokens", networkEnrollmentTokensRoutes)
-  .route("/:networkId/devices", networkDevicesRoutes)
-  .route("/:networkId/services", networkServicesRoutes)
-  .route("/:networkId/connectors", networkConnectorsRoutes)
-  .route("/:networkId/acl", networkAclRoutes);
+/** The active organization's network: /v1/network. */
+export const networkRoutes = new Hono<AppEnv>()
+  .get("/", ...controller.get)
+  .route("/enrollment-tokens", networkEnrollmentTokensRoutes)
+  .route("/devices", networkDevicesRoutes)
+  .route("/services", networkServicesRoutes)
+  .route("/connectors", networkConnectorsRoutes)
+  .route("/acl", networkAclRoutes);

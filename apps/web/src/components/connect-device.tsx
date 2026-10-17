@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2Icon, LaptopIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
 import {
@@ -14,14 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@meshguard/ui/components/card";
-import { Label } from "@meshguard/ui/components/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@meshguard/ui/components/select";
 import { Skeleton } from "@meshguard/ui/components/skeleton";
 import { useOrganization, usePermission } from "~/components/providers/organization-provider";
 import { timeAgo } from "~/lib/time";
@@ -34,13 +25,12 @@ export function ConnectDevice({ id }: { id: string }) {
   const organization = useOrganization();
   const canEnroll = usePermission({ device: ["create"] });
   const queryClient = useQueryClient();
-  const [networkId, setNetworkId] = useState<string>();
 
   const login = useQuery({ ...deviceLoginQueries.detail(id), enabled: id !== "" });
-  const networks = useQuery(networkQueries.list(organization.id));
+  const network = useQuery(networkQueries.current());
 
   const approve = useMutation({
-    mutationFn: (networkId: string) => deviceLoginMutations.approve(id, networkId),
+    mutationFn: () => deviceLoginMutations.approve(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["devices"] }),
   });
   const deny = useMutation({ mutationFn: () => deviceLoginMutations.deny(id) });
@@ -83,7 +73,7 @@ export function ConnectDevice({ id }: { id: string }) {
         </CardHeader>
         <CardFooter>
           <Button asChild variant="outline">
-            <Link href="/">Go to networks</Link>
+            <Link href="/devices">Go to devices</Link>
           </Button>
         </CardFooter>
       </Card>
@@ -93,8 +83,7 @@ export function ConnectDevice({ id }: { id: string }) {
     return <Notice title="Login denied" description="The device was not connected." />;
   }
 
-  const selected = networkId ?? (networks.data?.length === 1 ? networks.data[0]!.id : undefined);
-  const error = approve.error ?? deny.error ?? networks.error;
+  const error = approve.error ?? deny.error ?? network.error;
   const busy = approve.isPending || deny.isPending;
 
   return (
@@ -124,23 +113,11 @@ export function ConnectDevice({ id }: { id: string }) {
           <dt>Requested</dt>
           <dd className="text-foreground">{timeAgo(login.data.startedAt)}</dd>
         </dl>
-        <div className="grid gap-2">
-          <Label htmlFor="network">Network</Label>
-          <Select value={selected} onValueChange={setNetworkId} disabled={networks.isPending}>
-            <SelectTrigger id="network" className="w-full">
-              <SelectValue
-                placeholder={networks.data?.length === 0 ? "No networks yet" : "Choose a network"}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {networks.data?.map((network) => (
-                <SelectItem key={network.id} value={network.id}>
-                  {network.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {network.data && (
+          <p className="text-muted-foreground text-sm">
+            It joins <span className="text-foreground font-medium">{network.data.name}</span>.
+          </p>
+        )}
         {error && (
           <p role="alert" className="text-destructive text-sm">
             {getErrorMessage(error)}
@@ -148,7 +125,7 @@ export function ConnectDevice({ id }: { id: string }) {
         )}
       </CardContent>
       <CardFooter className="gap-2">
-        <Button disabled={!selected || busy} onClick={() => selected && approve.mutate(selected)}>
+        <Button disabled={!network.data || busy} onClick={() => approve.mutate()}>
           {approve.isPending ? "Approving…" : "Approve"}
         </Button>
         <Button variant="outline" disabled={busy} onClick={() => deny.mutate()}>

@@ -27,11 +27,9 @@ type DeviceOption = { id: string; name: string };
  * Traffic to a service's address goes to its first online host.
  */
 export function ServiceDialog({
-  networkId,
   devices,
   service,
 }: {
-  networkId: string;
   devices: DeviceOption[];
   service?: { id: string; name: string; hosts: { id: string }[] };
 }) {
@@ -43,7 +41,7 @@ export function ServiceDialog({
     mutationFn: () =>
       service
         ? serviceMutations.setHosts(service.id, hosts)
-        : serviceMutations.create(networkId, name.trim(), hosts),
+        : serviceMutations.create(name.trim(), hosts),
     onSuccess: async () => {
       setOpen(false);
       toast.success(service ? "Hosts saved" : "Service created");

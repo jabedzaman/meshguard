@@ -1,17 +1,18 @@
+import { requireNetwork } from "~/middlewares/network.middleware";
 import { factory } from "~/lib/factory";
 import { validate } from "~/lib/validator";
 import { requireOrganization, requirePermission } from "~/middlewares/auth.middleware";
 import { createServiceBody, setServiceHostsBody } from "~/modules/services/services.schema";
-import { idParams, networkIdParams } from "~/schemas/params.schema";
+import { idParams } from "~/schemas/params.schema";
 
 export const list = factory.createHandlers(
   requireOrganization,
   requirePermission({ device: ["read"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   async (c) => {
     const services = await c.var.services.services.list(
       c.var.organizationId,
-      c.req.valid("param").networkId,
+      c.var.networkId,
     );
     return c.json(services, 200);
   },
@@ -21,12 +22,12 @@ export const list = factory.createHandlers(
 export const create = factory.createHandlers(
   requireOrganization,
   requirePermission({ device: ["update"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   validate("json", createServiceBody),
   async (c) => {
     const service = await c.var.services.services.create(
       c.var.organizationId,
-      c.req.valid("param").networkId,
+      c.var.networkId,
       c.req.valid("json"),
     );
     return c.json(service, 201);

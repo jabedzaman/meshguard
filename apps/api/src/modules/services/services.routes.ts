@@ -7,7 +7,7 @@ export const servicesRoutes = new Hono<AppEnv>()
   .put("/:id/hosts", ...controller.setHosts)
   .delete("/:id", ...controller.remove);
 
-/** Nested under the networks router: /v1/networks/:networkId/services. */
+/** Nested under the network router: /v1/network/services. */
 export const networkServicesRoutes = new Hono<AppEnv>()
   .get("/", ...controller.list)
   .post("/", ...controller.create);

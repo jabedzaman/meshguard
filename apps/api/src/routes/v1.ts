@@ -5,12 +5,12 @@ import { devicesRoutes } from "~/modules/devices/devices.routes";
 import { enrollmentTokensRoutes } from "~/modules/enrollment-tokens/enrollment-tokens.routes";
 import { connectorsRoutes } from "~/modules/connectors/connectors.routes";
 import { servicesRoutes } from "~/modules/services/services.routes";
-import { networksRoutes } from "~/modules/networks/networks.routes";
+import { networkRoutes } from "~/modules/networks/networks.routes";
 import type { AppEnv } from "~/types";
 
 /** Every /v1 route. Feature routers own their nested paths. */
 export const v1Routes = new Hono<AppEnv>()
-  .route("/networks", networksRoutes)
+  .route("/network", networkRoutes)
   .route("/enrollment-tokens", enrollmentTokensRoutes)
   .route("/devices", devicesRoutes)
   .route("/device-logins", deviceLoginsRoutes)

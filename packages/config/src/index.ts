@@ -21,6 +21,22 @@ export const serverEnvSchema = z.object({
    * subdomains, e.g. example.com for app.example.com + api.example.com.
    */
   AUTH_COOKIE_DOMAIN: optional,
+  /**
+   * Host (and port, if any) the dashboard's organizations live under: with
+   * `meshguard.example.com`, the organization with slug `acme` is served at
+   * `acme.meshguard.example.com`. Off when unset. Needs a wildcard DNS record
+   * and certificate for it, and AUTH_COOKIE_DOMAIN covering it so the session
+   * reaches every subdomain.
+   */
+  WEB_ROOT_DOMAIN: optional.pipe(
+    z
+      .string()
+      .regex(
+        /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/,
+        "a lowercase host like meshguard.example.com",
+      )
+      .optional(),
+  ),
   GITHUB_CLIENT_ID: optional,
   GITHUB_CLIENT_SECRET: optional,
   /** Relay agents use when peers can't reach each other directly, e.g. wss://relay.example.com/relay. */
@@ -93,6 +109,7 @@ export const authEnvSchema = serverEnvSchema.pick({
   BETTER_AUTH_URL: true,
   WEB_URL: true,
   AUTH_COOKIE_DOMAIN: true,
+  WEB_ROOT_DOMAIN: true,
   GITHUB_CLIENT_ID: true,
   GITHUB_CLIENT_SECRET: true,
 });
@@ -101,6 +118,29 @@ export type AuthEnv = z.infer<typeof authEnvSchema>;
 
 export function loadAuthEnv(env: NodeJS.ProcessEnv = process.env): AuthEnv {
   return authEnvSchema.parse(env);
+}
+
+/**
+ * Origins the dashboard is served from: WEB_URL, plus every subdomain of
+ * WEB_ROOT_DOMAIN (as a `*` pattern) when organizations get their own.
+ */
+export function webOrigins(env: Pick<AuthEnv, "WEB_URL" | "WEB_ROOT_DOMAIN">): string[] {
+  const origins = [new URL(env.WEB_URL).origin];
+  if (env.WEB_ROOT_DOMAIN) {
+    origins.push(`${new URL(env.WEB_URL).protocol}//*.${env.WEB_ROOT_DOMAIN}`);
+  }
+  return origins;
+}
+
+/** Whether `origin` matches one of `patterns`, where `*` stands for a single host label. */
+export function matchesOrigin(patterns: string[], origin: string): boolean {
+  return patterns.some((pattern) =>
+    pattern.includes("*")
+      ? new RegExp(
+          `^${pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace("*", "[a-z0-9-]+")}$`,
+        ).test(origin)
+      : pattern === origin,
+  );
 }
 
 /** Environment for the workers app. */

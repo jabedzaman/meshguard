@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { authOptionsFromEnv, createAuth } from "@meshguard/auth";
-import { loadServerEnv } from "@meshguard/config";
+import { loadServerEnv, webOrigins } from "@meshguard/config";
 import { createDb } from "@meshguard/db";
 import {
   challtestsrvDns,
@@ -10,6 +10,7 @@ import {
   createRedis,
   createServices,
   DeviceEvents,
+  ipv4CidrSchema,
   trustAnyAcmeServer,
 } from "@meshguard/server-core";
 import { createApp } from "~/app";
@@ -72,6 +73,14 @@ const services = createServices(
 );
 const auth = createAuth(db, {
   ...authOptionsFromEnv(env),
+  ipv4CidrError: (cidr) => {
+    const parsed = ipv4CidrSchema.safeParse(cidr);
+    return parsed.success ? undefined : parsed.error.issues[0]?.message;
+  },
+  // Every organization has exactly one network.
+  onOrganizationCreated: async ({ id, name, ipv4Cidr }) => {
+    await services.networks.create(id, { name, ipv4Cidr });
+  },
   // Queued, not sent: the workers app renders and delivers every email.
   sendInvitationEmail: async (invitation) => {
     await emailQueue.enqueue("invitation", {
@@ -97,7 +106,7 @@ const auth = createAuth(db, {
   // Rules naming roles may now match other devices.
   onMemberRoleChanged: ({ organizationId }) => services.acl.membershipChanged(organizationId),
 });
-const app = createApp({ services, auth, corsOrigins: [env.WEB_URL] });
+const app = createApp({ services, auth, corsOrigins: webOrigins(env) });
 
 const server = serve({ fetch: app.fetch, hostname: "0.0.0.0", port: env.API_PORT }, (info) => {
   logger.info({ port: info.port }, "api listening");

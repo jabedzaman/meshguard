@@ -1,11 +1,11 @@
 import type { Page } from "@playwright/test";
 import { enroll, signingDevice, sync } from "./support/devices";
-import { api, expect, test } from "./support/fixtures";
+import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 async function enrollDevice(page: Page, networkId: string, hostname: string) {
   const { token } = await api<{ token: string }>(
     page,
-    `/v1/networks/${networkId}/enrollment-tokens`,
+    `/v1/network/enrollment-tokens`,
     {},
   );
   const device = signingDevice();
@@ -36,12 +36,12 @@ test.describe("services", () => {
     await createOrganization(owner, "Services Org");
     const member = await createUser("Member");
     await addToOrganization(owner, member, "member");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const one = await enrollDevice(owner.page, network.id, "host-one");
     const two = await enrollDevice(owner.page, network.id, "host-two");
     const client = await enrollDevice(owner.page, network.id, "client");
     const create = (page: Page, body: Record<string, unknown>) =>
-      api<Service>(page, `/v1/networks/${network.id}/services`, body);
+      api<Service>(page, `/v1/network/services`, body);
     const mapOf = async (device: typeof client) =>
       (await sync(device, { endpoints: [], advertiseRoutes: [] })).body;
 
@@ -71,7 +71,7 @@ test.describe("services", () => {
     await sync(one, { endpoints: [] });
     expect((await mapOf(client)).services[0].hostId).toBe(one.id);
 
-    const listed = await api<Service[]>(owner.page, `/v1/networks/${network.id}/services`);
+    const listed = await api<Service[]>(owner.page, `/v1/network/services`);
     expect(listed[0]).toMatchObject({ name: "web", vip: web.vip });
     expect(listed[0]!.dnsName).toMatch(/^web\.svc\./);
     expect(listed[0]!.hosts.map((h) => h.name)).toEqual(["host-one", "host-two"]);
@@ -97,23 +97,23 @@ test.describe("services", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Service Rules Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const host = await enrollDevice(owner.page, network.id, "host");
     const client = await enrollDevice(owner.page, network.id, "client");
-    const service = await api<Service>(owner.page, `/v1/networks/${network.id}/services`, {
+    const service = await api<Service>(owner.page, `/v1/network/services`, {
       name: "web",
       hostDeviceIds: [host.id],
     });
     const rules = (page: Page = owner.page) =>
       api<{ rules: { id: string; destination: { selector: string; label: string } }[] }>(
         page,
-        `/v1/networks/${network.id}/acl`,
+        `/v1/network/acl`,
       );
     const inbound = async (device: typeof host) =>
       (await sync(device, { endpoints: [] })).body.acl.inbound;
 
     await expect(
-      api(owner.page, `/v1/networks/${network.id}/acl/rules`, {
+      api(owner.page, `/v1/network/acl/rules`, {
         source: "*",
         destination: "service:nope",
       }),
@@ -121,11 +121,11 @@ test.describe("services", () => {
 
     await api(
       owner.page,
-      `/v1/networks/${network.id}/acl`,
+      `/v1/network/acl`,
       { defaultAction: "deny" },
       { method: "PATCH" },
     );
-    await api(owner.page, `/v1/networks/${network.id}/acl/rules`, {
+    await api(owner.page, `/v1/network/acl/rules`, {
       source: `device:${client.id}`,
       destination: "service:web",
       protocol: "tcp",
@@ -152,12 +152,12 @@ test.describe("services", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Services Web Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     await enrollDevice(owner.page, network.id, "alpha");
     await enrollDevice(owner.page, network.id, "beta");
     const page = owner.page;
 
-    await page.goto(`/networks/${network.id}?tab=services`);
+    await page.goto("/services");
     await expect(page.getByText("No services yet.")).toBeVisible();
 
     await page.getByRole("button", { name: "Add service" }).click();
@@ -178,18 +178,18 @@ test.describe("services", () => {
     await expect(row).toContainText("alpha");
 
     // The service can be a rule's destination.
-    await page.getByRole("tab", { name: "Access" }).click();
+    await page.goto("/access");
     await page.getByRole("button", { name: "Add rule" }).click();
     await page.getByRole("dialog").getByLabel("To", { exact: true }).click();
     await page.getByRole("option", { name: "service:web" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Add rule" }).click();
     await expect(page.locator("li", { hasText: "service:web" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Services" }).click();
+    await page.goto("/services");
     await page.getByRole("button", { name: "Delete web" }).click();
     await page.getByRole("button", { name: "Delete service" }).click();
     await expect(row).toHaveCount(0);
-    await page.getByRole("tab", { name: "Access" }).click();
+    await page.goto("/access");
     await expect(page.getByText("No access rules.")).toBeVisible();
   });
 });

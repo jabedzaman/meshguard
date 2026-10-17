@@ -46,7 +46,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const searchParams = useSearchParams();
   const navigate = useResetNavigate();
   const t = copy[mode];
-  const redirectTo = safeRedirect(searchParams.get(REDIRECT_PARAM));
+  // Without a destination, signing in goes to choosing an organization.
+  const requested = searchParams.get(REDIRECT_PARAM);
+  const redirectTo = requested ? safeRedirect(requested) : "/organizations";
   const addingAccount = searchParams.has(ADD_ACCOUNT_PARAM);
 
   // Carry over the params that shape the flow (redirect target, add-account).

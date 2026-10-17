@@ -124,23 +124,21 @@ const FIELDS: Record<string, keyof Values> = {
 const DEFAULTS: Values = { source: ANY, destination: ANY, protocol: "tcp", ports: "" };
 
 export function AddAccessRuleDialog({
-  networkId,
   devices,
 }: {
-  networkId: string;
   devices: { id: string; name: string; tags: string[] }[];
 }) {
   const queryClient = useQueryClient();
   const organization = useOrganization();
   const { data: members = [] } = useQuery(memberQueries.list(organization.id));
-  const { data: services = [] } = useQuery(serviceQueries.list(networkId));
+  const { data: services = [] } = useQuery(serviceQueries.list());
   const tags = [...new Set(devices.flatMap((device) => device.tags))].sort();
   const [open, setOpen] = useState(false);
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
   const protocol = useWatch({ control: form.control, name: "protocol" });
 
   const create = useMutation({
-    mutationFn: (values: Values) => aclMutations.createRule(networkId, toRule(values)),
+    mutationFn: (values: Values) => aclMutations.createRule(toRule(values)),
     onSuccess: async () => {
       setOpen(false);
       toast.success("Rule added", { description: "Devices pick it up within a second or two." });

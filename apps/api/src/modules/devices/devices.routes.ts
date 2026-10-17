@@ -15,7 +15,7 @@ export const devicesRoutes = new Hono<AppEnv>()
   .put("/:id/funnel", ...controller.setFunnel)
   .delete("/:id", ...controller.remove);
 
-/** Nested under the networks router: /v1/networks/:networkId/devices. */
+/** Nested under the network router: /v1/network/devices. */
 export const networkDevicesRoutes = new Hono<AppEnv>()
   .get("/", ...controller.listForNetwork)
   .get("/events", ...controller.events);

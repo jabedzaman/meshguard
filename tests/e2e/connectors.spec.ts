@@ -1,11 +1,11 @@
 import type { Page } from "@playwright/test";
 import { enroll, signingDevice, sync } from "./support/devices";
-import { api, expect, test } from "./support/fixtures";
+import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 async function enrollDevice(page: Page, networkId: string, hostname: string) {
   const { token } = await api<{ token: string }>(
     page,
-    `/v1/networks/${networkId}/enrollment-tokens`,
+    `/v1/network/enrollment-tokens`,
     {},
   );
   const device = signingDevice();
@@ -31,11 +31,11 @@ test.describe("app connectors", () => {
     await createOrganization(owner, "Connectors Org");
     const member = await createUser("Member");
     await addToOrganization(owner, member, "member");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const gateway = await enrollDevice(owner.page, network.id, "gateway");
     const client = await enrollDevice(owner.page, network.id, "client");
     const create = (page: Page, body: Record<string, unknown>) =>
-      api<Connector>(page, `/v1/networks/${network.id}/connectors`, body);
+      api<Connector>(page, `/v1/network/connectors`, body);
     const mapOf = async (device: typeof client) =>
       (await sync(device, { endpoints: [], advertiseRoutes: [] })).body;
 
@@ -85,7 +85,7 @@ test.describe("app connectors", () => {
       { method: "PATCH" },
     );
     expect((await mapOf(client)).connectors[0].hostId).toBeNull();
-    const listed = await api<Connector[]>(owner.page, `/v1/networks/${network.id}/connectors`);
+    const listed = await api<Connector[]>(owner.page, `/v1/network/connectors`);
     expect(listed[0]).toMatchObject({ name: "corp", hosts: [] });
 
     await api(owner.page, `/v1/connectors/${created.id}`, undefined, { method: "DELETE" });
@@ -98,11 +98,11 @@ test.describe("app connectors", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Connectors Web Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     await enrollDevice(owner.page, network.id, "gateway");
     const page = owner.page;
 
-    await page.goto(`/networks/${network.id}?tab=services`);
+    await page.goto("/apps");
     await expect(page.getByText("No app connectors yet.")).toBeVisible();
     await page.getByRole("button", { name: "Add connector" }).click();
     const dialog = page.getByRole("dialog");

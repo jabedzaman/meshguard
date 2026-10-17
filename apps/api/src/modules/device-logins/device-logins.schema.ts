@@ -18,7 +18,3 @@ export const pollDeviceLoginBody = z.object({
 export const deviceLoginIdParams = z.object({
   id: z.string().regex(DEVICE_LOGIN_ID_PATTERN, "Invalid login"),
 });
-
-export const approveDeviceLoginBody = z.object({
-  networkId: z.uuid(),
-});

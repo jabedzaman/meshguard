@@ -14,9 +14,9 @@ import { usePermission } from "~/components/providers/organization-provider";
 import { connectorMutations, connectorQueries, deviceQueries } from "~/lib/queries";
 
 /** App connectors: domains whose traffic goes through the first online host. */
-export function ConnectorsList({ networkId }: { networkId: string }) {
-  const { data: connectors, isPending, error } = useQuery(connectorQueries.list(networkId));
-  const { data: devices = [] } = useQuery(deviceQueries.list(networkId));
+export function ConnectorsList() {
+  const { data: connectors, isPending, error } = useQuery(connectorQueries.list());
+  const { data: devices = [] } = useQuery(deviceQueries.list());
   const canManage = usePermission({ device: ["update"] });
   const queryClient = useQueryClient();
 
@@ -33,7 +33,7 @@ export function ConnectorsList({ networkId }: { networkId: string }) {
             everything.
           </p>
         </div>
-        {canManage && <ConnectorDialog networkId={networkId} devices={devices} />}
+        {canManage && <ConnectorDialog devices={devices} />}
       </div>
       {connectors.length === 0 ? (
         <p className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">
@@ -71,7 +71,6 @@ export function ConnectorsList({ networkId }: { networkId: string }) {
                 {canManage && (
                   <div className="flex items-center">
                     <ConnectorDialog
-                      networkId={networkId}
                       devices={devices}
                       connector={connector}
                     />

@@ -24,16 +24,25 @@ import {
 import { useResetNavigate } from "~/hooks/use-session-navigation";
 import { authClient, unwrap } from "~/lib/auth-client";
 
-export function OrganizationSwitcher({ organizations }: { organizations: ActiveOrganization[] }) {
+/** An organization the user can switch to; `url` is its subdomain when those are on. */
+export type SwitchableOrganization = ActiveOrganization & { url: string | null };
+
+export function OrganizationSwitcher({
+  organizations,
+}: {
+  organizations: SwitchableOrganization[];
+}) {
   const active = useOrganization();
   const navigate = useResetNavigate();
   const { isMobile } = useSidebar();
 
   const switchOrganization = useMutation({
-    mutationFn: (organizationId: string) =>
-      unwrap(authClient.organization.setActive({ organizationId })),
-    // Drops router and query caches holding the previous org's data.
-    onSuccess: () => navigate("/"),
+    mutationFn: (organization: SwitchableOrganization) =>
+      unwrap(authClient.organization.setActive({ organizationId: organization.id })),
+    // A subdomain is another origin, so loading it drops every cache. Otherwise
+    // drop the router and query caches holding the previous org's data.
+    onSuccess: (_, organization) =>
+      organization.url ? window.location.assign(organization.url) : navigate("/"),
   });
 
   return (
@@ -69,7 +78,7 @@ export function OrganizationSwitcher({ organizations }: { organizations: ActiveO
               <DropdownMenuItem
                 key={organization.id}
                 onSelect={() => {
-                  if (organization.id !== active.id) switchOrganization.mutate(organization.id);
+                  if (organization.id !== active.id) switchOrganization.mutate(organization);
                 }}
               >
                 <span className="flex-1 truncate">{organization.name}</span>

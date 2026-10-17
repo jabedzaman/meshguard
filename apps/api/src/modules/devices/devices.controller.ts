@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+import { requireNetwork } from "~/middlewares/network.middleware";
 import { factory } from "~/lib/factory";
 import { logger } from "~/lib/logger";
 import { validate } from "~/lib/validator";
@@ -21,7 +22,7 @@ import {
   syncDeviceBody,
   watchDeviceBody,
 } from "~/modules/devices/devices.schema";
-import { idParams, networkIdParams } from "~/schemas/params.schema";
+import { idParams } from "~/schemas/params.schema";
 import type { AppEnv } from "~/types";
 
 /** Called by the agent (`meshguard up --token ...`); authenticated by the enrollment token. */
@@ -37,11 +38,11 @@ export const enroll = factory.createHandlers(
 export const listForNetwork = factory.createHandlers(
   requireOrganization,
   requirePermission({ device: ["read"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   async (c) => {
     const devices = await c.var.services.devices.listForNetwork(
       c.var.organizationId,
-      c.req.valid("param").networkId,
+      c.var.networkId,
     );
     return c.json(devices, 200);
   },
@@ -158,11 +159,11 @@ const HEARTBEAT_MS = 25_000;
 export const events = factory.createHandlers(
   requireOrganization,
   requirePermission({ device: ["read"] }),
-  validate("param", networkIdParams),
+  requireNetwork,
   async (c) => {
     const events = await c.var.services.devices.subscribe(
       c.var.organizationId,
-      c.req.valid("param").networkId,
+      c.var.networkId,
     );
     return streamSSE(
       c,

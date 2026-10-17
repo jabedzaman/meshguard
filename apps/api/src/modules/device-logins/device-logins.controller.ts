@@ -1,10 +1,10 @@
 import { clientIp } from "~/lib/client-ip";
+import { requireNetwork } from "~/middlewares/network.middleware";
 import { factory } from "~/lib/factory";
 import { validate } from "~/lib/validator";
 import { rateLimitByIp } from "~/middlewares/rate-limit.middleware";
 import { requireAuth, requireOrganization, requirePermission } from "~/middlewares/auth.middleware";
 import {
-  approveDeviceLoginBody,
   deviceLoginIdParams,
   pollDeviceLoginBody,
   startDeviceLoginBody,
@@ -40,13 +40,13 @@ export const describe = factory.createHandlers(
 export const approve = factory.createHandlers(
   requireOrganization,
   requirePermission({ device: ["create"] }),
+  requireNetwork,
   validate("param", deviceLoginIdParams),
-  validate("json", approveDeviceLoginBody),
   async (c) => {
     await c.var.services.deviceLogins.approve(
       { userId: c.var.user.id, organizationId: c.var.organizationId },
       c.req.valid("param").id,
-      c.req.valid("json").networkId,
+      c.var.networkId,
     );
     return c.body(null, 204);
   },

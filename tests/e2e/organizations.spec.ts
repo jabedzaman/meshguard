@@ -1,5 +1,5 @@
 import { sql } from "./support/db";
-import { api, expect, PASSWORD, test } from "./support/fixtures";
+import { api, expect, ownNetwork, PASSWORD, test } from "./support/fixtures";
 
 test.describe("organizations", () => {
   test("switcher creates a second org with its own networks and switches back", async ({
@@ -10,11 +10,9 @@ test.describe("organizations", () => {
     const first = await createOrganization(user, "First");
     const { page } = user;
 
+    const firstNetwork = await ownNetwork(page);
     await page.goto("/");
-    await page.getByRole("button", { name: "New network" }).click();
-    await page.fill("input[name=name]", "home");
-    await page.click("text=Create network");
-    await expect(page.locator("li", { hasText: "home" })).toBeVisible();
+    await expect(page.getByText(firstNetwork.dnsDomain)).toBeVisible();
 
     await page.click(`[data-slot=sidebar-header] button:has-text("${first.name}")`);
     await page.click("text=New organization");
@@ -25,7 +23,7 @@ test.describe("organizations", () => {
     await expect(
       page.locator("[data-slot=sidebar-header] button", { hasText: secondName }),
     ).toBeVisible();
-    await expect(page.getByText("No networks yet.")).toBeVisible();
+    expect((await ownNetwork(page)).id).not.toBe(firstNetwork.id);
 
     await page.click(`[data-slot=sidebar-header] button:has-text("${secondName}")`);
     await expect(page.getByRole("menuitem")).toHaveText([
@@ -37,7 +35,8 @@ test.describe("organizations", () => {
     await expect(
       page.locator("[data-slot=sidebar-header] button", { hasText: first.name }),
     ).toBeVisible();
-    await expect(page.locator("li", { hasText: "home" })).toBeVisible();
+    await page.goto("/");
+    await expect(page.getByText(firstNetwork.dnsDomain)).toBeVisible();
   });
 
   test("a session without an active organization is recovered", async ({

@@ -1,4 +1,4 @@
-import { and, eq, schema, type Db } from "@meshguard/db";
+import { eq, schema, type Db } from "@meshguard/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import { isUniqueViolation } from "~/lib/db-errors";
 import { networkDnsDomain, randomNetworkLabel } from "~/lib/dns-name";
@@ -24,19 +24,13 @@ export class NetworksService {
     private readonly dnsBaseDomain: string,
   ) {}
 
-  async list(organizationId: string) {
-    const rows = await this.db
-      .select()
-      .from(networks)
-      .where(eq(networks.organizationId, organizationId));
-    return rows.map((row) => this.withDnsDomain(row));
-  }
-
-  async get(organizationId: string, id: string) {
+  /** The organization's network: every organization has exactly one. */
+  async current(organizationId: string) {
     const [network] = await this.db
       .select()
       .from(networks)
-      .where(and(eq(networks.id, id), eq(networks.organizationId, organizationId)));
+      .where(eq(networks.organizationId, organizationId))
+      .limit(1);
     if (!network) throw new NotFoundError("network");
     return this.withDnsDomain(network);
   }

@@ -117,3 +117,10 @@ kubectl -n meshguard rollout restart deploy/meshguard-api deploy/meshguard-web d
   servers in `configmap.yaml` and fall back to the relay when hole punching fails.
 - **Cookies** are scoped to `jabed.dev` (`AUTH_COOKIE_DOMAIN`) so the session
   set by the API is visible to the web app on its own subdomain.
+- **Organization subdomains** are off by default. Set `WEB_ROOT_DOMAIN` (e.g.
+  `meshguard.jabed.dev`) on the API and web deployments and each organization is
+  served at `<slug>.meshguard.jabed.dev`. Add a wildcard hostname
+  (`*.meshguard.jabed.dev`) to the tunnel and DNS; Cloudflare's free universal
+  certificate only covers one level (`*.jabed.dev`), so a second-level wildcard
+  needs Advanced Certificate Manager. `AUTH_COOKIE_DOMAIN` must cover the
+  subdomains (`jabed.dev` does).

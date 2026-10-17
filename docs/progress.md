@@ -40,7 +40,7 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.4 `/v1` routes require a session and are scoped to the active organization
 - ✅ M1.5 `web` route protection via Next.js proxy with `redirectTo`
 - ✅ M1.6 All auth routing in `web/proxy.ts` (session, active org); layouts only load data; onboarding at `/organizations/create`; `/api/organizations/[organizationId]/activate` restores a missing active org
-- ✅ M1.7 Networks: create (`POST /v1/networks`), default `10.77.0.0/16` (configurable, RFC 1918 only), random IPv6 ULA /48 per network
+- ✅ M1.7 Networks: one per organization, made by the org-create hook (range asked in the org form; no `POST /v1/networks`), default `10.77.0.0/16` (configurable, RFC 1918 only), random IPv6 ULA /48 per network
 - ✅ M1.8 Organization switcher
 - ✅ M1.9 Roles: owner / admin / member (`@meshguard/auth/permissions`), enforced in the API with `requirePermission`
 - ✅ M1.10 Invitations: invite by email (owner/admin), pending list, cancel; email via workers + react-email

@@ -7,13 +7,16 @@ import { authClient, unwrap } from "~/lib/auth-client";
 /**
  * Navigates after the session or active organization changed. Drops the
  * TanStack Query cache and the client router cache, so nothing from the
- * previous account or organization (or a cached redirect) survives.
+ * previous account or organization (or a cached redirect) survives. Absolute
+ * URLs, which leave this origin, are a full page load.
  */
 export function useResetNavigate() {
   const router = useRouter();
   const queryClient = useQueryClient();
   return (href: string) => {
     queryClient.clear();
+    // Another origin (an organization's subdomain): a full page load.
+    if (!href.startsWith("/")) return window.location.assign(href);
     router.replace(href);
     router.refresh();
   };

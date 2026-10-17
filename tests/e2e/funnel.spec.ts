@@ -1,11 +1,11 @@
 import type { Page } from "@playwright/test";
 import { enroll, signingDevice, sync } from "./support/devices";
-import { api, expect, test } from "./support/fixtures";
+import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 async function enrollDevice(page: Page, networkId: string, hostname: string) {
   const { token } = await api<{ token: string }>(
     page,
-    `/v1/networks/${networkId}/enrollment-tokens`,
+    `/v1/network/enrollment-tokens`,
     {},
   );
   const device = signingDevice();
@@ -24,7 +24,7 @@ test.describe("funnel", () => {
     await createOrganization(owner, "Funnel Org");
     const member = await createUser("Member");
     await addToOrganization(owner, member, "member");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const laptop = await enrollDevice(owner.page, network.id, "laptop");
     const setFunnel = (page: Page, enabled: boolean) =>
       api<{ funnel: boolean; name: string }>(
@@ -66,7 +66,7 @@ test.describe("funnel", () => {
     // The device row shows it, and turning it off takes it away again.
     const listed = await api<{ name: string; funnel: boolean }[]>(
       owner.page,
-      `/v1/networks/${network.id}/devices`,
+      `/v1/network/devices`,
     );
     expect(listed.find((d) => d.name === "laptop")!.funnel).toBe(true);
     if (before.relay?.token) expect(after.relay.token).not.toBe(before.relay.token);

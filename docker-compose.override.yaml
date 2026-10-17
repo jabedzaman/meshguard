@@ -95,9 +95,11 @@ services:
     volumes:
       - ./apps/web/src:/app/apps/web/src
       - ./apps/web/public:/app/apps/web/public
+      - ./apps/web/next.config.ts:/app/apps/web/next.config.ts
       - ./packages/ui/src:/app/packages/ui/src
       - ./packages/api-client/dist:/app/packages/api-client/dist
       - ./packages/auth/dist:/app/packages/auth/dist
+      - ./packages/auth/package.json:/app/packages/auth/package.json
       - ./packages/config/dist:/app/packages/config/dist
       - ./packages/db/dist:/app/packages/db/dist
 
@@ -215,6 +217,7 @@ services:
     volumes:
       - ./apps/web/src:/app/apps/web/src
       - ./apps/web/public:/app/apps/web/public
+      - ./apps/web/next.config.ts:/app/apps/web/next.config.ts
       - ./packages/ui/src:/app/packages/ui/src
       - ./packages/api-client/dist:/app/packages/api-client/dist
       - ./packages/auth/dist:/app/packages/auth/dist

@@ -30,11 +30,9 @@ function parseDomains(text: string) {
  * hosts. Traffic for its domains goes through the first online host.
  */
 export function ConnectorDialog({
-  networkId,
   devices,
   connector,
 }: {
-  networkId: string;
   devices: { id: string; name: string }[];
   connector?: { id: string; name: string; domains: string[]; hosts: { id: string }[] };
 }) {
@@ -50,7 +48,7 @@ export function ConnectorDialog({
             domains: parseDomains(domains),
             hostDeviceIds: hosts,
           })
-        : connectorMutations.create(networkId, name.trim(), parseDomains(domains), hosts),
+        : connectorMutations.create(name.trim(), parseDomains(domains), hosts),
     onSuccess: async () => {
       setOpen(false);
       toast.success(connector ? "Connector saved" : "Connector created");

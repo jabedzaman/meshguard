@@ -1,11 +1,11 @@
 import type { Page } from "@playwright/test";
 import { enroll, signingDevice, sync } from "./support/devices";
-import { api, expect, test } from "./support/fixtures";
+import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 async function enrollDevice(page: Page, networkId: string, hostname: string) {
   const { token } = await api<{ token: string }>(
     page,
-    `/v1/networks/${networkId}/enrollment-tokens`,
+    `/v1/network/enrollment-tokens`,
     {},
   );
   const device = signingDevice();
@@ -32,7 +32,7 @@ test.describe("subnet routes", () => {
     await createOrganization(owner, "Routes Org");
     const member = await createUser("Member");
     await addToOrganization(owner, member, "member");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const router = await enrollDevice(owner.page, network.id, "router");
     const laptop = await enrollDevice(owner.page, network.id, "laptop");
     const lan = ["192.168.50.0/24", "10.9.0.0/16"];
@@ -45,7 +45,7 @@ test.describe("subnet routes", () => {
     expect(await peerRoutes()).toEqual([]);
     const listed = await api<{ name: string; routes: unknown }[]>(
       owner.page,
-      `/v1/networks/${network.id}/devices`,
+      `/v1/network/devices`,
     );
     expect(listed.find((d) => d.name === "router")!.routes).toEqual([
       { prefix: "10.9.0.0/16", approved: false },
@@ -84,7 +84,7 @@ test.describe("subnet routes", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Exit Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const gateway = await enrollDevice(owner.page, network.id, "gateway");
     const laptop = await enrollDevice(owner.page, network.id, "laptop");
     const peerRoutes = async () =>
@@ -94,7 +94,7 @@ test.describe("subnet routes", () => {
     expect(await peerRoutes()).toEqual([]);
     const listed = await api<{ name: string; routes: unknown }[]>(
       owner.page,
-      `/v1/networks/${network.id}/devices`,
+      `/v1/network/devices`,
     );
     expect(listed.find((d) => d.name === "gateway")!.routes).toEqual([
       { prefix: "0.0.0.0/0", approved: false },

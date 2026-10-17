@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@meshguard/ui/components/button";
@@ -24,6 +25,7 @@ import {
   FormMessage,
 } from "@meshguard/ui/components/form";
 import { Input } from "@meshguard/ui/components/input";
+import { slugError, slugify } from "@meshguard/auth/slug";
 import { authClient, unwrap } from "~/lib/auth-client";
 import { useHydrated } from "~/hooks/use-hydrated";
 import { useResetNavigate } from "~/hooks/use-session-navigation";
@@ -32,17 +34,16 @@ import { SignOutButton } from "~/components/sign-out-button";
 
 const schema = z.object({
   name: z.string().trim().min(2, "At least 2 characters").max(64, "At most 64 characters"),
+  // The organization's subdomain, where the dashboard lives.
+  slug: z.string().superRefine((slug, ctx) => {
+    const message = slugError(slug);
+    if (message) ctx.addIssue({ code: "custom", message });
+  }),
+  // The organization's network range; the API checks it and its message is shown here.
+  ipv4Cidr: z.string().trim(),
 });
 
 type Values = z.infer<typeof schema>;
-
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
 
 export function CreateOrganization() {
   const hydrated = useHydrated();
@@ -50,13 +51,29 @@ export function CreateOrganization() {
   const redirectTo = safeRedirect(useSearchParams().get(REDIRECT_PARAM));
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "" },
+    defaultValues: { name: "", slug: "", ipv4Cidr: "" },
   });
+
+  // Suggest a slug from the name until the user writes their own.
+  const name = form.watch("name");
+  const slug = form.watch("slug");
+  useEffect(() => {
+    if (form.getFieldState("slug").isDirty) return;
+    form.setValue("slug", slugify(name), { shouldValidate: form.formState.isSubmitted });
+  }, [form, name]);
+  const host = hydrated ? window.location.host : "";
 
   // Creating an organization also makes it the session's active organization.
   const createOrganization = useMutation({
-    mutationFn: ({ name }: Values) =>
-      unwrap(authClient.organization.create({ name, slug: slugify(name) })),
+    // The API makes the organization's network from the range in the metadata.
+    mutationFn: ({ name, slug, ipv4Cidr }: Values) =>
+      unwrap(
+        authClient.organization.create({
+          name,
+          slug,
+          metadata: ipv4Cidr ? { ipv4Cidr } : undefined,
+        }),
+      ),
     // Resets the router cache: it holds "/" as a redirect back here.
     onSuccess: () => navigate(redirectTo),
     onError: (error) => form.setError("root", { message: error.message }),
@@ -73,7 +90,7 @@ export function CreateOrganization() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Create an organization</CardTitle>
-        <CardDescription>Networks and devices belong to an organization.</CardDescription>
+        <CardDescription>Your devices join the organization\u2019s private network.</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit((values) => createOrganization.mutate(values))}>
@@ -87,6 +104,49 @@ export function CreateOrganization() {
                   <FormControl>
                     <Input placeholder="Acme" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="slug"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input
+                      autoComplete="off"
+                      spellCheck={false}
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        form.setValue("slug", e.target.value.toLowerCase(), {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }}
+                    />
+                  </FormControl>
+                  <p className="text-muted-foreground text-xs">
+                    {slug || "your-slug"}.{host || "meshguard.dev"}
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="ipv4Cidr"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Network IPv4 range</FormLabel>
+                  <FormControl>
+                    <Input placeholder="10.77.0.0/16" className="font-mono" {...field} />
+                  </FormControl>
+                  <p className="text-muted-foreground text-xs">
+                    Optional. Change it if 10.77.x clashes with your LAN.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

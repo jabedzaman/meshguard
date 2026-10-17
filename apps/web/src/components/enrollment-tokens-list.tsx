@@ -11,11 +11,11 @@ import { useCurrentUser, usePermission } from "~/components/providers/organizati
 import { enrollmentTokenMutations, enrollmentTokenQueries } from "~/lib/queries";
 import { timeAgo } from "~/lib/time";
 
-export function EnrollmentTokensList({ networkId }: { networkId: string }) {
+export function EnrollmentTokensList() {
   const currentUser = useCurrentUser();
   const canRevokeOthers = usePermission({ device: ["delete"] });
   const queryClient = useQueryClient();
-  const { data: tokens, isPending, error } = useQuery(enrollmentTokenQueries.active(networkId));
+  const { data: tokens, isPending, error } = useQuery(enrollmentTokenQueries.active());
 
   if (isPending) return <ListSkeleton rows={1} label="Loading tokens" />;
   if (error) return <p className="text-destructive text-sm">{getErrorMessage(error)}</p>;

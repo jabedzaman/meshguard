@@ -46,13 +46,13 @@ function describeTraffic(rule: {
 }
 
 /** Who may reach whom in the network. Agents apply changes within a second or two. */
-export function AccessRules({ networkId }: { networkId: string }) {
+export function AccessRules() {
   const canEdit = usePermission({ network: ["update"] });
   const queryClient = useQueryClient();
-  const { data: acl, isPending, error } = useQuery(aclQueries.get(networkId));
-  const { data: devices = [] } = useQuery(deviceQueries.list(networkId));
+  const { data: acl, isPending, error } = useQuery(aclQueries.get());
+  const { data: devices = [] } = useQuery(deviceQueries.list());
   const setDefault = useMutation({
-    mutationFn: (action: AclDefaultAction) => aclMutations.setDefaultAction(networkId, action),
+    mutationFn: (action: AclDefaultAction) => aclMutations.setDefaultAction(action),
     onSuccess: async (_, action) => {
       toast.success(
         action === "deny" ? "Only rules allow traffic now" : "Every device reaches every other",
@@ -117,7 +117,7 @@ export function AccessRules({ networkId }: { networkId: string }) {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-muted-foreground text-sm font-medium">Rules</h2>
-          {canEdit && <AddAccessRuleDialog networkId={networkId} devices={devices} />}
+          {canEdit && <AddAccessRuleDialog devices={devices} />}
         </div>
         {acl.rules.length === 0 ? (
           <Empty className="border">
@@ -185,7 +185,7 @@ export function AccessRules({ networkId }: { networkId: string }) {
           </ul>
         )}
       </section>
-      <AccessCheck networkId={networkId} devices={devices} />
+      <AccessCheck devices={devices} />
     </div>
   );
 }

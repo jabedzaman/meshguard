@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import type { Auth } from "@meshguard/auth";
+import { matchesOrigin } from "@meshguard/config";
 import type { Services } from "@meshguard/server-core";
 import { sessionMiddleware } from "~/middlewares/auth.middleware";
 import { errorHandler, notFoundHandler } from "~/middlewares/error.middleware";
@@ -13,7 +14,7 @@ export interface AppDeps {
   /** Built by the caller: auth hooks use them too (removing a leaver's devices). */
   services: Services;
   auth: Auth;
-  /** Browser origins allowed to call the API with cookies. */
+  /** Browser origins allowed to call the API with cookies; `*` matches one subdomain label. */
   corsOrigins: string[];
 }
 
@@ -25,7 +26,13 @@ export function createApp({ services, auth, corsOrigins }: AppDeps) {
     .notFound(notFoundHandler)
     .use(requestId())
     .use(loggingMiddleware)
-    .use(cors({ origin: corsOrigins, credentials: true, exposeHeaders: ["X-Request-Id"] }))
+    .use(
+      cors({
+        origin: (origin) => (matchesOrigin(corsOrigins, origin) ? origin : null),
+        credentials: true,
+        exposeHeaders: ["X-Request-Id"],
+      }),
+    )
     .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
     .use(async (c, next) => {
       c.set("auth", auth);

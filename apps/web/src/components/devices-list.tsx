@@ -25,7 +25,7 @@ import { useCurrentUser, usePermission } from "~/components/providers/organizati
 import { RenameDeviceDialog } from "~/components/rename-device-dialog";
 import { useDeviceEvents } from "~/hooks/use-device-events";
 import { useFlash } from "~/hooks/use-flash";
-import { deviceMutations, deviceQueries } from "~/lib/queries";
+import { deviceMutations, deviceQueries, networkQueries } from "~/lib/queries";
 import { timeAgo } from "~/lib/time";
 
 const PLATFORMS = {
@@ -56,8 +56,10 @@ const deviceSignature = (device: Device) =>
     .map((route) => route.prefix + route.approved)
     .join(",")}`;
 
-export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDomain: string }) {
-  const { data: devices, isPending, error } = useQuery(deviceQueries.list(networkId));
+export function DevicesList() {
+  const { data: network, isPending: networkPending } = useQuery(networkQueries.current());
+  const { data: devices, isPending, error } = useQuery(deviceQueries.list());
+  const dnsDomain = network?.dnsDomain ?? "";
   const user = useCurrentUser();
   // Owners and admins manage every device; everyone manages their own.
   const canRenameAny = usePermission({ device: ["update"] });
@@ -65,10 +67,10 @@ export function DevicesList({ networkId, dnsDomain }: { networkId: string; dnsDo
   const [onlyMine, setOnlyMine] = useState(false);
   const queryClient = useQueryClient();
   // Devices join and drop from the command line; the API pushes the changes.
-  useDeviceEvents(networkId);
+  useDeviceEvents();
   const listRef = useFlash(devices, deviceId, deviceSignature);
 
-  if (isPending) return <ListSkeleton label="Loading devices" />;
+  if (isPending || networkPending) return <ListSkeleton label="Loading devices" />;
   if (error) return <p className="text-destructive text-sm">{getErrorMessage(error)}</p>;
   if (devices.length === 0) {
     return (

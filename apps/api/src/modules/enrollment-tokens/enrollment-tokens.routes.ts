@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import * as controller from "~/modules/enrollment-tokens/enrollment-tokens.controller";
 import type { AppEnv } from "~/types";
 
-/** Nested under the networks router: /v1/networks/:networkId/enrollment-tokens. */
+/** Nested under the network router: /v1/network/enrollment-tokens. */
 export const networkEnrollmentTokensRoutes = new Hono<AppEnv>()
   .get("/", ...controller.listForNetwork)
   .post("/", ...controller.createForNetwork);

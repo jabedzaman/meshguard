@@ -21,9 +21,9 @@ import { ServiceDialog } from "~/components/service-hosts-dialog";
 import { aclQueries, deviceQueries, serviceMutations, serviceQueries } from "~/lib/queries";
 
 /** The network's services: a name and an address served by the first online host. */
-export function ServicesList({ networkId }: { networkId: string }) {
-  const { data: services, isPending, error } = useQuery(serviceQueries.list(networkId));
-  const { data: devices = [] } = useQuery(deviceQueries.list(networkId));
+export function ServicesList() {
+  const { data: services, isPending, error } = useQuery(serviceQueries.list());
+  const { data: devices = [] } = useQuery(deviceQueries.list());
   const canManage = usePermission({ device: ["update"] });
   const queryClient = useQueryClient();
 
@@ -34,7 +34,7 @@ export function ServicesList({ networkId }: { networkId: string }) {
     <div className="flex flex-col gap-3">
       {canManage && (
         <div className="flex justify-end">
-          <ServiceDialog networkId={networkId} devices={devices} />
+          <ServiceDialog devices={devices} />
         </div>
       )}
       {services.length === 0 ? (
@@ -78,7 +78,7 @@ export function ServicesList({ networkId }: { networkId: string }) {
                 </span>
                 {canManage && (
                   <div className="flex items-center">
-                    <ServiceDialog networkId={networkId} devices={devices} service={service} />
+                    <ServiceDialog devices={devices} service={service} />
                     <ConfirmDialog
                       trigger={
                         <Button

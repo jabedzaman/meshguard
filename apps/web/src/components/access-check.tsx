@@ -20,10 +20,8 @@ import { aclMutations, aclQueries, type CheckAccessInput } from "~/lib/queries";
  * document, with names instead of ids.
  */
 export function AccessCheck({
-  networkId,
   devices,
 }: {
-  networkId: string;
   devices: { id: string; name: string }[];
 }) {
   const [source, setSource] = useState("");
@@ -31,10 +29,10 @@ export function AccessCheck({
   const [protocol, setProtocol] = useState<CheckAccessInput["protocol"]>("tcp");
   const [port, setPort] = useState("22");
   const [showDocument, setShowDocument] = useState(false);
-  const document = useQuery({ ...aclQueries.document(networkId), enabled: showDocument });
+  const document = useQuery({ ...aclQueries.document(), enabled: showDocument });
   const check = useMutation({
     mutationFn: () =>
-      aclMutations.check(networkId, {
+      aclMutations.check({
         sourceDeviceId: source,
         destinationDeviceId: destination,
         protocol,

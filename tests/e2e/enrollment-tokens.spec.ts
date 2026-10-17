@@ -1,5 +1,5 @@
 import { sql } from "./support/db";
-import { api, expect, test } from "./support/fixtures";
+import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 const TOKEN = /meshguard_enr_[A-Za-z0-9_-]{43}/;
 
@@ -10,12 +10,10 @@ test.describe("enrollment tokens", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Token Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const { page } = owner;
 
-    await page.goto("/");
-    await page.getByRole("link", { name: /home/ }).click();
-    await expect(page).toHaveURL(`/networks/${network.id}`);
+    await page.goto("/devices");
 
     await page.getByRole("button", { name: "Add device" }).click();
     await page.getByRole("combobox").click();
@@ -53,18 +51,18 @@ test.describe("enrollment tokens", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Perm Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "shared" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const member = await createUser("Member");
     await addToOrganization(owner, member, "member");
 
-    const path = `/v1/networks/${network.id}/enrollment-tokens`;
+    const path = `/v1/network/enrollment-tokens`;
     const ownerToken = await api<{ id: string; tokenPrefix: string }>(owner.page, path, {});
     const memberToken = await api<{ id: string; tokenPrefix: string }>(member.page, path, {
       expiresIn: "7d",
     });
 
     // Member: can revoke their own, not the owner's.
-    await member.page.goto(`/networks/${network.id}`);
+    await member.page.goto("/devices");
     await expect(member.page.getByRole("button", { name: "Add device" })).toBeVisible();
     await expect(
       member.page
@@ -81,7 +79,7 @@ test.describe("enrollment tokens", () => {
     ).rejects.toMatchObject({ status: 403 });
 
     // Owner can revoke the member's.
-    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.goto("/devices");
     await owner.page
       .locator("li", { hasText: memberToken.tokenPrefix })
       .getByRole("button", { name: /Revoke/ })
@@ -96,11 +94,11 @@ test.describe("enrollment tokens", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Home Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "private" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const outsider = await createUser("Outsider");
     await createOrganization(outsider, "Other Org");
 
-    const path = `/v1/networks/${network.id}/enrollment-tokens`;
+    const path = `/v1/network/enrollment-tokens`;
     await expect(api(outsider.page, path)).rejects.toMatchObject({ status: 404 });
     await expect(api(outsider.page, path, {})).rejects.toMatchObject({
       status: 404,

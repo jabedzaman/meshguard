@@ -13,6 +13,11 @@
       "types": "./dist/permissions.d.ts",
       "import": "./dist/permissions.js",
       "default": "./dist/permissions.js"
+    },
+    "./slug": {
+      "types": "./dist/slug.d.ts",
+      "import": "./dist/slug.js",
+      "default": "./dist/slug.js"
     }
   },
   "scripts": {

@@ -1,7 +1,7 @@
 import { sql } from "./support/db";
 import { deviceKeys, enroll, signingDevice, sync, watch } from "./support/devices";
 import { E2E } from "./support/env";
-import { api, expect, test } from "./support/fixtures";
+import { api, expect, test, ownNetwork } from "./support/fixtures";
 import { redis } from "./support/redis";
 
 test.describe("devices", () => {
@@ -11,14 +11,14 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Device Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const { token } = await api<{ token: string }>(
       owner.page,
-      `/v1/networks/${network.id}/enrollment-tokens`,
+      `/v1/network/enrollment-tokens`,
       {},
     );
 
-    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.goto("/devices");
     await expect(owner.page.getByText("No devices yet.")).toBeVisible();
 
     const res = await enroll({ token, hostname: "laptop", platform: "darwin", ...deviceKeys() });
@@ -42,11 +42,11 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Names Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const enrollAs = async (hostname: string) => {
       const { token } = await api<{ token: string }>(
         owner.page,
-        `/v1/networks/${network.id}/enrollment-tokens`,
+        `/v1/network/enrollment-tokens`,
         {},
       );
       const res = await enroll({ token, hostname, platform: "darwin", ...deviceKeys() });
@@ -66,11 +66,9 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Rename Org");
-    const network = await api<{ id: string; dnsDomain: string }>(owner.page, "/v1/networks", {
-      name: "home",
-    });
+    const network = await ownNetwork<{ id: string; dnsDomain: string }>(owner.page);
     const token = () =>
-      api<{ token: string }>(owner.page, `/v1/networks/${network.id}/enrollment-tokens`, {}).then(
+      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then(
         (t) => t.token,
       );
     const laptop = signingDevice();
@@ -92,7 +90,7 @@ test.describe("devices", () => {
       api<{ name: string }>(page, `/v1/devices/${a.body.device.id}`, { name }, { method: "PATCH" });
 
     // From the web: the dialog saves and the list shows the new name.
-    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.goto("/devices");
     await owner.page.getByRole("button", { name: "Rename laptop" }).click();
     const input = owner.page.getByLabel("Device name");
     await input.fill("Work-Laptop");
@@ -140,7 +138,7 @@ test.describe("devices", () => {
     await expect(rename("mine", member.page)).rejects.toMatchObject({
       status: 403,
     });
-    await member.page.goto(`/networks/${network.id}`);
+    await member.page.goto("/devices");
     const row = member.page.locator("li", { hasText: "laptop-2" });
     await expect(row).toBeVisible();
     await expect(row.getByRole("button", { name: /^Rename/ })).toHaveCount(0);
@@ -160,9 +158,9 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Remove Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const token = () =>
-      api<{ token: string }>(owner.page, `/v1/networks/${network.id}/enrollment-tokens`, {}).then(
+      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then(
         (t) => t.token,
       );
     const old = signingDevice();
@@ -188,7 +186,7 @@ test.describe("devices", () => {
     const member = await createUser("Member");
     await addToOrganization(owner, member, "member");
     await expect(remove(member.page)).rejects.toMatchObject({ status: 403 });
-    await member.page.goto(`/networks/${network.id}`);
+    await member.page.goto("/devices");
     const memberRow = member.page.locator("li", { hasText: "old-mac" });
     await expect(memberRow).toBeVisible();
     await expect(memberRow.getByRole("button", { name: /^Remove/ })).toHaveCount(0);
@@ -199,7 +197,7 @@ test.describe("devices", () => {
     await expect(remove(outsider.page)).rejects.toMatchObject({ status: 404 });
 
     // From the web: confirm, and the row goes away.
-    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.goto("/devices");
     await owner.page.getByRole("button", { name: "Remove old-mac" }).click();
     await owner.page.getByRole("button", { name: "Remove device" }).click();
     await expect(owner.page.locator("li", { hasText: "old-mac" })).toHaveCount(0);
@@ -223,7 +221,7 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     const org = await createOrganization(owner, "Owners Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const alice = await createUser("Alice");
     const bob = await createUser("Bob");
     await addToOrganization(owner, alice, "member");
@@ -231,7 +229,7 @@ test.describe("devices", () => {
     const enrollAs = async (user: { page: typeof owner.page }, hostname: string) => {
       const { token } = await api<{ token: string }>(
         user.page,
-        `/v1/networks/${network.id}/enrollment-tokens`,
+        `/v1/network/enrollment-tokens`,
         {},
       );
       const res = await enroll({ token, hostname, platform: "linux", ...deviceKeys() });
@@ -245,7 +243,7 @@ test.describe("devices", () => {
 
     const list = await api<{ name: string; owner: { email: string } | null }[]>(
       owner.page,
-      `/v1/networks/${network.id}/devices`,
+      `/v1/network/devices`,
     );
     expect(Object.fromEntries(list.map((d) => [d.name, d.owner?.email]))).toEqual({
       "owner-box": owner.email,
@@ -266,7 +264,7 @@ test.describe("devices", () => {
       api(alice.page, device(ownerBox), undefined, { method: "DELETE" }),
     ).rejects.toMatchObject({ status: 403 });
 
-    await alice.page.goto(`/networks/${network.id}`);
+    await alice.page.goto("/devices");
     const rows = alice.page.locator("main li");
     await expect(rows.filter({ hasText: "alice-laptop" })).toContainText("yours");
     await expect(rows.filter({ hasText: "bob-box" })).toContainText("Bob");
@@ -285,7 +283,7 @@ test.describe("devices", () => {
       memberIdOrEmail: bob.email,
       organizationId: org.id,
     });
-    const left = await api<{ id: string }[]>(owner.page, `/v1/networks/${network.id}/devices`);
+    const left = await api<{ id: string }[]>(owner.page, `/v1/network/devices`);
     expect(left.map((d) => d.id)).toEqual([ownerBox]);
   });
 
@@ -295,11 +293,11 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Rules Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const newToken = () =>
       api<{ id: string; token: string }>(
         owner.page,
-        `/v1/networks/${network.id}/enrollment-tokens`,
+        `/v1/network/enrollment-tokens`,
         {},
       );
 
@@ -356,15 +354,12 @@ test.describe("devices", () => {
     createOrganization,
   }) => {
     const owner = await createUser("Owner");
-    await createOrganization(owner, "Busy Org");
     // 10 devices enrolling at once into one range must still get distinct addresses.
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", {
-      name: "tiny",
-      ipv4Cidr: "10.99.0.0/24",
-    });
+    await createOrganization(owner, "Busy Org", { ipv4Cidr: "10.99.0.0/24" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const tokens = await Promise.all(
       Array.from({ length: 10 }, () =>
-        api<{ token: string }>(owner.page, `/v1/networks/${network.id}/enrollment-tokens`, {}),
+        api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}),
       ),
     );
 
@@ -378,7 +373,7 @@ test.describe("devices", () => {
     expect(new Set(ips).size).toBe(10);
     for (const ip of ips) expect(ip).toMatch(/^10\.99\.0\.\d+$/);
 
-    const devices = await api<unknown[]>(owner.page, `/v1/networks/${network.id}/devices`);
+    const devices = await api<unknown[]>(owner.page, `/v1/network/devices`);
     expect(devices).toHaveLength(10);
   });
 
@@ -388,9 +383,9 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Sync Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const token = () =>
-      api<{ token: string }>(owner.page, `/v1/networks/${network.id}/enrollment-tokens`, {}).then(
+      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then(
         (t) => t.token,
       );
 
@@ -437,7 +432,7 @@ test.describe("devices", () => {
     expect(JSON.stringify(map.body)).not.toContain(server.keys.identityPublicKey);
 
     // Both synced, so both show as online.
-    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.goto("/devices");
     await expect(owner.page.locator("li", { hasText: "laptop" })).toContainText("online");
     await expect(owner.page.locator("li", { hasText: "server" })).toContainText("online");
   });
@@ -448,10 +443,10 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Reject Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const { token } = await api<{ token: string }>(
       owner.page,
-      `/v1/networks/${network.id}/enrollment-tokens`,
+      `/v1/network/enrollment-tokens`,
       {},
     );
     const keys = signingDevice();
@@ -497,11 +492,11 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Watch Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const enrollDevice = async (hostname: string) => {
       const { token } = await api<{ token: string }>(
         owner.page,
-        `/v1/networks/${network.id}/enrollment-tokens`,
+        `/v1/network/enrollment-tokens`,
         {},
       );
       const keys = signingDevice();
@@ -544,7 +539,7 @@ test.describe("devices", () => {
       () =>
         api(
           owner.page,
-          `/v1/networks/${network.id}/acl`,
+          `/v1/network/acl`,
           { defaultAction: "deny" },
           { method: "PATCH" },
         ),
@@ -560,10 +555,10 @@ test.describe("devices", () => {
   }) => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Presence Org");
-    const network = await api<{ id: string }>(owner.page, "/v1/networks", { name: "home" });
+    const network = await ownNetwork<{ id: string }>(owner.page);
     const { token } = await api<{ token: string }>(
       owner.page,
-      `/v1/networks/${network.id}/enrollment-tokens`,
+      `/v1/network/enrollment-tokens`,
       {},
     );
     const keys = signingDevice();
@@ -579,7 +574,7 @@ test.describe("devices", () => {
     await sync(device, { endpoints: [] });
     expect(await lastSeenInPostgres()).toEqual(persisted);
 
-    await owner.page.goto(`/networks/${network.id}`);
+    await owner.page.goto("/devices");
     const row = owner.page.locator("li", { hasText: "laptop" });
     await expect(row).toContainText("online");
 

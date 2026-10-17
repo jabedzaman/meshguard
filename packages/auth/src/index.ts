@@ -1,9 +1,10 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware, isAPIError } from "better-auth/api";
+import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
 import { multiSession, organization } from "better-auth/plugins";
 import { ac, roles } from "./permissions";
-import type { AuthEnv } from "@meshguard/config";
+import { slugError } from "./slug";
+import { type AuthEnv, webOrigins } from "@meshguard/config";
 import { and, asc, eq, schema, type Db } from "@meshguard/db";
 
 export interface AuthOptions {
@@ -25,6 +26,21 @@ export interface AuthOptions {
    * or leaving (the API removes their devices). Only the API needs it.
    */
   onMemberRemoved?: (member: { userId: string; organizationId: string }) => Promise<void>;
+  /**
+   * Validates the IPv4 range an organization is created with
+   * (`metadata.ipv4Cidr`); returns an error message, or undefined if fine.
+   */
+  ipv4CidrError?: (cidr: string) => string | undefined;
+  /**
+   * Runs after an organization is created: every organization has exactly one
+   * network, made here. Only the API needs it.
+   */
+  onOrganizationCreated?: (organization: {
+    id: string;
+    name: string;
+    /** The range chosen at creation; undefined means the default. */
+    ipv4Cidr?: string;
+  }) => Promise<void>;
   /** Runs after a member's role changes (access rules can name roles). */
   onMemberRoleChanged?: (member: { userId: string; organizationId: string }) => Promise<void>;
 }
@@ -41,13 +57,23 @@ export function authOptionsFromEnv(env: AuthEnv): AuthOptions {
   return {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
-    trustedOrigins: [env.WEB_URL],
+    trustedOrigins: webOrigins(env),
     cookieDomain: env.AUTH_COOKIE_DOMAIN,
     github:
       env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
         ? { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET }
         : undefined,
   };
+}
+
+function rejectBadSlug(slug: string | undefined) {
+  const message = slugError(slug ?? "");
+  if (message) throw new APIError("BAD_REQUEST", { message });
+}
+
+function requestedCidr(metadata: unknown): string | undefined {
+  const value = (metadata as { ipv4Cidr?: unknown } | null | undefined)?.ipv4Cidr;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 // Human identity only. Devices authenticate with their own key pairs.
@@ -86,6 +112,22 @@ export function createAuth(db: Db, options: AuthOptions) {
         // user is removed from it. Clear it so it can be trusted as-is (the web
         // proxy routes on it without loading the organization).
         organizationHooks: {
+          beforeCreateOrganization: async ({ organization }) => {
+            rejectBadSlug(organization.slug);
+            const cidr = requestedCidr(organization.metadata);
+            const message = cidr && options.ipv4CidrError?.(cidr);
+            if (message) throw new APIError("BAD_REQUEST", { message });
+          },
+          afterCreateOrganization: async ({ organization }) => {
+            await options.onOrganizationCreated?.({
+              id: organization.id,
+              name: organization.name,
+              ipv4Cidr: requestedCidr(organization.metadata),
+            });
+          },
+          beforeUpdateOrganization: async ({ organization }) => {
+            if (organization.slug !== undefined) rejectBadSlug(organization.slug);
+          },
           afterDeleteOrganization: async ({ organization }) => {
             await db
               .update(schema.session)

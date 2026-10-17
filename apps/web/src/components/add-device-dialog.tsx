@@ -36,14 +36,14 @@ const EXPIRY_OPTIONS: { value: EnrollmentTokenTtl; label: string }[] = [
   { value: "7d", label: "7 days" },
 ];
 
-export function AddDeviceDialog({ networkId }: { networkId: string }) {
+export function AddDeviceDialog() {
   const canEnroll = usePermission({ device: ["create"] });
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [expiresIn, setExpiresIn] = useState<EnrollmentTokenTtl>("1h");
 
   const create = useMutation({
-    mutationFn: () => enrollmentTokenMutations.create(networkId, expiresIn),
+    mutationFn: () => enrollmentTokenMutations.create(expiresIn),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: enrollmentTokenQueries.all() }),
   });
 
