@@ -10,6 +10,8 @@ export type Peer = {
   endpoint?: string;
   viaRelay?: boolean;
   lastHandshake?: string;
+  rxBytes?: number;
+  txBytes?: number;
 };
 
 /** The agent's GET /v1/status (internal/ipc.Status), the parts the app shows. */

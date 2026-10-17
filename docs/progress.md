@@ -165,7 +165,7 @@ What Tailscale calls subnet routers, exit nodes, Services, serve/funnel and app 
 ### Later ⬜
 
 - ⬜ L.1 Temporary access links (time-limited, audited)
-- ⬜ L.2 Windows and Linux agents
+- 🚧 L.2 Windows and Linux agents. Linux: release tarballs (`scripts/release.sh`) and `install.sh` with checksum check, tested in a systemd container (`pnpm test:install`); not yet published to a GitHub release or run on a real VM. Windows ⬜
 - ⬜ L.3 Product name + domain
 - ⬜ L.4 iOS and Android apps
 

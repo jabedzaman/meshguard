@@ -17,16 +17,25 @@
         "title": "MeshGuard",
         "width": 960,
         "height": 640,
-        "minWidth": 720,
+        "minWidth": 800,
         "minHeight": 480,
         "visible": false,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "transparent": true,
+        "windowEffects": {
+          "effects": [
+            "hudWindow"
+          ],
+          "state": "active",
+          "radius": 12
+        }
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

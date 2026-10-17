@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@meshguard/ui/components/card";
 import { Button } from "@meshguard/ui/components/button";
 import { agent, errorMessage, type AgentState } from "~/lib/agent";
 
@@ -41,15 +42,21 @@ export function Setup({ state }: Props) {
   }
 
   return (
-    <div className="mx-auto flex max-w-sm flex-1 flex-col items-center justify-center gap-4 text-center">
-      <Icon className="text-muted-foreground size-10" />
-      <h1 className="text-xl font-semibold">{c.title}</h1>
-      <p className="text-muted-foreground text-sm">{c.body}</p>
-      {state.kind === "denied" && <p className="text-muted-foreground text-xs">{state.message}</p>}
-      <Button onClick={install} disabled={busy}>
-        {busy && <Loader2 className="animate-spin" />}
-        {c.action}
-      </Button>
+    <div className="flex flex-1 flex-col items-center justify-center">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <Icon className="text-muted-foreground mb-2 size-8" />
+          <CardTitle>{c.title}</CardTitle>
+          <CardDescription>{c.body}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {state.kind === "denied" && <p className="text-muted-foreground text-xs">{state.message}</p>}
+          <Button onClick={install} disabled={busy}>
+            {busy && <Loader2 className="animate-spin" />}
+            {c.action}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

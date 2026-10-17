@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@meshguard/ui/components/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@meshguard/ui/components/card";
 import { Input } from "@meshguard/ui/components/input";
 import { Label } from "@meshguard/ui/components/label";
 import { agent, errorMessage, type PendingLogin } from "~/lib/agent";
@@ -54,52 +55,56 @@ export function SignIn() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6">
-      <div className="text-center">
-        <h1 className="text-xl font-semibold">Sign in to MeshGuard</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Approve this device for a network in your browser.</p>
-      </div>
-
-      {pending ? (
-        <div className="flex flex-col items-center gap-3 text-center">
-          <p className="text-muted-foreground text-sm">Check that the code matches</p>
-          <p className="font-mono text-3xl font-semibold tracking-widest">{pending.userCode}</p>
-          <p className="text-muted-foreground flex items-center gap-2 text-sm">
-            <Loader2 className="size-4 animate-spin" /> Waiting for approval…
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => openUrl(pending.verificationUrl)}>
-              Open browser again
+    <div className="flex flex-1 flex-col items-center justify-center">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>Sign in</CardTitle>
+          <CardDescription>Approve this device for a network in your browser.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-6">
+          {pending ? (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <p className="text-muted-foreground text-sm">Check that the code matches</p>
+              <p className="font-mono text-3xl font-semibold tracking-widest">{pending.userCode}</p>
+              <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Loader2 className="size-4 animate-spin" /> Waiting for approval…
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => openUrl(pending.verificationUrl)}>
+                  Open browser again
+                </Button>
+                <Button variant="ghost" size="sm" onClick={cancel}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button onClick={start} disabled={starting}>
+              {starting && <Loader2 className="animate-spin" />}
+              Sign in with browser
             </Button>
-            <Button variant="ghost" size="sm" onClick={cancel}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <Button onClick={start} disabled={starting}>
-          {starting && <Loader2 className="animate-spin" />}
-          Sign in with browser
-        </Button>
-      )}
-
-      <form onSubmit={join} className="flex flex-col gap-2 border-t pt-6">
-        <Label htmlFor="token">Or join with an enrollment token</Label>
-        <div className="flex gap-2">
-          <Input
-            id="token"
-            placeholder="meshguard_enr_…"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <Button type="submit" variant="secondary" disabled={!token.trim() || joining}>
-            {joining && <Loader2 className="animate-spin" />}
-            Join
-          </Button>
-        </div>
-      </form>
+          )}
+        </CardContent>
+        <CardFooter>
+          <form onSubmit={join} className="flex w-full flex-col gap-2 border-t pt-6">
+            <Label htmlFor="token">Or join with an enrollment token</Label>
+            <div className="flex gap-2">
+              <Input
+                id="token"
+                placeholder="meshguard_enr_…"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <Button type="submit" variant="secondary" disabled={!token.trim() || joining}>
+                {joining && <Loader2 className="animate-spin" />}
+                Join
+              </Button>
+            </div>
+          </form>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

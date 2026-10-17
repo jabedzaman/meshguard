@@ -200,6 +200,9 @@ type Peer struct {
 	// Approved subnets this peer routes.
 	Routes        []string   `json:"routes,omitempty"`
 	LastHandshake *time.Time `json:"lastHandshake,omitempty"`
+	// Bytes received from and sent to this peer since the interface came up.
+	RxBytes uint64 `json:"rxBytes,omitempty"`
+	TxBytes uint64 `json:"txBytes,omitempty"`
 }
 
 // Device is this machine's record in the mesh.

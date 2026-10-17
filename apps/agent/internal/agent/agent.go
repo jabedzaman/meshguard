@@ -757,6 +757,7 @@ func (a *Agent) statusLocked(st *state.State) ipc.Status {
 		if hexKey, err := wireguard.KeyToHex(p.WireGuardPublicKey); err == nil {
 			if ps, ok := stats[hexKey]; ok {
 				peer.Endpoint, peer.ViaRelay = a.pathLocked(c, p, ps.Endpoint)
+				peer.RxBytes, peer.TxBytes = ps.RxBytes, ps.TxBytes
 				if !ps.LastHandshake.IsZero() {
 					hs := ps.LastHandshake
 					peer.LastHandshake = &hs

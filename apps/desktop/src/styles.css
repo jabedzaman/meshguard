@@ -1,8 +1,71 @@
 @import "@meshguard/ui/globals.css";
 
+/*
+ * Glass. The window is transparent with a native macOS vibrancy effect behind the web view
+ * (tauri.conf.json), so surfaces are translucent tints over it, and cards blur what's behind.
+ */
+:root {
+  --card: oklch(1 0 0 / 45%);
+  --popover: oklch(0.98 0 0 / 90%);
+  --secondary: oklch(1 0 0 / 40%);
+  --muted: oklch(0.2 0 0 / 7%);
+  --border: oklch(1 0 0 / 55%);
+  --input: oklch(0.2 0 0 / 14%);
+  --sidebar: transparent;
+  --sidebar-accent: oklch(0.2 0 0 / 8%);
+  --sidebar-border: oklch(1 0 0 / 40%);
+}
+
+.dark {
+  --card: oklch(1 0 0 / 7%);
+  --popover: oklch(0.22 0 0 / 92%);
+  --secondary: oklch(1 0 0 / 10%);
+  --muted: oklch(1 0 0 / 9%);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 16%);
+  --sidebar: transparent;
+  --sidebar-accent: oklch(1 0 0 / 10%);
+  --sidebar-border: oklch(1 0 0 / 12%);
+}
+
+html,
+body,
+#root {
+  background: transparent;
+}
+
 body {
-  background: var(--background);
   color: var(--foreground);
   -webkit-user-select: none;
   user-select: none;
+}
+
+[data-slot="card"],
+.glass {
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  /* A bright top edge, like light catching glass. */
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 45%),
+    0 8px 32px oklch(0 0 0 / 8%);
+}
+
+.dark [data-slot="card"],
+.dark .glass {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 12%),
+    0 8px 32px oklch(0 0 0 / 25%);
+}
+
+/* Scrolling still works; the bars just don't draw over the glass. */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+[data-slot="scroll-area-scrollbar"] {
+  display: none;
 }

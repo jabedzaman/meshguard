@@ -41,6 +41,18 @@ Remove the service (binaries and state are kept):
 sudo meshguard-agent uninstall
 ```
 
+### Installing on a server (Linux, macOS)
+
+```sh
+curl -fsSL https://github.com/jabedzaman/meshguard/releases/latest/download/install.sh | sudo sh
+```
+
+The script picks the tarball for the machine (`linux`/`darwin`, `amd64`/`arm64`),
+checks it against `SHA256SUMS`, and runs `meshguard-agent install`. Set
+`MESHGUARD_BASE_URL` to install from somewhere else (`file:///path/to/dist/release`
+works). Cut a release with `scripts/release.sh` (output in `dist/release/`, upload it
+all to a GitHub release); `pnpm test:install` checks the script in a systemd container.
+
 ### Updating dev machines
 
 From the repo (Linux/WSL with systemd, or this Mac):

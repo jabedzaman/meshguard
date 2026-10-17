@@ -71,6 +71,7 @@ function ChartTooltipContent({
   className,
   label,
   labelFormatter,
+  valueFormatter,
   hideLabel = false,
 }: {
   active?: boolean
@@ -84,6 +85,7 @@ function ChartTooltipContent({
   className?: string
   label?: React.ReactNode
   labelFormatter?: (label: React.ReactNode, payload: unknown[]) => React.ReactNode
+  valueFormatter?: (value: number) => React.ReactNode
   hideLabel?: boolean
 }) {
   const { config } = useChart()
@@ -116,7 +118,9 @@ function ChartTooltipContent({
               />
               <span className="text-muted-foreground">{itemConfig?.label ?? item.name}</span>
               <span className="text-foreground ml-auto font-mono font-medium tabular-nums">
-                {item.value?.toLocaleString()}
+                {valueFormatter && typeof item.value === "number"
+                  ? valueFormatter(item.value)
+                  : item.value?.toLocaleString()}
               </span>
             </div>
           )
