@@ -23,6 +23,7 @@ import {
 } from "@meshguard/ui/components/chart";
 import { Skeleton } from "@meshguard/ui/components/skeleton";
 import { cn } from "@meshguard/ui/lib/utils";
+import { CopyText } from "~/components/copy-text";
 import { OnlineDot } from "~/components/online-dot";
 import { useOrganization } from "~/components/providers/organization-provider";
 import {
@@ -262,7 +263,9 @@ function Addressing({ rows }: { rows: [string, string][] }) {
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-center justify-between gap-4 py-3">
             <dt className="text-muted-foreground text-sm">{label}</dt>
-            <dd className="font-mono text-sm">{value}</dd>
+            <dd className="text-sm">
+              <CopyText value={value} />
+            </dd>
           </div>
         ))}
       </dl>

@@ -14,7 +14,9 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@meshguard/ui/components/empty";
+import { Input } from "@meshguard/ui/components/input";
 import { ToggleGroup, ToggleGroupItem } from "@meshguard/ui/components/toggle-group";
+import { CopyText } from "~/components/copy-text";
 import { ConfirmDialog } from "~/components/confirm-dialog";
 import { groupRoutes } from "~/lib/routes";
 import { DeviceRoutesDialog } from "~/components/device-routes-dialog";
@@ -65,6 +67,8 @@ export function DevicesList() {
   const canRenameAny = usePermission({ device: ["update"] });
   const canRemoveAny = usePermission({ device: ["delete"] });
   const [onlyMine, setOnlyMine] = useState(false);
+  const [status, setStatus] = useState<"all" | "online" | "offline">("all");
+  const [query, setQuery] = useState("");
   const queryClient = useQueryClient();
   // Devices join and drop from the command line; the API pushes the changes.
   useDeviceEvents();
@@ -89,29 +93,66 @@ export function DevicesList() {
   }
 
   const mine = (device: (typeof devices)[number]) => device.owner?.id === user.id;
-  const shown = onlyMine ? devices.filter(mine) : devices;
+  const needle = query.trim().toLowerCase();
+  const shown = devices.filter(
+    (device) =>
+      (!onlyMine || mine(device)) &&
+      (status === "all" || device.online === (status === "online")) &&
+      (!needle ||
+        [device.name, device.meshIpv4, device.meshIpv6, ...device.tags.map((t) => `tag:${t}`)].some(
+          (value) => value?.toLowerCase().includes(needle),
+        )),
+  );
 
   return (
     <div className="flex flex-col gap-3">
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        aria-label="Show devices"
-        value={onlyMine ? "mine" : "all"}
-        // Ignore deselecting: one filter is always on.
-        onValueChange={(value) => value && setOnlyMine(value === "mine")}
-      >
-        <ToggleGroupItem value="all" className="px-3">
-          All
-        </ToggleGroupItem>
-        <ToggleGroupItem value="mine" className="px-3">
-          Mine
-        </ToggleGroupItem>
-      </ToggleGroup>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search name, IP or tag"
+          aria-label="Search devices"
+          className="h-8 w-56"
+        />
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          aria-label="Show devices"
+          value={onlyMine ? "mine" : "all"}
+          // Ignore deselecting: one filter is always on.
+          onValueChange={(value) => value && setOnlyMine(value === "mine")}
+        >
+          <ToggleGroupItem value="all" className="px-3">
+            All
+          </ToggleGroupItem>
+          <ToggleGroupItem value="mine" className="px-3">
+            Mine
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          aria-label="Filter by status"
+          value={status}
+          onValueChange={(value) => value && setStatus(value as typeof status)}
+        >
+          <ToggleGroupItem value="all" className="px-3">
+            Any status
+          </ToggleGroupItem>
+          <ToggleGroupItem value="online" className="px-3">
+            Online
+          </ToggleGroupItem>
+          <ToggleGroupItem value="offline" className="px-3">
+            Offline
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
       {shown.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          None of the devices here are yours. Use Add device to enroll one.
+          No devices match these filters.
         </p>
       ) : (
         <ul ref={listRef} className="divide-border bg-card divide-y rounded-xl border shadow-sm">
@@ -179,8 +220,8 @@ export function DevicesList() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground grid text-right font-mono text-xs">
-                    <span className="text-foreground">{device.meshIpv4}</span>
-                    <span>{device.meshIpv6}</span>
+                    {device.meshIpv4 && <CopyText value={device.meshIpv4} className="text-foreground" />}
+                    {device.meshIpv6 && <CopyText value={device.meshIpv6} />}
                   </span>
                   <div className="flex items-center">
                     {canRenameAny && (

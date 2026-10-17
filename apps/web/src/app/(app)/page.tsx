@@ -1,5 +1,12 @@
 import { NetworkOverview } from "~/components/network-overview";
+import { AttentionStrip, GettingStarted } from "~/components/overview-guidance";
 
 export default function OverviewPage() {
-  return <NetworkOverview />;
+  return (
+    <>
+      <AttentionStrip />
+      <GettingStarted />
+      <NetworkOverview />
+    </>
+  );
 }
