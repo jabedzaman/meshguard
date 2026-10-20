@@ -3,6 +3,7 @@ go 1.27.1
 use (
 	./apps/agent
 	./apps/cli
+	./apps/macos/core
 	./apps/relay
 	./internal
 )

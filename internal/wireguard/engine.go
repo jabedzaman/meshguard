@@ -33,6 +33,11 @@ type Config struct {
 	// 10.77.4.9/16 and fd12:3456:789a:0:..../48, so the whole network routes
 	// through the interface.
 	Addresses []netip.Prefix
+	// TUN is an already open device. Set by hosts that don't own the interface,
+	// such as a macOS Network Extension, where the system hands over the utun
+	// and applies addresses, routes and DNS itself: Start then creates no
+	// interface and runs no ifconfig or route.
+	TUN tun.Device
 }
 
 // Engine is a running WireGuard interface.
@@ -56,9 +61,12 @@ type Engine struct {
 // addresses and routes. Needs root (CAP_NET_ADMIN on Linux). Nothing from
 // peers is let in, except replies, until SetACL.
 func Start(cfg Config) (*Engine, error) {
-	t, err := tun.CreateTUN(cfg.InterfaceName, MTU)
-	if err != nil {
-		return nil, fmt.Errorf("create tun %q (needs root): %w", cfg.InterfaceName, err)
+	t := cfg.TUN
+	if t == nil {
+		var err error
+		if t, err = tun.CreateTUN(cfg.InterfaceName, MTU); err != nil {
+			return nil, fmt.Errorf("create tun %q (needs root): %w", cfg.InterfaceName, err)
+		}
 	}
 	name, err := t.Name()
 	if err != nil {
@@ -88,9 +96,11 @@ func Start(cfg Config) (*Engine, error) {
 		dev.Close()
 		return nil, fmt.Errorf("bring up wireguard: %w", err)
 	}
-	if err := configureInterface(name, cfg.Addresses); err != nil {
-		dev.Close()
-		return nil, fmt.Errorf("configure %s: %w", name, err)
+	if cfg.TUN == nil {
+		if err := configureInterface(name, cfg.Addresses); err != nil {
+			dev.Close()
+			return nil, fmt.Errorf("configure %s: %w", name, err)
+		}
 	}
 	slog.Info("wireguard up", "interface", name, "port", cfg.ListenPort, "addresses", cfg.Addresses)
 	return &Engine{name: name, tun: ft, dev: dev, bind: bind, filter: filter}, nil

@@ -1,0 +1,78 @@
+name: Meshguard
+options:
+  bundleIdPrefix: dev.jabed
+  deploymentTarget:
+    macOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: N86Q8R3R45   # Personal Team; the extension needs a paid program
+    CODE_SIGN_STYLE: Automatic
+# One bundle, like Tailscale's standalone app:
+#   Meshguard.app
+#     Contents/MacOS/Meshguard                       SwiftUI app
+#     Contents/Helpers/meshguard                     the CLI (linked into PATH by the app)
+#     Contents/Library/SystemExtensions/*.systemextension   the agent, in a packet tunnel
+targets:
+  Meshguard:
+    type: application
+    platform: macOS
+    sources: [App, Shared]
+    entitlements:
+      path: App/Meshguard.entitlements
+      properties:
+        com.apple.developer.system-extension.install: true
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
+        com.apple.security.application-groups: [group.dev.jabed.meshguard]
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Meshguard
+        LSUIElement: false
+        NSSystemExtensionUsageDescription: Meshguard runs its private network in a system extension.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jabed.meshguard
+        ENABLE_HARDENED_RUNTIME: YES
+    dependencies:
+      - target: PacketTunnel
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/SystemExtensions
+    postBuildScripts:
+      - name: Bundle the CLI
+        script: '"$SRCROOT/scripts/bundle-cli.sh"'
+        basedOnDependencyAnalysis: false
+  PacketTunnel:
+    type: system-extension
+    platform: macOS
+    sources: [PacketTunnel, Shared]
+    entitlements:
+      path: PacketTunnel/PacketTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
+        com.apple.security.application-groups: [group.dev.jabed.meshguard]
+    info:
+      path: PacketTunnel/Info.plist
+      properties:
+        CFBundleDisplayName: Meshguard Tunnel
+        CFBundlePackageType: SYSX
+        NetworkExtension:
+          NEProviderClasses:
+            com.apple.networkextension.packet-tunnel: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jabed.meshguard.tunnel
+        PRODUCT_NAME: dev.jabed.meshguard.tunnel   # system extensions are named after their bundle id
+        PRODUCT_MODULE_NAME: PacketTunnel
+        SWIFT_OBJC_BRIDGING_HEADER: PacketTunnel/Bridging-Header.h
+        HEADER_SEARCH_PATHS: $(SRCROOT)/build
+        LIBRARY_SEARCH_PATHS: $(SRCROOT)/build
+        OTHER_LDFLAGS: [-lmeshguard, -lresolv]
+        ENABLE_HARDENED_RUNTIME: YES
+    preBuildScripts:
+      - name: Build Go core
+        script: '"$SRCROOT/scripts/build-core.sh"'
+        basedOnDependencyAnalysis: false
