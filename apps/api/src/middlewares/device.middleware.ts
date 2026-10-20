@@ -49,6 +49,22 @@ export const requireDevice = createMiddleware<
     throw rejected("Device request was already used");
   }
 
+  // Only the device itself gets to learn why it is refused (the signature checked out).
+  if (!device.approved) {
+    throw new AppError(
+      403,
+      "device_pending_approval",
+      "This device is waiting for an owner or admin to approve it",
+    );
+  }
+  if (device.keyExpiresAt && device.keyExpiresAt <= new Date()) {
+    throw new AppError(
+      403,
+      "device_key_expired",
+      "This device's key has expired; an owner or admin can renew it",
+    );
+  }
+
   c.set("device", { id: device.id, networkId: device.networkId });
   await next();
 });

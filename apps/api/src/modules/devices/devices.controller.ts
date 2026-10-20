@@ -14,6 +14,7 @@ import {
 import { requireDevice } from "~/middlewares/device.middleware";
 import {
   deviceCertificateBody,
+  deviceKeyBody,
   enrollDeviceBody,
   renameDeviceBody,
   setDeviceFunnelBody,
@@ -78,6 +79,36 @@ export const rename = factory.createHandlers(
       c.var.organizationId,
       c.req.valid("param").id,
       c.req.valid("json").name,
+    );
+    return c.json(device, 200);
+  },
+);
+
+/** Lets a device waiting for approval onto the network. Owners and admins only. */
+export const approve = factory.createHandlers(
+  requireOrganization,
+  requirePermission({ device: ["update"] }),
+  validate("param", idParams),
+  async (c) => {
+    const device = await c.var.services.devices.approve(
+      c.var.organizationId,
+      c.req.valid("param").id,
+    );
+    return c.json(device, 200);
+  },
+);
+
+/** Renews a device's key, or stops it expiring. Owners and admins only. */
+export const setKey = factory.createHandlers(
+  requireOrganization,
+  requirePermission({ device: ["update"] }),
+  validate("param", idParams),
+  validate("json", deviceKeyBody),
+  async (c) => {
+    const device = await c.var.services.devices.setKeyExpiry(
+      c.var.organizationId,
+      c.req.valid("param").id,
+      c.req.valid("json").action,
     );
     return c.json(device, 200);
   },

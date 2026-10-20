@@ -10,6 +10,7 @@ import type { AppEnv } from "~/types";
 /** The active organization's network: /v1/network. */
 export const networkRoutes = new Hono<AppEnv>()
   .get("/", ...controller.get)
+  .patch("/", ...controller.update)
   .route("/enrollment-tokens", networkEnrollmentTokensRoutes)
   .route("/devices", networkDevicesRoutes)
   .route("/services", networkServicesRoutes)

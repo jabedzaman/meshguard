@@ -36,9 +36,7 @@ export const memberQueries = {
 };
 
 export type EnrollmentTokenTtl = NonNullable<
-  InferRequestType<
-    typeof api.v1.network["enrollment-tokens"]["$post"]
-  >["json"]["expiresIn"]
+  InferRequestType<(typeof api.v1.network)["enrollment-tokens"]["$post"]>["json"]["expiresIn"]
 >;
 
 export const enrollmentTokenQueries = {
@@ -46,18 +44,21 @@ export const enrollmentTokenQueries = {
   active: () =>
     queryOptions({
       queryKey: enrollmentTokenQueries.all(),
-      queryFn: () =>
-        parseResponse(
-          api.v1.network["enrollment-tokens"].$get(),
-        ),
+      queryFn: () => parseResponse(api.v1.network["enrollment-tokens"].$get()),
     }),
 };
 
 export const enrollmentTokenMutations = {
-  create: (expiresIn: EnrollmentTokenTtl) =>
+  create: (options: {
+    expiresIn: EnrollmentTokenTtl;
+    reusable?: boolean;
+    ephemeral?: boolean;
+    preApproved?: boolean;
+    tags?: string[];
+  }) =>
     parseResponse(
       api.v1.network["enrollment-tokens"].$post({
-        json: { expiresIn },
+        json: options,
       }),
     ),
   revoke: (id: string) =>
@@ -69,8 +70,7 @@ export const deviceQueries = {
   list: () =>
     queryOptions({
       queryKey: deviceQueries.all(),
-      queryFn: () =>
-        parseResponse(api.v1.network.devices.$get()),
+      queryFn: () => parseResponse(api.v1.network.devices.$get()),
     }),
 };
 
@@ -79,8 +79,7 @@ export const serviceQueries = {
   list: () =>
     queryOptions({
       queryKey: serviceQueries.all(),
-      queryFn: () =>
-        parseResponse(api.v1.network.services.$get()),
+      queryFn: () => parseResponse(api.v1.network.services.$get()),
       // Hosts go on and offline from the command line.
       refetchInterval: 5000,
     }),
@@ -91,8 +90,7 @@ export const connectorQueries = {
   list: () =>
     queryOptions({
       queryKey: connectorQueries.all(),
-      queryFn: () =>
-        parseResponse(api.v1.network.connectors.$get()),
+      queryFn: () => parseResponse(api.v1.network.connectors.$get()),
       refetchInterval: 5000,
     }),
 };
@@ -121,7 +119,15 @@ export const serviceMutations = {
   remove: (id: string) => parseResponse(api.v1.services[":id"].$delete({ param: { id } })),
 };
 
+export const networkMutations = {
+  update: (settings: { deviceApproval?: boolean; keyExpiryDays?: number | null }) =>
+    parseResponse(api.v1.network.$patch({ json: settings })),
+};
+
 export const deviceMutations = {
+  approve: (id: string) => parseResponse(api.v1.devices[":id"].approve.$post({ param: { id } })),
+  setKey: (id: string, action: "renew" | "never") =>
+    parseResponse(api.v1.devices[":id"].key.$put({ param: { id }, json: { action } })),
   rename: (id: string, name: string) =>
     parseResponse(api.v1.devices[":id"].$patch({ param: { id }, json: { name } })),
   remove: (id: string) => parseResponse(api.v1.devices[":id"].$delete({ param: { id } })),
@@ -133,7 +139,7 @@ export const deviceMutations = {
     parseResponse(api.v1.devices[":id"].routes.$put({ param: { id }, json: { approved } })),
 };
 
-type AclRoute = typeof api.v1.network["acl"];
+type AclRoute = (typeof api.v1.network)["acl"];
 export type AclDefaultAction = InferRequestType<AclRoute["$patch"]>["json"]["defaultAction"];
 export type CreateAclRuleInput = InferRequestType<AclRoute["rules"]["$post"]>["json"];
 export type CheckAccessInput = InferRequestType<AclRoute["check"]["$post"]>["json"];
@@ -143,31 +149,23 @@ export const aclQueries = {
   get: () =>
     queryOptions({
       queryKey: aclQueries.all(),
-      queryFn: () =>
-        parseResponse(api.v1.network.acl.$get()),
+      queryFn: () => parseResponse(api.v1.network.acl.$get()),
     }),
   document: () =>
     queryOptions({
       queryKey: [...aclQueries.all(), "document"],
-      queryFn: () =>
-        parseResponse(api.v1.network.acl.document.$get()),
+      queryFn: () => parseResponse(api.v1.network.acl.document.$get()),
     }),
 };
 
 export const aclMutations = {
   setDefaultAction: (defaultAction: AclDefaultAction) =>
-    parseResponse(
-      api.v1.network.acl.$patch({ json: { defaultAction } }),
-    ),
+    parseResponse(api.v1.network.acl.$patch({ json: { defaultAction } })),
   createRule: (rule: CreateAclRuleInput) =>
-    parseResponse(
-      api.v1.network.acl.rules.$post({ json: rule }),
-    ),
+    parseResponse(api.v1.network.acl.rules.$post({ json: rule })),
   removeRule: (id: string) => parseResponse(api.v1["acl-rules"][":id"].$delete({ param: { id } })),
   check: (input: CheckAccessInput) =>
-    parseResponse(
-      api.v1.network.acl.check.$post({ json: input }),
-    ),
+    parseResponse(api.v1.network.acl.check.$post({ json: input })),
 };
 
 export const deviceLoginQueries = {
@@ -181,8 +179,6 @@ export const deviceLoginQueries = {
 
 export const deviceLoginMutations = {
   approve: (id: string) =>
-    parseResponse(
-      api.v1["device-logins"][":id"].approve.$post({ param: { id } }),
-    ),
+    parseResponse(api.v1["device-logins"][":id"].approve.$post({ param: { id } })),
   deny: (id: string) => parseResponse(api.v1["device-logins"][":id"].deny.$post({ param: { id } })),
 };

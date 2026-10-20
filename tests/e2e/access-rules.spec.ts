@@ -7,11 +7,7 @@ async function networkWithDevices(page: Page, hostnames: string[]) {
   const network = await ownNetwork<{ id: string }>(page);
   const devices: Record<string, { id: string; privateKey: any; ipv4: string; ipv6: string }> = {};
   for (const hostname of hostnames) {
-    const { token } = await api<{ token: string }>(
-      page,
-      `/v1/network/enrollment-tokens`,
-      {},
-    );
+    const { token } = await api<{ token: string }>(page, `/v1/network/enrollment-tokens`, {});
     const device = signingDevice();
     const res = await enroll({ token, hostname, platform: "linux", ...device.keys });
     expect(res.status).toBe(201);
@@ -177,10 +173,10 @@ test.describe("access rules", () => {
     await dialog.getByLabel("To", { exact: true }).click();
     await page.getByRole("option", { name: "server" }).click();
     await dialog.getByLabel("Ports").fill("80-70");
-    await dialog.getByRole("button", { name: "Add rule" }).click();
+    await dialog.getByRole("button", { name: "Confirm" }).click();
     await expect(dialog.getByText(/A port like 22/)).toBeVisible();
     await dialog.getByLabel("Ports").fill("22");
-    await dialog.getByRole("button", { name: "Add rule" }).click();
+    await dialog.getByRole("button", { name: "Confirm" }).click();
     await expect(dialog).toHaveCount(0);
 
     const row = page.locator("li", { hasText: "laptop → server" });
@@ -195,7 +191,7 @@ test.describe("access rules", () => {
       .toBe("deny");
 
     await page.getByRole("button", { name: "Remove rule laptop → server" }).click();
-    await page.getByRole("button", { name: "Remove rule", exact: true }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(row).toHaveCount(0);
     await expect(page.getByText("No rules yet")).toBeVisible();
   });
@@ -213,11 +209,7 @@ test.describe("access rules", () => {
     await addToOrganization(owner, alice, "member");
     await addToOrganization(owner, bob, "admin");
     const enrollAs = async (page: Page, hostname: string) => {
-      const { token } = await api<{ token: string }>(
-        page,
-        `/v1/network/enrollment-tokens`,
-        {},
-      );
+      const { token } = await api<{ token: string }>(page, `/v1/network/enrollment-tokens`, {});
       const device = signingDevice();
       const res = await enroll({ token, hostname, platform: "darwin", ...device.keys });
       return {
@@ -272,11 +264,12 @@ test.describe("access rules", () => {
 
     // Check and the policy file agree.
     const check = (from: string, to: string, protocol: string, port?: number) =>
-      api<{ allowed: boolean; ruleIndex: number | null }>(
-        owner.page,
-        `/v1/network/acl/check`,
-        { sourceDeviceId: from, destinationDeviceId: to, protocol, port },
-      );
+      api<{ allowed: boolean; ruleIndex: number | null }>(owner.page, `/v1/network/acl/check`, {
+        sourceDeviceId: from,
+        destinationDeviceId: to,
+        protocol,
+        port,
+      });
     expect(await check(laptop.id, db!.id, "tcp", 5432)).toEqual({ allowed: true, ruleIndex: 1 });
     expect(await check(laptop.id, db!.id, "tcp", 22)).toEqual({ allowed: false, ruleIndex: null });
     expect(await check(desktop.id, web!.id, "icmp")).toEqual({ allowed: true, ruleIndex: 0 });
@@ -318,7 +311,7 @@ test.describe("access rules", () => {
     await page.goto("/devices");
     await page.getByRole("button", { name: "Tags of web" }).click();
     await page.getByLabel("Tags", { exact: true }).fill("tag:server, edge");
-    await page.getByRole("button", { name: "Save tags" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
     await expect(
       page.locator("li").filter({ hasText: "tag:edge" }).filter({ hasText: "tag:server" }),
     ).toHaveCount(1);

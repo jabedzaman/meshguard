@@ -120,7 +120,7 @@ Join a network through your browser, or with a token from the network page
 ```sh
 meshguard up                                               # join through the browser; reconnect if enrolled
 meshguard up --no-browser                                  # print the URL instead of opening it
-meshguard up --token meshguard_enr_...                          # join with a token (servers, CI)
+meshguard up --token meshguard_enr_...                          # join with a token or auth key (servers, CI)
 meshguard up --token meshguard_enr_... --server https://api.example.com
 ```
 
@@ -182,6 +182,20 @@ Owners and admins can also remove a device there (Remove). Peers drop it on
 their next sync, and its agent is refused from then on: `meshguard status`
 says the device was removed. To bring it back, run `meshguard logout --force`
 on it, then `meshguard up --token <new token>`.
+
+### Auth keys for servers and CI
+
+Add device on the network page makes a token that works once. Owners and
+admins can also make **auth keys** with these options:
+
+- **Reusable**: enrolls any number of devices until it expires (up to 90 days) or is revoked. Use it in images and CI.
+- **Ephemeral**: its devices are removed automatically after being offline for 30 minutes, so short-lived machines don't pile up.
+- **Tags**: its devices start with these tags (`server, ci`), so access rules naming `tag:server` apply from the first sync.
+
+- **Pre-approved**: its devices skip device approval, when the network asks for it.
+
+Members can only make plain single-use tokens. The key is shown once; the
+list shows its prefix, options and how many devices used it.
 
 Mesh addresses resolve back to names too (`dig -x 10.77.0.214`).
 
@@ -440,3 +454,15 @@ below and prints a fix for each problem.
   tail -f /var/log/meshguard-agent.log
   sudo meshguard-agent uninstall
   ```
+
+### Device approval and key expiry
+
+Owners and admins set the policy on the devices page (Device policy):
+
+- **Approve new devices**: a device enrolled without a pre-approved key waits.
+  `meshguard status` says it is waiting for approval, peers don't see it, and
+  it joins within one sync of being approved.
+- **Key expiry**: a device's key lasts 180 days by default (30, 90, 365 or
+  never). When it ends, `meshguard status` says the key expired and peers drop
+  the device. Renew it from its row (Renew key), or turn its expiry off for
+  servers (Never expire). New lengths apply to keys issued or renewed from then on.

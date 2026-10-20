@@ -79,3 +79,8 @@ export const setDeviceTagsBody = z.object({
     )
     .max(32),
 });
+
+export const deviceKeyBody = z.object({
+  /** "renew" starts a new key period from now; "never" stops the key expiring. */
+  action: z.enum(["renew", "never"]),
+});

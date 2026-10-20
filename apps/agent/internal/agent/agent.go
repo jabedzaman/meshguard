@@ -637,9 +637,16 @@ func (a *Agent) setProblem(c *connection, p string) {
 // can't be probed.
 func syncProblem(err error) string {
 	var apiErr *coordination.Error
-	if errors.As(err, &apiErr) && apiErr.Code == "invalid_device_signature" {
-		return "the control plane doesn't recognize this device: it was removed from the network " +
-			"(or this clock is off by minutes). To join again: meshguard logout --force, then meshguard up --token <new token>"
+	if errors.As(err, &apiErr) {
+		switch apiErr.Code {
+		case "invalid_device_signature":
+			return "the control plane doesn't recognize this device: it was removed from the network " +
+				"(or this clock is off by minutes). To join again: meshguard logout --force, then meshguard up --token <new token>"
+		case "device_pending_approval":
+			return "this device is waiting for an owner or admin to approve it; it joins the network as soon as they do"
+		case "device_key_expired":
+			return "this device's key has expired; ask an owner or admin to renew it on the network's devices page"
+		}
 	}
 	return "cannot reach the control plane: " + err.Error()
 }

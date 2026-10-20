@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { getApiError, getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
+import { FormSubmit } from "~/components/form-submit";
 import {
   Dialog,
   DialogContent,
@@ -131,9 +132,7 @@ export function RenameDeviceDialog({
               </p>
             )}
             <DialogFooter>
-              <Button type="submit" disabled={rename.isPending}>
-                {rename.isPending ? "Saving…" : "Save"}
-              </Button>
+              <FormSubmit pending={rename.isPending} onCancel={() => setOpen(false)} />
             </DialogFooter>
           </form>
         </Form>

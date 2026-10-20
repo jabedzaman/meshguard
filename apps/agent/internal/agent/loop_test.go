@@ -548,5 +548,9 @@ func TestSyncProblem(t *testing.T) {
 	removed := &coordination.Error{Status: http.StatusUnauthorized, Code: "invalid_device_signature"}
 	assert.Contains(t, syncProblem(removed), "removed from the network")
 	assert.Contains(t, syncProblem(removed), "meshguard logout --force")
+	pending := &coordination.Error{Status: 403, Code: "device_pending_approval"}
+	assert.Contains(t, syncProblem(pending), "waiting for an owner or admin to approve")
+	expired := &coordination.Error{Status: 403, Code: "device_key_expired"}
+	assert.Contains(t, syncProblem(expired), "key has expired")
 	assert.Equal(t, "cannot reach the control plane: boom", syncProblem(errors.New("boom")))
 }

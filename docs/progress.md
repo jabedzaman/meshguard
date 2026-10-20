@@ -62,8 +62,8 @@ Goal: Mac A and Mac B on different networks can ping each other's mesh IP, direc
 - ✅ M1.26 Agent local API auth: peer credentials on the Unix socket (`SO_PEERCRED` / `LOCAL_PEERCRED`); only root, the agent's user and the socket owner are answered, unknown callers refused
 - ✅ M1.27 Devices owned by a user (`devices.user_id`, the enrollment token's creator; existing devices backfilled the same way): owner and an All / Mine filter on the network page; members rename and remove their own devices; removing a member or leaving removes their devices in that organization
 - ✅ M1.28 Browser login: `meshguard up` on an unenrolled device prints a URL (and opens the browser); a signed-in user checks the code, picks a network on `/connect` and approves; the CLI collects an enrollment token minted for the approver, so the device is theirs. Device-code flow (RFC 8628 style) kept in Redis for 10 minutes (`/v1/device-logins`); `--token` stays for headless machines. The start and poll routes are public, so they need the rate limits in M1.31
-- ⬜ M1.29 Auth keys beyond single-use tokens: reusable, ephemeral (device deleted after being offline a while), pre-approved and tagged; for servers, CI and containers
-- ⬜ M1.30 Device approval (optional per network) and key expiry (e.g. 180 days, renewed by browser login, can be turned off per device), so a copied `state.json` stops working
+- ✅ M1.29 Auth keys beyond single-use tokens, for servers, CI and containers. Done: reusable keys (enroll any number of devices until they expire, 30 and 90 day lifetimes added), ephemeral keys (the device is removed after 30 minutes offline; an API-side sweep each minute, safe on several replicas) and tagged keys (devices start with the key's tags). Reusable, ephemeral and tagged keys are owner/admin only. Pre-approved keys came with M1.30
+- ✅ M1.30 Device approval and key expiry. A network can ask for approval (`networks.device_approval`, off by default): new devices wait, are refused with `device_pending_approval` and are left out of every peer's map until an owner or admin approves them on the devices page. Pre-approved keys (owners and admins only) skip it. Keys expire after `networks.key_expiry_days` (180 by default; never is allowed): an expired device is refused with `device_key_expired` and dropped from peers' maps, and an owner or admin renews it (a new period from now) or turns its expiry off. A sweep each minute announces keys that just ended so peers drop the device without waiting for another change. Existing devices never expire until renewed. Left: renewal through browser login on the device itself (today an admin renews from the web)
 - 🚧 M1.31 Rate limits (Redis, sliding window; `429` with `Retry-After`). Done: the limiter (`RateLimiter`, `rateLimitByIp`; e2e tests enroll from made-up client addresses and `rate-limits.spec.ts` checks the 429) and the public routes `POST /v1/device-logins` (10/min per IP), `.../poll` (60/min per IP) and `POST /v1/devices/enroll` (20/min per IP). Left: the rest below. Where they are needed, most urgent first:
   - **Public, unauthenticated API routes**, limited per client IP: `POST /v1/device-logins` (each call writes Redis keys), `POST /v1/device-logins/poll` (also per secret, to keep to the 2s interval), `POST /v1/devices/enroll` (token guessing)
   - **Device-login approval**, per user and per IP: `GET /v1/device-logins/:id`, `.../approve`, `.../deny`; delete a login after about 5 failed lookups. The id is 128 bits, so this guards against abuse, not guessing
@@ -175,6 +175,7 @@ What Tailscale calls subnet routers, exit nodes, Services, serve/funnel and app 
 - 🚧 L.2 Windows and Linux agents. Linux: release tarballs (`scripts/release.sh`) and `install.sh` with checksum check, tested in a systemd container (`pnpm test:install`); not yet published to a GitHub release or run on a real VM. Windows ⬜
 - ⬜ L.3 Product name + domain
 - ⬜ L.4 iOS and Android apps
+- ⬜ L.5 Linux packages: `.deb` and `.rpm` built by `scripts/release.sh`, an apt / yum repository, and `install.sh` using them where the distro has a package manager (today it unpacks a tarball and writes the systemd unit)
 
 ## Tailscale parity (2026-10-08)
 
@@ -184,8 +185,8 @@ Not there yet. The networking features are covered (M1, M2 core, M6). What is mi
 | ---- | ------ | ---------- |
 | Mesh, NAT traversal, relay, DNS, ACLs by tag/user/role | ✅ | M2.3 double-NAT punching, M2.17 relay regions, M2.23 lazy peers |
 | Subnet routers, exit nodes, services, serve, HTTPS certs, funnel, app connectors | ✅ | Linux-only exit nodes (M6.3) |
-| Auth keys for servers, CI and containers | ⬜ | M1.29 (reusable, ephemeral, tagged) |
-| Device approval, key expiry, key rotation, signed node keys | ⬜ | M1.30, M2.9, M2.26 |
+| Auth keys for servers, CI and containers | ✅ | M1.29 (reusable, ephemeral, tagged, pre-approved) |
+| Device approval, key expiry, key rotation, signed node keys | 🚧 | M1.30 done; M2.9 and M2.26 open |
 | Full DNS (forwarding, split DNS, override), macOS short names | ⬜ | M2.13, M2.18–M2.20 |
 | Clients | Mac agent only | M3 desktop app, L.2 Windows and Linux agents, L.4 iOS and Android |
 | Userspace networking, Kubernetes | ⬜ | M7.1, M7.8 |
@@ -194,7 +195,7 @@ Not there yet. The networking features are covered (M1, M2 core, M6). What is mi
 | Multiple networks per device, IPv4 range change | ⬜ | M2.25, M1.33 |
 | Rate limits on authenticated routes, GitHub sign-in | 🚧 | M1.31, M1.2 |
 
-Next, in order: **M1.29 → M1.30 → M7.3 → M7.4** (identity, pathway phase 2), then **M7.1** and **M2.3** (reach), then clients (M3, L.2).
+Next, in order: **M7.3 → M7.4** (identity, pathway phase 2; M1.29 and M1.30 are done), then **M7.1** and **M2.3** (reach), then clients (M3, L.2).
 
 ## Pathway
 
@@ -207,6 +208,18 @@ Order to work through the open items (from the 2026-10-06 comparison with Tailsc
 5. **DNS**: M2.27 ✅ → M2.13 (with M2.21) → M2.18 → M2.19 → M2.20
 6. **Routes and services** ✅: M6.9 → M6.1 → M6.2 → M6.3 → M6.4 → M6.5 → M6.6 → M6.7 → M6.8; M4 workspaces after M6.5
 7. **Platform**: M1.31, M7.2, M7.6, M2.9, M2.25, M2.26, M7.5, M7.7–M7.11, M1.33, L.2, L.4
+
+### Linux parity path
+
+From the 2026-10-21 comparison with Tailscale on Linux; same items as above, grouped by what a Linux user hits first. Statuses are in the milestones.
+
+1. **A real Linux box works**: run `pnpm test:install` and `pnpm test:systemd`, then a Lima VM on Debian, Ubuntu and Fedora; L.2 (publish release tarballs); a public API and relay; M1.31
+2. **Servers and CI**: M1.29 ✅, M7.3, M7.1, M7.8
+3. **Security**: M1.30 ✅, M2.9, M7.4, M2.26
+4. **Connection quality**: M2.3 (UPnP / NAT-PMP / PCP and coordinated punching, for peers behind Linux-style NATs), M2.17 (several relays, the lowest-latency one as home), M2.23 (lazy peers, past about 100 devices)
+5. **DNS on real distros**: M2.13 (forward other names to the OS resolver; NetworkManager and resolvconf fallbacks, since mesh names work only with systemd-resolved today), M2.18 (DNS over TCP, SRV / TXT / CNAME), M2.19 (IPv6 resolver address)
+6. **Distribution and updates**: M7.2 (signed auto-update, `meshguard update`), L.5 (`.deb` / `.rpm` packages and an apt / yum repository)
+7. **Extras**: M7.6, M7.9–M7.11, M2.25, M7.5, M7.7; Windows and mobile (L.2, L.4) last
 
 ## Open decisions
 

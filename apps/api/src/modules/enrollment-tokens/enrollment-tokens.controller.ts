@@ -1,3 +1,4 @@
+import { ForbiddenError } from "@meshguard/server-core";
 import { requireNetwork } from "~/middlewares/network.middleware";
 import { factory } from "~/lib/factory";
 import { validate } from "~/lib/validator";
@@ -28,10 +29,20 @@ export const createForNetwork = factory.createHandlers(
   requireNetwork,
   validate("json", createEnrollmentTokenBody),
   async (c) => {
+    const { expiresIn, reusable, ephemeral, preApproved, tags } = c.req.valid("json");
+    // Reusable and tagged keys are for servers and grant access: not for plain members.
+    const advanced = reusable || ephemeral || preApproved || tags.length > 0;
+    if (advanced && !(await hasPermission(c, { device: ["update"] }))) {
+      throw new ForbiddenError(
+        "insufficient_permissions",
+        "Only admins can create reusable, ephemeral, pre-approved or tagged keys",
+      );
+    }
     const token = await c.var.services.enrollmentTokens.create(
       { userId: c.var.user.id, organizationId: c.var.organizationId },
       c.var.networkId,
-      c.req.valid("json").expiresIn,
+      expiresIn,
+      { reusable, ephemeral, preApproved, tags },
     );
     return c.json(token, 201);
   },

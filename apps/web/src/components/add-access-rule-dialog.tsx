@@ -9,6 +9,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { getApiError, getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
+import { FormSubmit } from "~/components/form-submit";
 import {
   Dialog,
   DialogContent,
@@ -316,9 +317,7 @@ export function AddAccessRuleDialog({
               </p>
             )}
             <DialogFooter>
-              <Button type="submit" disabled={create.isPending}>
-                {create.isPending ? "Adding…" : "Add rule"}
-              </Button>
+              <FormSubmit pending={create.isPending} onCancel={() => setOpen(false)} />
             </DialogFooter>
           </form>
         </Form>

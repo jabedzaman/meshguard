@@ -3,11 +3,7 @@ import { enroll, signingDevice, sync } from "./support/devices";
 import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 async function enrollDevice(page: Page, networkId: string, hostname: string) {
-  const { token } = await api<{ token: string }>(
-    page,
-    `/v1/network/enrollment-tokens`,
-    {},
-  );
+  const { token } = await api<{ token: string }>(page, `/v1/network/enrollment-tokens`, {});
   const device = signingDevice();
   const res = await enroll({ token, hostname, platform: "linux", ...device.keys });
   expect(res.status).toBe(201);
@@ -109,7 +105,7 @@ test.describe("app connectors", () => {
     await dialog.getByLabel("Name").fill("corp");
     await dialog.getByLabel("Domains").fill("corp.example.com, tool.example.org");
     await dialog.getByLabel("gateway").check();
-    await dialog.getByRole("button", { name: "Create connector" }).click();
+    await dialog.getByRole("button", { name: "Confirm" }).click();
     await expect(dialog).toHaveCount(0);
 
     const row = page.locator("li", { hasText: "corp.example.com" });
@@ -117,7 +113,7 @@ test.describe("app connectors", () => {
     await expect(row).toContainText("gateway");
 
     await page.getByRole("button", { name: "Delete corp" }).click();
-    await page.getByRole("button", { name: "Delete connector" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(row).toHaveCount(0);
   });
 });

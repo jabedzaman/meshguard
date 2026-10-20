@@ -70,10 +70,7 @@ export function ConnectorsList() {
                 </span>
                 {canManage && (
                   <div className="flex items-center">
-                    <ConnectorDialog
-                      devices={devices}
-                      connector={connector}
-                    />
+                    <ConnectorDialog devices={devices} connector={connector} />
                     <ConfirmDialog
                       trigger={
                         <Button
@@ -88,7 +85,6 @@ export function ConnectorsList() {
                       triggerTooltip="Delete"
                       title={`Delete ${connector.name}?`}
                       description="Its domains go back to being reached the way they were before."
-                      confirmLabel="Delete connector"
                       onConfirm={async () => {
                         await connectorMutations.remove(connector.id);
                         toast.success("Connector deleted");

@@ -171,7 +171,6 @@ export function AccessRules() {
                       triggerTooltip="Remove rule"
                       title="Remove this rule?"
                       description={`${label} (${describeTraffic(rule)}) is no longer allowed. Devices refuse new connections within a few seconds.`}
-                      confirmLabel="Remove rule"
                       onConfirm={async () => {
                         await aclMutations.removeRule(rule.id);
                         toast.success("Rule removed");

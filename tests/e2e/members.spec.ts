@@ -80,7 +80,7 @@ test.describe("members and roles", () => {
     await expect(admin.page.getByRole("alertdialog")).toContainText(
       `${member.email} will lose access to ${org.name}.`,
     );
-    await admin.page.getByRole("button", { name: "Remove member" }).click();
+    await admin.page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(rows.filter({ hasText: member.email })).toHaveCount(0);
 
     await member.page.goto("/");
@@ -89,7 +89,7 @@ test.describe("members and roles", () => {
     // The only owner can't leave.
     await owner.page.goto("/members");
     await owner.page.getByRole("button", { name: "Leave", exact: true }).click();
-    await owner.page.getByRole("button", { name: "Leave organization" }).click();
+    await owner.page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(owner.page.getByRole("alertdialog").getByRole("alert")).toHaveText(
       "You cannot leave the organization as the only owner",
     );
@@ -98,7 +98,7 @@ test.describe("members and roles", () => {
     // Admin leaves and lands in their other organization.
     await admin.page.goto("/members");
     await admin.page.getByRole("button", { name: "Leave", exact: true }).click();
-    await admin.page.getByRole("button", { name: "Leave organization" }).click();
+    await admin.page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(
       admin.page.locator("[data-slot=sidebar-header] button", { hasText: side.name }),
     ).toBeVisible();

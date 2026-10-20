@@ -1,5 +1,5 @@
 import { createHash, type KeyObject } from "node:crypto";
-import { and, desc, eq, gt, inArray, isNull, ne, schema, type Db, type SQL } from "@meshguard/db";
+import { and, desc, eq, gt, inArray, isNull, lt, ne, or, schema, sql, type Db, type SQL } from "@meshguard/db";
 import { AppError, ConflictError, NotFoundError } from "~/errors";
 import type { DeviceEvents } from "~/events/device-events";
 import { isUniqueViolation } from "~/lib/db-errors";
@@ -25,6 +25,9 @@ const {
   services,
   user,
 } = schema;
+
+/** How long an ephemeral device may be offline before it is removed. */
+export const EPHEMERAL_OFFLINE_MS = 30 * 60_000;
 
 /** Address picks before giving up; collisions only matter in nearly full networks. */
 const MAX_ADDRESS_ATTEMPTS = 20;
@@ -62,18 +65,24 @@ export class DevicesService {
   /**
    * Redeems an enrollment token and registers the device with random free
    * mesh addresses and a name unique in its network (`laptop`, `laptop-2`, …),
-   * which is also its DNS label, owned by the token's creator. The token is
-   * consumed in the same transaction, so it can enroll at most one device.
+   * which is also its DNS label, owned by the token's creator. A single-use
+   * token is consumed in the same transaction, so it enrolls at most one
+   * device; a reusable one keeps working until it expires or is revoked. The
+   * device starts with the token's tags and is ephemeral if the token is.
    */
   async enroll(input: EnrollDeviceInput) {
     const enrolled = await this.db.transaction(async (tx) => {
       const [token] = await tx
         .update(enrollmentTokens)
-        .set({ usedAt: new Date() })
+        .set({
+          // Reusable tokens are never "used up".
+          usedAt: sql`case when ${enrollmentTokens.reusable} then null else now() end`,
+          uses: sql`${enrollmentTokens.uses} + 1`,
+        })
         .where(
           and(
             eq(enrollmentTokens.tokenHash, hashToken(input.token)),
-            isNull(enrollmentTokens.usedAt),
+            or(eq(enrollmentTokens.reusable, true), isNull(enrollmentTokens.usedAt)),
             isNull(enrollmentTokens.revokedAt),
             gt(enrollmentTokens.expiresAt, new Date()),
           ),
@@ -82,6 +91,10 @@ export class DevicesService {
           id: enrollmentTokens.id,
           networkId: enrollmentTokens.networkId,
           createdBy: enrollmentTokens.createdBy,
+          reusable: enrollmentTokens.reusable,
+          ephemeral: enrollmentTokens.ephemeral,
+          preApproved: enrollmentTokens.preApproved,
+          tags: enrollmentTokens.tags,
         });
       if (!token) {
         throw new AppError(
@@ -129,6 +142,11 @@ export class DevicesService {
                 name,
                 // Until users sign in from the device, it belongs to whoever made its token.
                 userId: token.createdBy,
+                tags: token.tags,
+                ephemeral: token.ephemeral,
+                // Waits for an owner or admin when the network asks for approval.
+                approved: !network.deviceApproval || token.preApproved,
+                keyExpiresAt: keyExpiry(network.keyExpiryDays),
                 hostname: input.hostname,
                 platform: input.platform,
                 identityPublicKey: input.identityPublicKey,
@@ -139,12 +157,15 @@ export class DevicesService {
               .returning();
             return row!;
           });
-          await tx
-            .update(enrollmentTokens)
-            .set({ usedByDeviceId: device.id })
-            .where(eq(enrollmentTokens.id, token.id));
+          if (!token.reusable) {
+            await tx
+              .update(enrollmentTokens)
+              .set({ usedByDeviceId: device.id })
+              .where(eq(enrollmentTokens.id, token.id));
+          }
           return {
             device,
+            pendingApproval: !device.approved,
             network: {
               id: network.id,
               name: network.name,
@@ -191,6 +212,8 @@ export class DevicesService {
         id: devices.id,
         networkId: devices.networkId,
         identityPublicKey: devices.identityPublicKey,
+        approved: devices.approved,
+        keyExpiresAt: devices.keyExpiresAt,
       })
       .from(devices)
       .where(eq(devices.id, deviceId));
@@ -421,7 +444,14 @@ export class DevicesService {
         lastSeenAt: devices.lastSeenAt,
       })
       .from(devices)
-      .where(and(eq(devices.networkId, self.networkId), ne(devices.id, self.id)))
+      .where(
+        and(
+          eq(devices.networkId, self.networkId),
+          ne(devices.id, self.id),
+          // Devices waiting for approval or with an expired key are not on the mesh.
+          activeDevice(),
+        ),
+      )
       .orderBy(devices.createdAt);
     // Under "deny", only peers a rule connects it to (either way).
     const policy = await this.acl.policyFor(self.networkId, self.id);
@@ -590,6 +620,98 @@ export class DevicesService {
     );
   }
 
+  /**
+   * Lets a device waiting for approval onto the network. Peers get it on their
+   * next map, and the device's own syncs stop being refused.
+   */
+  async approve(organizationId: string, deviceId: string) {
+    const [device] = await this.db
+      .update(devices)
+      .set({ approved: true })
+      .where(
+        and(eq(devices.id, deviceId), inArray(devices.networkId, this.networksIn(organizationId))),
+      )
+      .returning({ id: devices.id, networkId: devices.networkId });
+    if (!device) throw new NotFoundError("device");
+    this.events.publish({ type: "updated", networkId: device.networkId, deviceId: device.id });
+    return { id: device.id, approved: true };
+  }
+
+  /**
+   * Sets the end of a device's key: "renew" starts a new period from now (as
+   * long as the network's key expiry is), "never" stops it expiring. A renewed
+   * device is accepted again at its next sync, and peers see it return.
+   */
+  async setKeyExpiry(organizationId: string, deviceId: string, action: "renew" | "never") {
+    const [device] = await this.db
+      .select({ id: devices.id, networkId: devices.networkId, days: networks.keyExpiryDays })
+      .from(devices)
+      .innerJoin(networks, eq(networks.id, devices.networkId))
+      .where(
+        and(eq(devices.id, deviceId), inArray(devices.networkId, this.networksIn(organizationId))),
+      );
+    if (!device) throw new NotFoundError("device");
+    const keyExpiresAt = action === "never" ? null : keyExpiry(device.days);
+    await this.db.update(devices).set({ keyExpiresAt }).where(eq(devices.id, device.id));
+    this.events.publish({ type: "updated", networkId: device.networkId, deviceId: device.id });
+    return { id: device.id, keyExpiresAt };
+  }
+
+  /**
+   * Keys expire without anyone acting, so peers would keep a device whose key
+   * just ended until some other change woke them. Publishes an update for the
+   * networks with a key that expired in the last `windowMs`; run it more often
+   * than that. Returns how many devices it announced.
+   */
+  async announceExpiredKeys(windowMs: number, now = new Date()) {
+    const expired = await this.db
+      .select({ id: devices.id, networkId: devices.networkId })
+      .from(devices)
+      .where(
+        and(
+          lt(devices.keyExpiresAt, now),
+          gt(devices.keyExpiresAt, new Date(now.getTime() - windowMs)),
+        ),
+      );
+    for (const device of expired) {
+      await this.presence.clear(device.networkId, device.id);
+      this.events.publish({ type: "updated", networkId: device.networkId, deviceId: device.id });
+    }
+    return expired.length;
+  }
+
+  /**
+   * Removes ephemeral devices that have been offline for `offlineMs`: their
+   * last sync (or enrollment, if they never synced) is older than that and
+   * they have no live presence. Returns how many went. Safe to run on every
+   * API replica at once: a device another replica already deleted is skipped.
+   */
+  async removeStaleEphemeral(offlineMs: number, now = new Date()) {
+    const cutoff = new Date(now.getTime() - offlineMs);
+    const candidates = await this.db
+      .select({ id: devices.id, networkId: devices.networkId })
+      .from(devices)
+      .where(
+        and(
+          eq(devices.ephemeral, true),
+          lt(sql`coalesce(${devices.lastSeenAt}, ${devices.createdAt})`, cutoff),
+        ),
+      );
+    let removed = 0;
+    const byNetwork = new Map<string, string[]>();
+    for (const d of candidates) {
+      byNetwork.set(d.networkId, [...(byNetwork.get(d.networkId) ?? []), d.id]);
+    }
+    for (const [networkId, ids] of byNetwork) {
+      // lastSeenAt is persisted only every few minutes; Redis knows who is online now.
+      const online = await this.presence.lastSeen(networkId, ids);
+      const stale = ids.filter((id) => !online.has(id));
+      if (stale.length === 0) continue;
+      removed += (await this.removeWhere(inArray(devices.id, stale))).length;
+    }
+    return removed;
+  }
+
   /** Removes every device a user owns in the organization, e.g. when they leave it. */
   async removeOwnedBy(organizationId: string, userId: string) {
     return this.removeWhere(
@@ -744,6 +866,9 @@ export class DevicesService {
         hostname: devices.hostname,
         platform: devices.platform,
         tags: devices.tags,
+        ephemeral: devices.ephemeral,
+        approved: devices.approved,
+        keyExpiresAt: devices.keyExpiresAt,
         funnel: devices.funnelEnabled,
         meshIpv4: devices.meshIpv4,
         meshIpv6: devices.meshIpv6,
@@ -789,6 +914,7 @@ export class DevicesService {
           .filter((route) => route.deviceId === row.id)
           .map(({ prefix, approved }) => ({ prefix, approved })),
         owner: ownerId ? { id: ownerId, name: ownerName!, email: ownerEmail! } : null,
+        keyExpired: row.keyExpiresAt !== null && row.keyExpiresAt <= new Date(),
         lastSeenAt: lastSeenAt ?? row.lastSeenAt,
         online: lastSeenAt !== undefined,
       };
@@ -826,4 +952,17 @@ function mapRevision(map: { peers: { lastSeenAt: unknown }[] }) {
 
 function sameEndpoints(a: string[], b: string[]) {
   return a.length === b.length && a.every((endpoint, i) => endpoint === b[i]);
+}
+
+/** When a key issued now ends, given the network's key expiry in days (null: never). */
+function keyExpiry(days: number | null, now = Date.now()) {
+  return days === null ? null : new Date(now + days * 24 * 60 * 60 * 1000);
+}
+
+/** Devices that are on the mesh: approved, and their key hasn't ended. */
+function activeDevice() {
+  return and(
+    eq(devices.approved, true),
+    or(isNull(devices.keyExpiresAt), gt(devices.keyExpiresAt, sql`now()`)),
+  );
 }

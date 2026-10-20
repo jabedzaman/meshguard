@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
+import { FormSubmit } from "~/components/form-submit";
 import {
   Dialog,
   DialogContent,
@@ -97,9 +98,7 @@ export function DeviceTagsDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? "Saving…" : "Save tags"}
-            </Button>
+            <FormSubmit pending={save.isPending} onCancel={() => setOpen(false)} />
           </DialogFooter>
         </form>
       </DialogContent>

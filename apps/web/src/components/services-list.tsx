@@ -93,7 +93,6 @@ export function ServicesList() {
                       triggerTooltip="Delete"
                       title={`Delete ${service.name}?`}
                       description="Its name and address stop working, and access rules that name it are removed."
-                      confirmLabel="Delete service"
                       onConfirm={async () => {
                         await serviceMutations.remove(service.id);
                         toast.success("Service deleted");

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@meshguard/api-client";
 import { Button } from "@meshguard/ui/components/button";
+import { FormSubmit } from "~/components/form-submit";
 import {
   Dialog,
   DialogContent,
@@ -134,9 +135,11 @@ export function ServiceDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="submit" disabled={save.isPending || (!service && !name.trim())}>
-              {save.isPending ? "Saving…" : service ? "Save hosts" : "Create service"}
-            </Button>
+            <FormSubmit
+              pending={save.isPending}
+              disabled={!service && !name.trim()}
+              onCancel={() => setOpen(false)}
+            />
           </DialogFooter>
         </form>
       </DialogContent>

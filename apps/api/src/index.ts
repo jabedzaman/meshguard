@@ -9,6 +9,7 @@ import {
   createNats,
   createRedis,
   createServices,
+  EPHEMERAL_OFFLINE_MS,
   DeviceEvents,
   ipv4CidrSchema,
   trustAnyAcmeServer,
@@ -106,6 +107,25 @@ const auth = createAuth(db, {
   // Rules naming roles may now match other devices.
   onMemberRoleChanged: ({ organizationId }) => services.acl.membershipChanged(organizationId),
 });
+// Ephemeral devices (enrolled with an ephemeral key) go once they stay offline.
+const SWEEP_MS = 60_000;
+const ephemeralSweep = setInterval(() => {
+  services.devices.removeStaleEphemeral(EPHEMERAL_OFFLINE_MS).then(
+    (removed) => {
+      if (removed > 0) logger.info({ removed }, "removed offline ephemeral devices");
+    },
+    (err) => logger.warn({ err }, "removing offline ephemeral devices failed"),
+  );
+  // Peers drop a device whose key just ended without waiting for another change.
+  services.devices.announceExpiredKeys(5 * SWEEP_MS).then(
+    (expired) => {
+      if (expired > 0) logger.info({ expired }, "announced expired device keys");
+    },
+    (err) => logger.warn({ err }, "announcing expired device keys failed"),
+  );
+}, SWEEP_MS);
+ephemeralSweep.unref();
+
 const app = createApp({ services, auth, corsOrigins: webOrigins(env) });
 
 const server = serve({ fetch: app.fetch, hostname: "0.0.0.0", port: env.API_PORT }, (info) => {
@@ -115,6 +135,7 @@ const server = serve({ fetch: app.fetch, hostname: "0.0.0.0", port: env.API_PORT
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     logger.info({ signal }, "shutting down");
+    clearInterval(ephemeralSweep);
     server.close(async () => {
       await emailQueue.queue.close();
       redis.disconnect();

@@ -22,7 +22,6 @@ export function LeaveOrganization() {
         trigger={<Button variant="outline">Leave</Button>}
         title={`Leave ${organization.name}?`}
         description="You'll need a new invitation to rejoin."
-        confirmLabel="Leave organization"
         onConfirm={async () => {
           await unwrap(authClient.organization.leave({ organizationId: organization.id }));
           // Better Auth clears this session's active organization; the proxy

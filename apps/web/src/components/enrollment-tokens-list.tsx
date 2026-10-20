@@ -40,6 +40,10 @@ export function EnrollmentTokensList() {
                   title={new Date(token.expiresAt).toLocaleString()}
                 >
                   {mine ? "you" : token.createdBy.email} · expires {timeAgo(token.expiresAt)}
+                  {token.reusable && ` · reusable (${token.uses} used)`}
+                  {token.ephemeral && " · ephemeral"}
+                  {token.tags.length > 0 &&
+                    ` · ${token.tags.map((tag) => `tag:${tag}`).join(", ")}`}
                 </span>
               </div>
             </div>
@@ -58,7 +62,6 @@ export function EnrollmentTokensList() {
                 triggerTooltip="Revoke"
                 title="Revoke this token?"
                 description="Devices can no longer use it to join the network."
-                confirmLabel="Revoke token"
                 onConfirm={async () => {
                   await enrollmentTokenMutations.revoke(token.id);
                   toast.success("Token revoked");

@@ -53,6 +53,10 @@ export const networks = pgTable(
     dnsLabel: text("dns_label").notNull().unique(),
     /** "allow": every device reaches every other; "deny": only what acl_rules allow. */
     aclDefaultAction: aclDefaultAction("acl_default_action").notNull().default("allow"),
+    /** New devices wait for an owner or admin to approve them, unless their key is pre-approved. */
+    deviceApproval: boolean("device_approval").notNull().default(false),
+    /** Days a device's key stays valid after enrolling or being renewed; null: never expires. */
+    keyExpiryDays: integer("key_expiry_days").default(180),
     ...timestamps,
   },
   (t) => [
@@ -95,6 +99,18 @@ export const devices = pgTable(
      * (funnel) at its mesh name; the device also has to choose a port to share.
      */
     funnelEnabled: boolean("funnel_enabled").notNull().default(false),
+    /**
+     * Enrolled with an ephemeral auth key: removed automatically after being
+     * offline for a while (servers, CI jobs and containers that come and go).
+     */
+    ephemeral: boolean("ephemeral").notNull().default(false),
+    /**
+     * False while the device waits for approval (the network asks for it): it
+     * is refused and no peer sees it.
+     */
+    approved: boolean("approved").notNull().default(true),
+    /** After this the device is refused until its key is renewed; null: never expires. */
+    keyExpiresAt: timestamp("key_expires_at", { withTimezone: true }),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
     /** UDP "host:port" addresses peers can try to reach this device's WireGuard on, best first. */
     endpoints: jsonb("endpoints").$type<string[]>().notNull().default([]),
@@ -134,8 +150,10 @@ export const deviceRoutes = pgTable(
 );
 
 /**
- * One-time tokens a device uses to join a network (`meshguard up --token ...`).
- * Only a hash is stored; the token is shown once when created.
+ * Tokens (auth keys) a device uses to join a network (`meshguard up --token ...`).
+ * Only a hash is stored; the token is shown once when created. By default a
+ * token works once; a reusable one enrolls any number of devices until it
+ * expires or is revoked.
  */
 export const enrollmentTokens = pgTable(
   "enrollment_tokens",
@@ -157,6 +175,16 @@ export const enrollmentTokens = pgTable(
       onDelete: "set null",
     }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** Enrolls any number of devices instead of one. */
+    reusable: boolean("reusable").notNull().default(false),
+    /** Devices it enrolls are ephemeral: removed after being offline a while. */
+    ephemeral: boolean("ephemeral").notNull().default(false),
+    /** Devices it enrolls skip the network's device approval. */
+    preApproved: boolean("pre_approved").notNull().default(false),
+    /** Tags (without "tag:") the devices it enrolls start with. */
+    tags: text("tags").array().notNull().default([]),
+    /** How many devices it has enrolled. */
+    uses: integer("uses").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("enrollment_tokens_network_id_idx").on(t.networkId)],

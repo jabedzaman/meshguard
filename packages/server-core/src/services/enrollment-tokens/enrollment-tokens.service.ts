@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, schema, type Db } from "@meshguard/db";
+import { and, desc, eq, gt, isNull, or, schema, type Db } from "@meshguard/db";
 import { ForbiddenError, NotFoundError } from "~/errors";
 import { generateEnrollmentToken, hashToken, tokenDisplayPrefix } from "~/lib/tokens";
 
@@ -8,7 +8,20 @@ export const ENROLLMENT_TOKEN_TTLS = {
   "1h": 60 * 60 * 1000,
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+  "90d": 90 * 24 * 60 * 60 * 1000,
 } as const;
+
+export interface EnrollmentTokenOptions {
+  /** Enrolls any number of devices instead of one. */
+  reusable?: boolean;
+  /** The devices it enrolls are removed automatically after being offline a while. */
+  ephemeral?: boolean;
+  /** Tags (without "tag:") the devices it enrolls start with. */
+  tags?: string[];
+  /** The devices it enrolls skip the network's device approval. */
+  preApproved?: boolean;
+}
 
 export type EnrollmentTokenTtl = keyof typeof ENROLLMENT_TOKEN_TTLS;
 
@@ -29,7 +42,12 @@ export class EnrollmentTokensService {
   }
 
   /** Creates a token. The plaintext is returned only here; only its hash is stored. */
-  async create(actor: Actor, networkId: string, ttl: EnrollmentTokenTtl) {
+  async create(
+    actor: Actor,
+    networkId: string,
+    ttl: EnrollmentTokenTtl,
+    { reusable = false, ephemeral = false, tags = [], preApproved = false }: EnrollmentTokenOptions = {},
+  ) {
     await this.assertNetworkInOrganization(actor.organizationId, networkId);
     const token = generateEnrollmentToken();
     const [row] = await this.db
@@ -40,18 +58,26 @@ export class EnrollmentTokensService {
         tokenHash: hashToken(token),
         tokenPrefix: tokenDisplayPrefix(token),
         expiresAt: new Date(Date.now() + ENROLLMENT_TOKEN_TTLS[ttl]),
+        reusable,
+        ephemeral,
+        preApproved,
+        tags: [...new Set(tags)].sort(),
       })
       .returning({
         id: enrollmentTokens.id,
         networkId: enrollmentTokens.networkId,
         tokenPrefix: enrollmentTokens.tokenPrefix,
         expiresAt: enrollmentTokens.expiresAt,
+        reusable: enrollmentTokens.reusable,
+        ephemeral: enrollmentTokens.ephemeral,
+        preApproved: enrollmentTokens.preApproved,
+        tags: enrollmentTokens.tags,
         createdAt: enrollmentTokens.createdAt,
       });
     return { ...row!, token };
   }
 
-  /** Tokens that can still be used: not used, revoked or expired. */
+  /** Tokens that can still be used: not used up, revoked or expired. */
   async listActive(organizationId: string, networkId: string) {
     await this.assertNetworkInOrganization(organizationId, networkId);
     return await this.db
@@ -61,6 +87,11 @@ export class EnrollmentTokensService {
         tokenPrefix: enrollmentTokens.tokenPrefix,
         expiresAt: enrollmentTokens.expiresAt,
         createdAt: enrollmentTokens.createdAt,
+        reusable: enrollmentTokens.reusable,
+        ephemeral: enrollmentTokens.ephemeral,
+        preApproved: enrollmentTokens.preApproved,
+        tags: enrollmentTokens.tags,
+        uses: enrollmentTokens.uses,
         createdBy: { id: user.id, name: user.name, email: user.email },
       })
       .from(enrollmentTokens)
@@ -68,7 +99,7 @@ export class EnrollmentTokensService {
       .where(
         and(
           eq(enrollmentTokens.networkId, networkId),
-          isNull(enrollmentTokens.usedAt),
+          or(eq(enrollmentTokens.reusable, true), isNull(enrollmentTokens.usedAt)),
           isNull(enrollmentTokens.revokedAt),
           gt(enrollmentTokens.expiresAt, new Date()),
         ),

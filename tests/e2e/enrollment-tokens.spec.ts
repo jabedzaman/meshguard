@@ -18,7 +18,7 @@ test.describe("enrollment tokens", () => {
     await page.getByRole("button", { name: "Add device" }).click();
     await page.getByRole("combobox").click();
     await page.getByRole("option", { name: "24 hours" }).click();
-    await page.getByRole("button", { name: "Create token" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
     const command = (await page.locator("[role=dialog] pre").textContent())!;
     expect(command).toMatch(new RegExp(`^meshguard up --token ${TOKEN.source}$`));
     const token = command.replace("meshguard up --token ", "");
@@ -40,7 +40,7 @@ test.describe("enrollment tokens", () => {
     expect(rows[0]!.token_prefix).toBe(token.slice(0, 20));
 
     await row.getByRole("button", { name: /Revoke/ }).click();
-    await page.getByRole("button", { name: "Revoke token" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(page.getByText("No active enrollment tokens.")).toBeVisible();
   });
 
@@ -84,7 +84,7 @@ test.describe("enrollment tokens", () => {
       .locator("li", { hasText: memberToken.tokenPrefix })
       .getByRole("button", { name: /Revoke/ })
       .click();
-    await owner.page.getByRole("button", { name: "Revoke token" }).click();
+    await owner.page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(owner.page.locator("li", { hasText: memberToken.tokenPrefix })).toHaveCount(0);
   });
 
@@ -104,5 +104,31 @@ test.describe("enrollment tokens", () => {
       status: 404,
       body: { error: { code: "network_not_found" } },
     });
+  });
+});
+
+test.describe("add device dialog", () => {
+  test("a closed dialog forgets its token", async ({ createUser, createOrganization }) => {
+    const owner = await createUser("Owner");
+    await createOrganization(owner, "Dialog Org");
+    const { page } = owner;
+    await page.goto("/devices");
+
+    const command = page.locator("[role=dialog] pre");
+    for (const close of [
+      () => page.keyboard.press("Escape"),
+      () => page.getByRole("button", { name: "Done" }).click(),
+    ]) {
+      await page.getByRole("button", { name: "Add device" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
+      await expect(command).toContainText("meshguard up --token");
+      await close();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+
+      await page.getByRole("button", { name: "Add device" }).click();
+      await expect(command).toHaveCount(0);
+      await expect(page.getByRole("dialog").getByRole("button", { name: "Confirm" })).toBeVisible();
+      await page.keyboard.press("Escape");
+    }
   });
 });

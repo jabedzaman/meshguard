@@ -3,11 +3,7 @@ import { enroll, signingDevice, sync } from "./support/devices";
 import { api, expect, test, ownNetwork } from "./support/fixtures";
 
 async function enrollDevice(page: Page, networkId: string, hostname: string) {
-  const { token } = await api<{ token: string }>(
-    page,
-    `/v1/network/enrollment-tokens`,
-    {},
-  );
+  const { token } = await api<{ token: string }>(page, `/v1/network/enrollment-tokens`, {});
   const device = signingDevice();
   const res = await enroll({ token, hostname, platform: "linux", ...device.keys });
   expect(res.status).toBe(201);
@@ -119,12 +115,7 @@ test.describe("services", () => {
       }),
     ).rejects.toMatchObject({ status: 404 });
 
-    await api(
-      owner.page,
-      `/v1/network/acl`,
-      { defaultAction: "deny" },
-      { method: "PATCH" },
-    );
+    await api(owner.page, `/v1/network/acl`, { defaultAction: "deny" }, { method: "PATCH" });
     await api(owner.page, `/v1/network/acl/rules`, {
       source: `device:${client.id}`,
       destination: "service:web",
@@ -164,7 +155,7 @@ test.describe("services", () => {
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Name").fill("web");
     await dialog.getByLabel("beta").check();
-    await dialog.getByRole("button", { name: "Create service" }).click();
+    await dialog.getByRole("button", { name: "Confirm" }).click();
     await expect(dialog).toHaveCount(0);
 
     const row = page.locator("li", { hasText: "web.svc." });
@@ -174,7 +165,7 @@ test.describe("services", () => {
 
     await page.getByRole("button", { name: "Hosts of web" }).click();
     await page.getByRole("dialog").getByLabel("alpha").check();
-    await page.getByRole("dialog").getByRole("button", { name: "Save hosts" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
     await expect(row).toContainText("alpha");
 
     // The service can be a rule's destination.
@@ -182,12 +173,12 @@ test.describe("services", () => {
     await page.getByRole("button", { name: "Add rule" }).click();
     await page.getByRole("dialog").getByLabel("To", { exact: true }).click();
     await page.getByRole("option", { name: "service:web" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Add rule" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
     await expect(page.locator("li", { hasText: "service:web" })).toBeVisible();
 
     await page.goto("/services");
     await page.getByRole("button", { name: "Delete web" }).click();
-    await page.getByRole("button", { name: "Delete service" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(row).toHaveCount(0);
     await page.goto("/access");
     await expect(page.getByText("No access rules.")).toBeVisible();

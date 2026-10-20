@@ -64,6 +64,25 @@ export class NetworksService {
     );
   }
 
+  /**
+   * Changes the network's device policy: whether new devices wait for
+   * approval, and how many days a key lasts (null: never). Keys already issued
+   * keep their end date; renewing one uses the new length.
+   */
+  async updateSettings(
+    organizationId: string,
+    settings: { deviceApproval?: boolean; keyExpiryDays?: number | null },
+  ) {
+    if (Object.keys(settings).length === 0) return this.current(organizationId);
+    const [network] = await this.db
+      .update(networks)
+      .set(settings)
+      .where(eq(networks.organizationId, organizationId))
+      .returning();
+    if (!network) throw new NotFoundError("network");
+    return this.withDnsDomain(network);
+  }
+
   /** The domain the network's devices resolve under, e.g. `brave-otter.mesh.jabed.dev`. */
   dnsDomain(label: string): string {
     return networkDnsDomain(label, this.dnsBaseDomain);

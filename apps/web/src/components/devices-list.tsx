@@ -1,7 +1,16 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { GlobeIcon, LaptopIcon, MonitorIcon, ServerIcon, Trash2Icon } from "lucide-react";
+import {
+  CheckIcon,
+  GlobeIcon,
+  InfinityIcon,
+  LaptopIcon,
+  MonitorIcon,
+  RefreshCwIcon,
+  ServerIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@meshguard/api-client";
@@ -37,7 +46,14 @@ const PLATFORMS = {
 } as const;
 
 /** The API decides `online` (see PresenceStore in server-core). */
-function presence(device: { online: boolean; lastSeenAt: string | null }) {
+function presence(device: {
+  online: boolean;
+  lastSeenAt: string | null;
+  approved: boolean;
+  keyExpired: boolean;
+}) {
+  if (!device.approved) return { online: false, label: "waiting for approval" };
+  if (device.keyExpired) return { online: false, label: "key expired" };
   if (device.online) return { online: true, label: "online" };
   if (!device.lastSeenAt) return { online: false, label: "never connected" };
   return { online: false, label: `last seen ${timeAgo(device.lastSeenAt)}` };
@@ -49,12 +65,15 @@ type Device = {
   online: boolean;
   tags: string[];
   funnel: boolean;
+  approved: boolean;
+  keyExpired: boolean;
+  keyExpiresAt: string | null;
   routes: { prefix: string; approved: boolean }[];
 };
 const deviceId = (device: Device) => device.id;
 // What a viewer would notice changing: presence, name and tags.
 const deviceSignature = (device: Device) =>
-  `${device.online}|${device.name}|${device.funnel}|${device.tags.join(",")}|${device.routes
+  `${device.online}|${device.approved}|${device.keyExpired}|${device.name}|${device.funnel}|${device.tags.join(",")}|${device.routes
     .map((route) => route.prefix + route.approved)
     .join(",")}`;
 
@@ -151,9 +170,7 @@ export function DevicesList() {
         </ToggleGroup>
       </div>
       {shown.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          No devices match these filters.
-        </p>
+        <p className="text-muted-foreground text-sm">No devices match these filters.</p>
       ) : (
         <ul ref={listRef} className="divide-border bg-card divide-y rounded-xl border shadow-sm">
           {shown.map((device) => {
@@ -176,6 +193,19 @@ export function DevicesList() {
                   <div className="grid min-w-0 gap-0.5">
                     <span className="flex flex-wrap items-center gap-2 font-medium">
                       {device.name}
+                      {!device.approved && (
+                        <Badge
+                          variant="outline"
+                          className="font-normal text-amber-700 dark:text-amber-400"
+                        >
+                          pending approval
+                        </Badge>
+                      )}
+                      {device.keyExpired && (
+                        <Badge variant="outline" className="text-destructive font-normal">
+                          key expired
+                        </Badge>
+                      )}
                       {device.tags.map((tag) => (
                         <Badge key={tag} variant="secondary" className="font-mono font-normal">
                           tag:{tag}
@@ -215,15 +245,91 @@ export function DevicesList() {
                         {status.label}
                       </span>
                       {device.owner && ` · ${mine(device) ? "yours" : device.owner.name}`}
+                      {device.keyExpiresAt && !device.keyExpired && (
+                        <span title={new Date(device.keyExpiresAt).toLocaleString()}>
+                          {" "}
+                          · key ends {timeAgo(device.keyExpiresAt)}
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground grid text-right font-mono text-xs">
-                    {device.meshIpv4 && <CopyText value={device.meshIpv4} className="text-foreground" />}
+                    {device.meshIpv4 && (
+                      <CopyText value={device.meshIpv4} className="text-foreground" />
+                    )}
                     {device.meshIpv6 && <CopyText value={device.meshIpv6} />}
                   </span>
                   <div className="flex items-center">
+                    {canRenameAny && !device.approved && (
+                      <ConfirmDialog
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-emerald-600 dark:text-emerald-400"
+                            aria-label={`Approve ${device.name}`}
+                          >
+                            <CheckIcon />
+                          </Button>
+                        }
+                        triggerTooltip="Approve"
+                        title={`Approve ${device.name}?`}
+                        description="It joins the network at its next sync and peers can reach it."
+                        onConfirm={async () => {
+                          await deviceMutations.approve(device.id);
+                          toast.success("Device approved");
+                          await queryClient.invalidateQueries({ queryKey: deviceQueries.all() });
+                        }}
+                        variant="default"
+                      />
+                    )}
+                    {canRenameAny && device.keyExpiresAt && (
+                      <ConfirmDialog
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className={device.keyExpired ? "text-destructive" : undefined}
+                            aria-label={`Renew key of ${device.name}`}
+                          >
+                            <RefreshCwIcon />
+                          </Button>
+                        }
+                        triggerTooltip="Renew key"
+                        title={`Renew the key of ${device.name}?`}
+                        description="Starts a new key period from now. An expired device is accepted again at its next sync."
+                        onConfirm={async () => {
+                          await deviceMutations.setKey(device.id, "renew");
+                          toast.success("Key renewed");
+                          await queryClient.invalidateQueries({ queryKey: deviceQueries.all() });
+                        }}
+                        variant="default"
+                      />
+                    )}
+                    {canRenameAny && device.keyExpiresAt && (
+                      <ConfirmDialog
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Disable key expiry of ${device.name}`}
+                          >
+                            <InfinityIcon />
+                          </Button>
+                        }
+                        triggerTooltip="Never expire"
+                        title={`Stop ${device.name}'s key expiring?`}
+                        description="Its key stays valid until you remove the device. Use it for servers that no one signs in to again."
+                        onConfirm={async () => {
+                          await deviceMutations.setKey(device.id, "never");
+                          toast.success("Key no longer expires");
+                          await queryClient.invalidateQueries({ queryKey: deviceQueries.all() });
+                        }}
+                        variant="default"
+                      />
+                    )}
                     {canRenameAny && (
                       <ConfirmDialog
                         trigger={
@@ -249,7 +355,6 @@ export function DevicesList() {
                             ? `https://${device.name}.${dnsDomain} stops answering from outside the network.`
                             : `Anyone on the internet can then open https://${device.name}.${dnsDomain}, through the relay. They reach only the local port someone chooses on the device with meshguard funnel <port>; nothing is shared until then.`
                         }
-                        confirmLabel={device.funnel ? "Turn off" : "Turn on"}
                         onConfirm={async () => {
                           await deviceMutations.setFunnel(device.id, !device.funnel);
                           toast.success(device.funnel ? "Public access off" : "Public access on");
@@ -279,7 +384,6 @@ export function DevicesList() {
                         triggerTooltip="Remove"
                         title={`Remove ${device.name}?`}
                         description={`It leaves the network and peers stop reaching ${device.name}.${dnsDomain}. To bring it back, run meshguard logout --force on it, then enroll it again.`}
-                        confirmLabel="Remove device"
                         onConfirm={async () => {
                           await deviceMutations.remove(device.id);
                           toast.success("Device removed");

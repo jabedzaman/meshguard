@@ -13,6 +13,8 @@ export const devicesRoutes = new Hono<AppEnv>()
   .put("/:id/tags", ...controller.setTags)
   .put("/:id/routes", ...controller.setRoutes)
   .put("/:id/funnel", ...controller.setFunnel)
+  .post("/:id/approve", ...controller.approve)
+  .put("/:id/key", ...controller.setKey)
   .delete("/:id", ...controller.remove);
 
 /** Nested under the network router: /v1/network/devices. */

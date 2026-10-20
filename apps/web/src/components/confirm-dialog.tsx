@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   AlertDialog,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -11,7 +10,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@meshguard/ui/components/alert-dialog";
-import { Button } from "@meshguard/ui/components/button";
+import { FormSubmit } from "~/components/form-submit";
 import { IconAction } from "~/components/icon-action";
 
 /**
@@ -23,16 +22,17 @@ export function ConfirmDialog({
   triggerTooltip,
   title,
   description,
-  confirmLabel,
   onConfirm,
+  variant = "destructive",
 }: {
   trigger: React.ReactNode;
   /** Names an icon-only trigger. */
   triggerTooltip?: string;
   title: string;
   description: React.ReactNode;
-  confirmLabel: string;
   onConfirm: () => Promise<unknown>;
+  /** Destructive (red) by default; use "default" for actions that aren't. */
+  variant?: "default" | "destructive";
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -68,21 +68,34 @@ export function ConfirmDialog({
         <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
       )}
       <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        {error && (
-          <p role="alert" className="text-destructive text-sm">
-            {error}
-          </p>
-        )}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <Button variant="destructive" disabled={pending} onClick={confirm}>
-            {pending ? "Working…" : confirmLabel}
-          </Button>
-        </AlertDialogFooter>
+        {/* display: contents keeps the dialog's layout; the form makes Enter confirm. */}
+        <form
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void confirm();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{title}</AlertDialogTitle>
+            <AlertDialogDescription>{description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {error && (
+            <p role="alert" className="text-destructive text-sm">
+              {error}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <FormSubmit
+              variant="destructive"
+              pending={pending}
+              onCancel={() => {
+                setOpen(false);
+                setError(null);
+              }}
+            />
+          </AlertDialogFooter>
+        </form>
       </AlertDialogContent>
     </AlertDialog>
   );

@@ -124,7 +124,6 @@ export function MembersList() {
                     triggerTooltip="Remove"
                     title={`Remove ${member.user.name}?`}
                     description={`${member.user.email} will lose access to ${organization.name}.`}
-                    confirmLabel="Remove member"
                     onConfirm={async () => {
                       await unwrap(
                         authClient.organization.removeMember({ memberIdOrEmail: member.id }),

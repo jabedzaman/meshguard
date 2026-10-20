@@ -12,11 +12,7 @@ test.describe("devices", () => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Device Org");
     const network = await ownNetwork<{ id: string }>(owner.page);
-    const { token } = await api<{ token: string }>(
-      owner.page,
-      `/v1/network/enrollment-tokens`,
-      {},
-    );
+    const { token } = await api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {});
 
     await owner.page.goto("/devices");
     await expect(owner.page.getByText("No devices yet.")).toBeVisible();
@@ -68,9 +64,7 @@ test.describe("devices", () => {
     await createOrganization(owner, "Rename Org");
     const network = await ownNetwork<{ id: string; dnsDomain: string }>(owner.page);
     const token = () =>
-      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then(
-        (t) => t.token,
-      );
+      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then((t) => t.token);
     const laptop = signingDevice();
     const a = await enroll({
       token: await token(),
@@ -95,14 +89,14 @@ test.describe("devices", () => {
     const input = owner.page.getByLabel("Device name");
     await input.fill("Work-Laptop");
     await expect(owner.page.getByText(`work-laptop.${network.dnsDomain}`)).toBeVisible();
-    await owner.page.getByRole("button", { name: "Save" }).click();
+    await owner.page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
     await expect(owner.page.getByRole("dialog")).toHaveCount(0);
     await expect(owner.page.locator("li", { hasText: "work-laptop" })).toContainText("macOS");
 
     // A name another device has is refused on the field.
     await owner.page.getByRole("button", { name: "Rename work-laptop" }).click();
     await input.fill("server");
-    await owner.page.getByRole("button", { name: "Save" }).click();
+    await owner.page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
     await expect(
       owner.page.getByText("Another device in this network is named server"),
     ).toBeVisible();
@@ -160,9 +154,7 @@ test.describe("devices", () => {
     await createOrganization(owner, "Remove Org");
     const network = await ownNetwork<{ id: string }>(owner.page);
     const token = () =>
-      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then(
-        (t) => t.token,
-      );
+      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then((t) => t.token);
     const old = signingDevice();
     const a = await enroll({
       token: await token(),
@@ -199,7 +191,7 @@ test.describe("devices", () => {
     // From the web: confirm, and the row goes away.
     await owner.page.goto("/devices");
     await owner.page.getByRole("button", { name: "Remove old-mac" }).click();
-    await owner.page.getByRole("button", { name: "Remove device" }).click();
+    await owner.page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(owner.page.locator("li", { hasText: "old-mac" })).toHaveCount(0);
     await expect(owner.page.locator("li", { hasText: "server" })).toBeVisible();
     // The member's open page hears about it too.
@@ -274,7 +266,7 @@ test.describe("devices", () => {
     await alice.page.getByRole("radio", { name: "Mine" }).click();
     await expect(rows).toHaveCount(2);
     await alice.page.getByRole("button", { name: "Remove alice-pi" }).click();
-    await alice.page.getByRole("button", { name: "Remove device" }).click();
+    await alice.page.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
     await expect(rows).toHaveCount(1);
 
     // Leaving takes Alice's devices with her; removing Bob takes his.
@@ -295,11 +287,7 @@ test.describe("devices", () => {
     await createOrganization(owner, "Rules Org");
     const network = await ownNetwork<{ id: string }>(owner.page);
     const newToken = () =>
-      api<{ id: string; token: string }>(
-        owner.page,
-        `/v1/network/enrollment-tokens`,
-        {},
-      );
+      api<{ id: string; token: string }>(owner.page, `/v1/network/enrollment-tokens`, {});
 
     const first = await newToken();
     const keys = deviceKeys();
@@ -385,9 +373,7 @@ test.describe("devices", () => {
     await createOrganization(owner, "Sync Org");
     const network = await ownNetwork<{ id: string }>(owner.page);
     const token = () =>
-      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then(
-        (t) => t.token,
-      );
+      api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {}).then((t) => t.token);
 
     const laptop = signingDevice();
     const server = signingDevice();
@@ -444,11 +430,7 @@ test.describe("devices", () => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Reject Org");
     const network = await ownNetwork<{ id: string }>(owner.page);
-    const { token } = await api<{ token: string }>(
-      owner.page,
-      `/v1/network/enrollment-tokens`,
-      {},
-    );
+    const { token } = await api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {});
     const keys = signingDevice();
     const enrolled = await enroll({ token, hostname: "box", platform: "linux", ...keys.keys });
     const device = { id: enrolled.body.device.id, privateKey: keys.privateKey };
@@ -536,13 +518,7 @@ test.describe("devices", () => {
     const current = (await sync(laptop, { endpoints: [] })).body.revision as string;
     expect(current).not.toBe(revision);
     const denied = await timed(
-      () =>
-        api(
-          owner.page,
-          `/v1/network/acl`,
-          { defaultAction: "deny" },
-          { method: "PATCH" },
-        ),
+      () => api(owner.page, `/v1/network/acl`, { defaultAction: "deny" }, { method: "PATCH" }),
       current,
     );
     expect(denied.res).toMatchObject({ status: 200, body: { changed: true } });
@@ -556,11 +532,7 @@ test.describe("devices", () => {
     const owner = await createUser("Owner");
     await createOrganization(owner, "Presence Org");
     const network = await ownNetwork<{ id: string }>(owner.page);
-    const { token } = await api<{ token: string }>(
-      owner.page,
-      `/v1/network/enrollment-tokens`,
-      {},
-    );
+    const { token } = await api<{ token: string }>(owner.page, `/v1/network/enrollment-tokens`, {});
     const keys = signingDevice();
     const enrolled = await enroll({ token, hostname: "laptop", platform: "linux", ...keys.keys });
     const device = { id: enrolled.body.device.id, privateKey: keys.privateKey };
