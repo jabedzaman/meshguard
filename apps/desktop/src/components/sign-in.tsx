@@ -55,8 +55,8 @@ export function SignIn() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center">
-      <Card className="w-full max-w-sm">
+    <div className="flex w-full justify-center">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Sign in</CardTitle>
           <CardDescription>Approve this device for a network in your browser.</CardDescription>

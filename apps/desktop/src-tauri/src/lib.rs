@@ -2,6 +2,7 @@ mod agent;
 mod commands;
 mod install;
 mod login;
+mod quit;
 mod settings;
 mod tray;
 
@@ -65,7 +66,7 @@ pub fn on_menu(app: &AppHandle, id: &str) {
                 let _ = commands::set_connected(app, connect).await;
             });
         }
-        "quit" => app.exit(0),
+        "quit" => quit::request(app),
         _ => {}
     }
 }
@@ -151,6 +152,12 @@ pub fn run() {
 
     app.run(|app, event| {
         // Clicking the Dock icon with no window open brings it back.
+        // ⌘Q and the Dock menu; `app.exit(..)` carries a code and isn't intercepted.
+        if let RunEvent::ExitRequested { code: None, api, .. } = &event {
+            api.prevent_exit();
+            quit::request(app);
+            return;
+        }
         #[cfg(target_os = "macos")]
         if let RunEvent::Reopen { has_visible_windows: false, .. } = event {
             show_window(app);

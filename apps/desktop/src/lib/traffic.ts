@@ -18,27 +18,38 @@ export const totals = (status: Status) =>
  * The agent reports totals, so each rate is the change since the previous sample.
  */
 export function useTraffic(status: Status): TrafficPoint[] {
-  const latest = useRef(status);
-  latest.current = status;
   const previous = useRef<{ at: number; rx: number; tx: number } | null>(null);
   const [points, setPoints] = useState<TrafficPoint[]>(() =>
     Array.from({ length: KEEP }, (_, i) => ({ at: Date.now() - (KEEP - i) * TICK_MS, rx: 0, tx: 0 })),
   );
 
+  // The shell only pushes a status when something changed, so a fixed timer can land before the
+  // update and read zero. Sample when a status arrives, and fall back to a timer for quiet periods.
+  const latest = useRef(status);
+  latest.current = status;
+  const sample = useRef(() => {});
+  sample.current = () => {
+    const now = Date.now();
+    const cur = totals(latest.current);
+    const prev = previous.current;
+    if (prev && now - prev.at < 500) return;
+    previous.current = { at: now, ...cur };
+    if (!prev) return;
+    const seconds = (now - prev.at) / 1000;
+    // A counter that went down means the interface restarted.
+    const rate = (a: number, b: number) => (a >= b ? (a - b) / seconds : 0);
+    setPoints((all) => [...all.slice(-(KEEP - 1)), { at: now, rx: rate(cur.rx, prev.rx), tx: rate(cur.tx, prev.tx) }]);
+  };
+
   useEffect(() => {
-    const sample = () => {
-      const now = Date.now();
-      const cur = totals(latest.current);
+    sample.current();
+  }, [status]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
       const prev = previous.current;
-      previous.current = { at: now, ...cur };
-      if (!prev) return;
-      const seconds = (now - prev.at) / 1000;
-      // A counter that went down means the interface restarted.
-      const rate = (a: number, b: number) => (a >= b ? (a - b) / seconds : 0);
-      setPoints((all) => [...all.slice(-(KEEP - 1)), { at: now, rx: rate(cur.rx, prev.rx), tx: rate(cur.tx, prev.tx) }]);
-    };
-    sample();
-    const id = setInterval(sample, TICK_MS);
+      if (!prev || Date.now() - prev.at >= TICK_MS) sample.current();
+    }, TICK_MS);
     return () => clearInterval(id);
   }, []);
 

@@ -14,15 +14,33 @@ import {
   CardTitle,
 } from "@meshguard/ui/components/card";
 import { Skeleton } from "@meshguard/ui/components/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@meshguard/ui/components/select";
 import { useOrganization, usePermission } from "~/components/providers/organization-provider";
+import { useResetNavigate } from "~/hooks/use-session-navigation";
+import { authClient, unwrap } from "~/lib/auth-client";
 import { timeAgo } from "~/lib/time";
 import { deviceLoginMutations, deviceLoginQueries, networkQueries } from "~/lib/queries";
 
 const PLATFORMS: Record<string, string> = { darwin: "macOS", linux: "Linux", windows: "Windows" };
 
+export type ConnectOrganization = { id: string; name: string; url: string | null };
+
 /** Approves a browser login started by `meshguard up` on another machine. */
-export function ConnectDevice({ id }: { id: string }) {
+export function ConnectDevice({
+  id,
+  organizations,
+}: {
+  id: string;
+  organizations: ConnectOrganization[];
+}) {
   const organization = useOrganization();
+  const navigate = useResetNavigate();
   const canEnroll = usePermission({ device: ["create"] });
   const queryClient = useQueryClient();
 
@@ -34,6 +52,12 @@ export function ConnectDevice({ id }: { id: string }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["devices"] }),
   });
   const deny = useMutation({ mutationFn: () => deviceLoginMutations.deny(id) });
+  // Approval joins the session's active organization, so choosing one switches it.
+  const switchOrganization = useMutation({
+    mutationFn: (target: ConnectOrganization) =>
+      unwrap(authClient.organization.setActive({ organizationId: target.id })),
+    onSuccess: (_, target) => navigate(target.url ?? `/connect?login=${encodeURIComponent(id)}`),
+  });
 
   if (id === "") {
     return (
@@ -83,8 +107,8 @@ export function ConnectDevice({ id }: { id: string }) {
     return <Notice title="Login denied" description="The device was not connected." />;
   }
 
-  const error = approve.error ?? deny.error ?? network.error;
-  const busy = approve.isPending || deny.isPending;
+  const error = approve.error ?? deny.error ?? network.error ?? switchOrganization.error;
+  const busy = approve.isPending || deny.isPending || switchOrganization.isPending;
 
   return (
     <Card>
@@ -113,11 +137,36 @@ export function ConnectDevice({ id }: { id: string }) {
           <dt>Requested</dt>
           <dd className="text-foreground">{timeAgo(login.data.startedAt)}</dd>
         </dl>
-        {network.data && (
-          <p className="text-muted-foreground text-sm">
-            It joins <span className="text-foreground font-medium">{network.data.name}</span>.
-          </p>
-        )}
+        <div className="flex flex-col gap-2">
+          <label htmlFor="connect-organization" className="text-sm font-medium">
+            Join organization
+          </label>
+          <Select
+            value={organization.id}
+            disabled={busy || organizations.length < 2}
+            onValueChange={(value) => {
+              const target = organizations.find((o) => o.id === value);
+              if (target) switchOrganization.mutate(target);
+            }}
+          >
+            <SelectTrigger id="connect-organization" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {organizations.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {network.data && (
+            <p className="text-muted-foreground text-sm">
+              {login.data.hostname} joins the{" "}
+              <span className="text-foreground font-medium">{network.data.name}</span> network.
+            </p>
+          )}
+        </div>
         {error && (
           <p role="alert" className="text-destructive text-sm">
             {getErrorMessage(error)}

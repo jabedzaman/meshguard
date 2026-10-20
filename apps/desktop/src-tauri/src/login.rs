@@ -38,6 +38,14 @@ pub struct Login {
     generation: u64,
 }
 
+/// The platform names the control plane accepts (Go's GOOS spelling).
+fn platform() -> &'static str {
+    match std::env::consts::OS {
+        "macos" => "darwin",
+        other => other,
+    }
+}
+
 fn hostname() -> String {
     let out = std::process::Command::new("hostname").output().ok();
     let name = out.map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
@@ -48,7 +56,7 @@ pub async fn start(server: &str) -> Result<Login, String> {
     let server = server.trim_end_matches('/');
     let res = reqwest::Client::new()
         .post(format!("{server}/v1/device-logins"))
-        .json(&json!({ "hostname": hostname(), "platform": std::env::consts::OS }))
+        .json(&json!({ "hostname": hostname(), "platform": platform() }))
         .send()
         .await
         .map_err(|e| format!("can't reach {server}: {e}"))?;

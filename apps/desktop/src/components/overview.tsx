@@ -151,7 +151,7 @@ export function Overview({ status }: { status: Status }) {
       <Separator />
 
       {/* Paths and per-device traffic */}
-      <section className="grid gap-8 md:grid-cols-[14rem_1fr]">
+      <section className="grid items-start gap-8 md:grid-cols-[12rem_1fr]">
         <div className="flex flex-col gap-3">
           <h2 className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
             <RouteIcon className="size-4" />
@@ -161,8 +161,8 @@ export function Overview({ status }: { status: Status }) {
             <p className="text-muted-foreground text-sm">No other devices yet.</p>
           ) : (
             <>
-              <div className="relative">
-                <ChartContainer config={pathConfig} className="mx-auto aspect-square h-36">
+              <div className="relative mx-auto w-36">
+                <ChartContainer config={pathConfig} className="aspect-square h-36 w-36">
                   <PieChart>
                     <ChartTooltip content={<ChartTooltipContent hideLabel />} />
                     <Pie
@@ -187,7 +187,7 @@ export function Overview({ status }: { status: Status }) {
                   <span className="text-muted-foreground text-xs">{peers.length === 1 ? "device" : "devices"}</span>
                 </div>
               </div>
-              <ul className="grid gap-1.5 text-sm">
+              <ul className="mx-auto grid w-36 gap-1.5 text-sm">
                 <PathRow icon={ZapIcon} color="var(--chart-1)" label="Direct" count={direct} />
                 <PathRow icon={ServerIcon} color="var(--chart-2)" label="Relay" count={relayed} />
                 {idle > 0 && <PathRow icon={ActivityIcon} color="var(--muted-foreground)" label="Idle" count={idle} />}
@@ -204,11 +204,11 @@ export function Overview({ status }: { status: Status }) {
           {peers.length === 0 ? (
             <p className="text-muted-foreground text-sm">Devices that join show up here with what they send and receive.</p>
           ) : (
-            <ChartContainer config={perPeerConfig} className="aspect-auto w-full" style={{ height: Math.max(peers.length, 2) * 44 + 24 }}>
+            <ChartContainer config={perPeerConfig} className="aspect-auto w-full" style={{ height: Math.max(peers.length, 2) * 44 + 24, maxHeight: 220 }}>
               <BarChart
                 data={peers.map((p) => ({ name: p.name, rx: p.rxBytes ?? 0, tx: p.txBytes ?? 0 }))}
                 layout="vertical"
-                margin={{ left: 0, right: 8, top: 0, bottom: 0 }}
+                margin={{ left: 0, right: 24, top: 0, bottom: 0 }}
                 barCategoryGap={12}
               >
                 <CartesianGrid horizontal={false} strokeDasharray="3 3" />

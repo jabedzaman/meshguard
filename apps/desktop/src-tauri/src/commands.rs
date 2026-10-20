@@ -120,5 +120,5 @@ pub fn set_settings(app: AppHandle, settings: Settings) -> Res<Settings> {
 
 #[tauri::command]
 pub fn quit(app: AppHandle) {
-    app.exit(0);
+    crate::quit::request(&app);
 }

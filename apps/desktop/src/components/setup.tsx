@@ -42,12 +42,12 @@ export function Setup({ state }: Props) {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center">
-      <Card className="w-full max-w-sm">
+    <div className="flex w-full justify-center">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <Icon className="text-muted-foreground mb-2 size-8" />
           <CardTitle>{c.title}</CardTitle>
-          <CardDescription>{c.body}</CardDescription>
+          <CardDescription className="text-foreground/70 text-pretty">{c.body}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {state.kind === "denied" && <p className="text-muted-foreground text-xs">{state.message}</p>}
