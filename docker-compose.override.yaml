@@ -157,6 +157,9 @@ services:
       - NATS_URL=nats://nats:4222
       - BETTER_AUTH_URL=http://localhost:4200
       - WEB_URL=http://localhost:3200
+      # The e2e stack lives on localhost: don't inherit the dev cookie domain from .env.
+      - AUTH_COOKIE_DOMAIN=
+      - WEB_ROOT_DOMAIN=
       - RELAY_URL=ws://10.200.0.11:3340/relay
       - STUN_SERVERS=10.200.0.11:3478,10.200.0.11:3479
       # HTTPS certificates for mesh names come from Pebble, a test CA that
@@ -204,6 +207,8 @@ services:
       - BETTER_AUTH_URL=http://localhost:4200
       - WEB_URL=http://localhost:3200
       - NEXT_PUBLIC_API_URL=http://localhost:4200
+      - AUTH_COOKIE_DOMAIN=
+      - WEB_ROOT_DOMAIN=
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=1
       - CHOKIDAR_INTERVAL=500
